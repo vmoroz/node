@@ -570,6 +570,7 @@ void RefBase::Finalize(bool is_env_teardown) {
     Delete(this);
   } else {
     _finalize_ran = true;
+    Unlink();
   }
 }
 
@@ -606,6 +607,8 @@ Reference::~Reference() {
   // and we need to delete it here.
   if (!_secondPassScheduled) {
     delete _secondPassParameter;
+  } else if (_secondPassParameter) {
+    *_secondPassParameter = nullptr;
   }
 }
 
@@ -698,6 +701,10 @@ void Reference::FinalizeCallback(
   reference->_secondPassScheduled = true;
 
   data.SetSecondPassCallback(SecondPassCallback);
+
+  // Add the reference to the finalizing_queue
+  reference->Unlink();
+  reference->Link(&reference->_env->finalizing_queue);
 }
 
 // Second pass callbacks are scheduled with platform tasks. At env teardown,
@@ -719,7 +726,7 @@ void Reference::SecondPassCallback(
     return;
   }
   reference->_secondPassParameter = nullptr;
-  reference->Finalize();
+  v8impl::RefTracker::FinalizeAll(&reference->_env->finalizing_queue, /*isEnvTeardown:*/false);
 }
 
 }  // end of namespace v8impl
