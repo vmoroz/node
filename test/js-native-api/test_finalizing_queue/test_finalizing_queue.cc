@@ -3,8 +3,13 @@
 #include "testobject.h"
 
 napi_value CreateObject(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value args[1] = {};
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
   napi_value instance;
-  NODE_API_CALL(env, TestObject::NewInstance(env, &instance));
+  NODE_API_CALL(env, TestObject::NewInstance(env, args[0], &instance));
 
   return instance;
 }

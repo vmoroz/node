@@ -9,10 +9,11 @@ class TestObject {
   static void Destructor(napi_env env, void* nativeObject, void* finalize_hint);
   static napi_value GetFinalizeCount(napi_env env, napi_callback_info info);
   static napi_status NewInstance(napi_env env,
+                                 napi_value arg,
                                  napi_value* instance);
 
  private:
-  TestObject();
+  TestObject(bool throw_js_in_destructor);
   ~TestObject();
 
   static napi_value New(napi_env env, napi_callback_info info);
@@ -21,6 +22,7 @@ class TestObject {
   static napi_ref constructor;
   napi_env env_;
   napi_ref wrapper_;
+  bool throw_js_in_destructor_{false};
 };
 
 #endif  // TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_H_
