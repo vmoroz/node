@@ -126,7 +126,7 @@ struct napi_env__ {
   }
 
   void DrainFinalizingQueue() {
-    //TODO: what should we do here?
+    v8impl::RefTracker::FinalizeAll(&finalizing_queue);
   }
 
   v8impl::Persistent<v8::Value> last_exception;
