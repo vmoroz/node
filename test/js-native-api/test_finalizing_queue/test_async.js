@@ -1,8 +1,8 @@
 'use strict';
 // Flags: --expose-gc
 
-// The test verifies that the finalizing queue is drained asynchronously in setImmediate 
-// when we do not call methods that could cause the GC calls.
+// The test verifies that the finalizing queue is drained asynchronously in
+// setImmediate when we do not call methods that could cause the GC calls.
 
 const common = require('../../common');
 const assert = require('assert');
