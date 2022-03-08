@@ -38,9 +38,20 @@ class RefTracker {
     next_ = nullptr;
   }
 
+  bool IsLinked() {
+    return prev_ != nullptr;
+  }
+
   static void FinalizeAll(RefList* list, bool isEnvTeardown = true) {
     while (list->next_ != nullptr) {
       list->next_->Finalize(isEnvTeardown);
+    }
+  }
+
+  template <typename Predicate>
+  static void FinalizeAll(RefList* list, Predicate pred) {
+    while (pred() && list->next_ != nullptr) {
+      list->next_->Finalize(/*isEnvTeardown:*/ false);
     }
   }
 
@@ -103,11 +114,19 @@ struct napi_env__ {
     }
   }
 
-  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
+  void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) {
       cb(env, data, hint);
     });
+  }
+
+  virtual void DrainFinalizingQueueAsync() {
+    //TODO: what should we do here?
+  }
+
+  void DrainFinalizingQueue() {
+    //TODO: what should we do here?
   }
 
   v8impl::Persistent<v8::Value> last_exception;
@@ -361,11 +380,10 @@ class TryCatch : public v8::TryCatch {
       : v8::TryCatch(env->isolate), _env(env) {}
 
   ~TryCatch() {
+    v8impl::RefTracker::FinalizeAll(
+       &_env->finalizing_queue, [this]() { return !HasCaught(); });
     if (HasCaught()) {
       _env->last_exception.Reset(_env->isolate, Exception());
-    } else {
-      v8impl::RefTracker::FinalizeAll(
-          &_env->finalizing_queue, /*isEnvTeardown:*/false);
     }
   }
 
@@ -393,23 +411,24 @@ class RefBase : protected Finalizer, protected RefTracker {
 
   static inline void Delete(RefBase* reference);
 
-  virtual ~RefBase();
+  ~RefBase() override;
   void* Data();
-  uint32_t Ref();
-  uint32_t Unref();
+  virtual uint32_t Ref();
+  virtual uint32_t Unref();
   uint32_t RefCount();
 
  protected:
   void Finalize(bool is_env_teardown = false) override;
+  void WeakRef();
+  void WeakUnref();
 
  private:
   uint32_t _refcount;
+  uint32_t _weakrefcount{1};
   bool _delete_self;
 };
 
 class Reference : public RefBase {
-  using SecondPassCallParameterRef = Reference*;
-
  protected:
   template <typename... Args>
   Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args);
@@ -423,9 +442,8 @@ class Reference : public RefBase {
                         void* finalize_data = nullptr,
                         void* finalize_hint = nullptr);
 
-  virtual ~Reference();
-  uint32_t Ref();
-  uint32_t Unref();
+  uint32_t Ref() override;
+  uint32_t Unref() override;
   v8::Local<v8::Value> Get();
 
  protected:
@@ -436,13 +454,10 @@ class Reference : public RefBase {
   void SetWeak();
 
   static void FinalizeCallback(
-      const v8::WeakCallbackInfo<SecondPassCallParameterRef>& data);
-  static void SecondPassCallback(
-      const v8::WeakCallbackInfo<SecondPassCallParameterRef>& data);
+      const v8::WeakCallbackInfo<Reference>& data);
 
   v8impl::Persistent<v8::Value> _persistent;
-  SecondPassCallParameterRef* _secondPassParameter;
-  bool _secondPassScheduled;
+  bool _has_weak{false};
 
   FRIEND_TEST(JsNativeApiV8Test, Reference);
 };

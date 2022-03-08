@@ -507,7 +507,8 @@ void* RefBase::Data() {
 void RefBase::Delete(RefBase* reference) {
   if ((reference->RefCount() != 0) || (reference->_delete_self) ||
       (reference->_finalize_ran)) {
-    delete reference;
+    reference->Unlink();
+    reference->WeakUnref();
   } else {
     // defer until finalizer runs as
     // it may already be queued
@@ -528,6 +529,16 @@ uint32_t RefBase::Unref() {
 
 uint32_t RefBase::RefCount() {
   return _refcount;
+}
+
+void RefBase::WeakRef() {
+  ++_weakrefcount;
+}
+
+void RefBase::WeakUnref() {
+  if (--_weakrefcount == 0) {
+    delete this;
+  }
 }
 
 void RefBase::Finalize(bool is_env_teardown) {
@@ -573,9 +584,7 @@ void RefBase::Finalize(bool is_env_teardown) {
 template <typename... Args>
 Reference::Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args)
     : RefBase(env, std::forward<Args>(args)...),
-      _persistent(env->isolate, value),
-      _secondPassParameter(new SecondPassCallParameterRef(this)),
-      _secondPassScheduled(false) {
+      _persistent(env->isolate, value) {
   if (RefCount() == 0) {
     SetWeak();
   }
@@ -595,17 +604,6 @@ Reference* Reference::New(napi_env env,
                        finalize_callback,
                        finalize_data,
                        finalize_hint);
-}
-
-Reference::~Reference() {
-  // If the second pass callback is scheduled, it will delete the
-  // parameter passed to it, otherwise it will never be scheduled
-  // and we need to delete it here.
-  if (!_secondPassScheduled) {
-    delete _secondPassParameter;
-  } else if (_secondPassParameter) {
-    *_secondPassParameter = nullptr;
-  }
 }
 
 uint32_t Reference::Ref() {
@@ -648,31 +646,23 @@ void Reference::Finalize(bool is_env_teardown) {
 }
 
 // ClearWeak is marking the Reference so that the gc should not
-// collect it, but it is possible that a second pass callback
-// may have been scheduled already if we are in shutdown. We clear
-// the secondPassParameter so that even if it has been
-// scheduled no Finalization will be run.
+// collect it.
 void Reference::ClearWeak() {
-  if (!_persistent.IsEmpty()) {
+  if (_has_weak) {
+    _has_weak = false;
     _persistent.ClearWeak();
-  }
-  if (_secondPassParameter != nullptr) {
-    *_secondPassParameter = nullptr;
+    WeakUnref();
   }
 }
 
-// Mark the reference as weak and eligible for collection
-// by the gc.
+// Mark the reference as weak and eligible for collection by the gc.
 void Reference::SetWeak() {
-  if (_secondPassParameter == nullptr) {
-    // This means that the Reference has already been processed
-    // by the second pass callback, so its already been Finalized, do
-    // nothing
-    return;
+  if (!_persistent.IsEmpty()) {
+    _has_weak = true;
+    WeakRef();
+    _persistent.SetWeak(
+        this, FinalizeCallback, v8::WeakCallbackType::kParameter);
   }
-  _persistent.SetWeak(
-      _secondPassParameter, FinalizeCallback, v8::WeakCallbackType::kParameter);
-  *_secondPassParameter = this;
 }
 
 // The N-API finalizer callback may make calls into the engine. V8's heap is
@@ -683,47 +673,20 @@ void Reference::SetWeak() {
 // we do that here to ensure that the N-API finalizer callback is free to call
 // into the engine.
 void Reference::FinalizeCallback(
-    const v8::WeakCallbackInfo<SecondPassCallParameterRef>& data) {
-  SecondPassCallParameterRef* parameter = data.GetParameter();
-  Reference* reference = *parameter;
-  if (reference == nullptr) {
-    return;
+    const v8::WeakCallbackInfo<Reference>& data) {
+  Reference* reference = data.GetParameter();
+  if (reference->IsLinked()) {
+    // The reference must be reset during the first pass.
+    reference->_persistent.Reset();
+
+    // Add the reference to the finalizing_queue
+    reference->Unlink();
+    reference->Link(&reference->_env->finalizing_queue);
+    reference->_env->DrainFinalizingQueueAsync();
   }
 
-  // The reference must be reset during the first pass.
-  reference->_persistent.Reset();
-  // Mark the parameter not delete-able until the second pass callback is
-  // invoked.
-  reference->_secondPassScheduled = true;
-
-  data.SetSecondPassCallback(SecondPassCallback);
-
-  // Add the reference to the finalizing_queue
-  reference->Unlink();
-  reference->Link(&reference->_env->finalizing_queue);
-}
-
-// Second pass callbacks are scheduled with platform tasks. At env teardown,
-// the tasks may have already be scheduled and we are unable to cancel the
-// second pass callback task. We have to make sure that parameter is kept
-// alive until the second pass callback is been invoked. In order to do
-// this and still allow our code to Finalize/delete the Reference during
-// shutdown we have to use a separately allocated parameter instead
-// of a parameter within the Reference object itself. This is what
-// is stored in _secondPassParameter and it is allocated in the
-// constructor for the Reference.
-void Reference::SecondPassCallback(
-    const v8::WeakCallbackInfo<SecondPassCallParameterRef>& data) {
-  SecondPassCallParameterRef* parameter = data.GetParameter();
-  Reference* reference = *parameter;
-  delete parameter;
-  if (reference == nullptr) {
-    // the reference itself has already been deleted so nothing to do
-    return;
-  }
-  reference->_secondPassParameter = nullptr;
-  v8impl::RefTracker::FinalizeAll(
-      &reference->_env->finalizing_queue, /*isEnvTeardown:*/false);
+  // The reference could be deleted after that.
+  reference->WeakUnref();
 }
 
 }  // end of namespace v8impl

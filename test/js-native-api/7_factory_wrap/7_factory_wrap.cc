@@ -14,6 +14,17 @@ napi_value CreateObject(napi_env env, napi_callback_info info) {
   return instance;
 }
 
+napi_value DrainFinalizingQueue(napi_env env, napi_callback_info info) {
+  napi_value global;
+  NODE_API_CALL(env, napi_get_global(env, &global));
+
+  // Getting properties has a side effect of draining the finalizing queue.
+  napi_value properties;
+  NODE_API_CALL(env, napi_get_property_names(env, global, &properties));
+
+  return properties;
+}
+
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
   NODE_API_CALL(env, MyObject::Init(env));
@@ -21,6 +32,7 @@ napi_value Init(napi_env env, napi_value exports) {
   napi_property_descriptor descriptors[] = {
     DECLARE_NODE_API_GETTER("finalizeCount", MyObject::GetFinalizeCount),
     DECLARE_NODE_API_PROPERTY("createObject", CreateObject),
+    DECLARE_NODE_API_PROPERTY("drainFinalizingQueue", DrainFinalizingQueue),
   };
 
   NODE_API_CALL(env, napi_define_properties(
