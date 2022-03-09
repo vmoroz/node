@@ -650,7 +650,9 @@ void Reference::Finalize(bool is_env_teardown) {
 void Reference::ClearWeak() {
   if (_has_weak) {
     _has_weak = false;
-    _persistent.ClearWeak();
+    if (!_persistent.IsEmpty()) {
+      _persistent.ClearWeak();
+    }
     WeakUnref();
   }
 }

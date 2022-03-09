@@ -48,6 +48,13 @@ class RefTracker {
     }
   }
 
+  static bool FinalizeOne(RefList* list) {
+    if (list->next_ != nullptr) {
+      list->next_->Finalize(/*isEnvTeardown:*/ false);
+    }
+    return list->next_ != nullptr;
+  }
+
   template <typename Predicate>
   static void FinalizeAll(RefList* list, Predicate pred) {
     while (pred() && list->next_ != nullptr) {
@@ -61,6 +68,20 @@ class RefTracker {
 };
 
 }  // end of namespace v8impl
+
+struct AutoRestore {
+  AutoRestore(bool& value, bool new_value) : value_(value), old_value_(value) {
+    value_ = new_value;
+  }
+
+  ~AutoRestore() {
+    value_ = old_value_;
+  }
+
+private:
+  bool& value_;
+  bool old_value_{false};
+};
 
 struct napi_env__ {
   explicit napi_env__(v8::Local<v8::Context> context)
@@ -126,7 +147,17 @@ struct napi_env__ {
   }
 
   void DrainFinalizingQueue() {
-    v8impl::RefTracker::FinalizeAll(&finalizing_queue);
+    if (is_draining_finalizing_queue_) {
+      return;
+    }
+    AutoRestore restore(is_draining_finalizing_queue_, true);
+    while (v8impl::RefTracker::FinalizeOne(&finalizing_queue)) {
+      bool hasException;
+      napi_is_exception_pending(this, &hasException);
+      if (hasException) {
+        break;
+      }
+    }
   }
 
   v8impl::Persistent<v8::Value> last_exception;
@@ -142,6 +173,7 @@ struct napi_env__ {
   int open_callback_scopes = 0;
   int refs = 1;
   void* instance_data = nullptr;
+  bool is_draining_finalizing_queue_{false};
 };
 
 // This class is used to keep a napi_env live in a way that
@@ -380,8 +412,11 @@ class TryCatch : public v8::TryCatch {
       : v8::TryCatch(env->isolate), _env(env) {}
 
   ~TryCatch() {
-    v8impl::RefTracker::FinalizeAll(
-       &_env->finalizing_queue, [this]() { return !HasCaught(); });
+    if (!_env->is_draining_finalizing_queue_) {
+      AutoRestore restore(_env->is_draining_finalizing_queue_, true);
+      v8impl::RefTracker::FinalizeAll(&_env->finalizing_queue,
+                                      [this]() { return !HasCaught(); });
+    }
     if (HasCaught()) {
       _env->last_exception.Reset(_env->isolate, Exception());
     }
