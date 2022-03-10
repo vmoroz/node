@@ -1,7 +1,7 @@
 'use strict';
 // Flags: --expose-gc
 
-// The test verifies that the finalizing queue is drained asynchronously in
+// The test verifies that the finalizing queue is processed asynchronously in
 // setImmediate when we do not call methods that could cause the GC calls.
 // If a finalizer throws a JS exception, then it is causing a Node.js
 // uncaughtException, and the queue processing is stopped.

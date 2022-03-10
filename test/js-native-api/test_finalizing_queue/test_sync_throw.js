@@ -1,7 +1,7 @@
 'use strict';
 // Flags: --expose-gc
 
-// The test verifies that the finalizing queue is drained synchronously
+// The test verifies that the finalizing queue is processed synchronously
 // when we call a method that may cause a GC call.
 // This method throws a JS exception when a finalizer from the queue
 // throws a JS exception.
