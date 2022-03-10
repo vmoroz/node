@@ -55,33 +55,33 @@ class RefTracker {
     return list->next_ != nullptr;
   }
 
-  template <typename Predicate>
-  static void FinalizeAll(RefList* list, Predicate pred) {
-    while (pred() && list->next_ != nullptr) {
-      list->next_->Finalize(/*isEnvTeardown:*/ false);
-    }
-  }
-
  private:
   RefList* next_ = nullptr;
   RefList* prev_ = nullptr;
 };
 
-}  // end of namespace v8impl
+// It is used to determine if Finalizer call causes a JS exception,
+// and to make sure that there is only one function in the call stack
+// that calls finalizers from the finalizing queue.
+struct FinalizerCallGuard {
+  FinalizerCallGuard(napi_env env) noexcept;
+  ~FinalizerCallGuard() noexcept;
+  static FinalizerCallGuard* Current(napi_env env) noexcept;
 
-struct AutoRestore {
-  AutoRestore(bool& value, bool new_value) : value_(value), old_value_(value) {
-    value_ = new_value;
+  bool HasException() const noexcept {
+    return hasException_;
   }
 
-  ~AutoRestore() {
-    value_ = old_value_;
+  void HasException(bool value) noexcept {
+    hasException_ = value;
   }
 
-private:
-  bool& value_;
-  bool old_value_{false};
+ private:
+  napi_env env_;
+  bool hasException_;
 };
+
+}  // end of namespace v8impl
 
 struct napi_env__ {
   explicit napi_env__(v8::Local<v8::Context> context)
@@ -139,6 +139,11 @@ struct napi_env__ {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) {
       cb(env, data, hint);
+    }, [](napi_env env, v8::Local<v8::Value> value) {
+      if (env->finalizer_call_guard) {
+        env->finalizer_call_guard->HasException(true);
+      }
+      HandleThrow(env, value);
     });
   }
 
@@ -147,14 +152,12 @@ struct napi_env__ {
   }
 
   void DrainFinalizingQueue() {
-    if (is_draining_finalizing_queue_) {
+    if (finalizer_call_guard) {
       return;
     }
-    AutoRestore restore(is_draining_finalizing_queue_, true);
+    v8impl::FinalizerCallGuard guard(this);
     while (v8impl::RefTracker::FinalizeOne(&finalizing_queue)) {
-      bool hasException;
-      napi_is_exception_pending(this, &hasException);
-      if (hasException) {
+      if (guard.HasException()) {
         break;
       }
     }
@@ -173,7 +176,7 @@ struct napi_env__ {
   int open_callback_scopes = 0;
   int refs = 1;
   void* instance_data = nullptr;
-  bool is_draining_finalizing_queue_{false};
+  v8impl::FinalizerCallGuard* finalizer_call_guard = nullptr;
 };
 
 // This class is used to keep a napi_env live in a way that
@@ -352,6 +355,22 @@ inline v8::Local<v8::Value> V8LocalValueFromJsValue(napi_value v) {
   return local;
 }
 
+//=== FinalizerCallGuard implementation ========================
+
+inline FinalizerCallGuard::FinalizerCallGuard(napi_env env) noexcept
+    : env_(env) {
+  env_->finalizer_call_guard = this;
+}
+
+inline FinalizerCallGuard::~FinalizerCallGuard() noexcept {
+  env_->finalizer_call_guard = nullptr;
+}
+
+inline /*static*/ FinalizerCallGuard* FinalizerCallGuard::Current(
+    napi_env env) noexcept {
+  return env->finalizer_call_guard;
+}
+
 // Adapter for napi_finalize callbacks.
 class Finalizer {
  public:
@@ -412,10 +431,8 @@ class TryCatch : public v8::TryCatch {
       : v8::TryCatch(env->isolate), _env(env) {}
 
   ~TryCatch() {
-    if (!_env->is_draining_finalizing_queue_) {
-      AutoRestore restore(_env->is_draining_finalizing_queue_, true);
-      v8impl::RefTracker::FinalizeAll(&_env->finalizing_queue,
-                                      [this]() { return !HasCaught(); });
+    if (!HasCaught()) {
+      _env->DrainFinalizingQueue();
     }
     if (HasCaught()) {
       _env->last_exception.Reset(_env->isolate, Exception());
