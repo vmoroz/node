@@ -158,6 +158,7 @@ struct napi_env__ {
     v8impl::FinalizerCallGuard guard(this);
     while (v8impl::RefTracker::FinalizeOne(&finalizing_queue)) {
       if (guard.HasException()) {
+        DrainFinalizingQueueAsync();
         break;
       }
     }
