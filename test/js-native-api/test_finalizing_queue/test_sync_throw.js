@@ -13,7 +13,7 @@ const test = require(`./build/${common.buildType}/test_finalizing_queue`);
 assert.strictEqual(test.finalizeCount, 0);
 async function runGCTests() {
   (() => {
-    test.createObject(/*throw on destruct*/true);
+    test.createObject(/* throw on destruct */ true);
   })();
   global.gc();
   assert.throws(() => test.drainFinalizingQueue(), {
@@ -23,8 +23,8 @@ async function runGCTests() {
   assert.strictEqual(test.finalizeCount, 1);
 
   (() => {
-    test.createObject(/*throw on destruct*/true);
-    test.createObject(/*throw on destruct*/true);
+    test.createObject(/* throw on destruct */ true);
+    test.createObject(/* throw on destruct */ true);
   })();
   global.gc();
   // The finalizing queue processing is stopped on the first JS exception.

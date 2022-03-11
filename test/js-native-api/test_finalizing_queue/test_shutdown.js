@@ -1,5 +1,5 @@
 'use strict';
-// The test verifies that the finalizing queue is processed 
+// The test verifies that the finalizing queue is processed
 // by the napi_env on shutdown.
 
 const common = require('../../common');

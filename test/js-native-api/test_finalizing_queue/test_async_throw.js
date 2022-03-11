@@ -19,14 +19,14 @@ async function runGCTests() {
 
   assert.strictEqual(test.finalizeCount, 0);
   (() => {
-    test.createObject(/*throw on destruct*/true);
+    test.createObject(/* throw on destruct */ true);
   })();
   await common.gcUntil('test 1', () => (test.finalizeCount === 1));
   assert.strictEqual(exceptionCount, 1);
 
   (() => {
-    test.createObject(/*throw on destruct*/true);
-    test.createObject(/*throw on destruct*/true);
+    test.createObject(/* throw on destruct */ true);
+    test.createObject(/* throw on destruct */ true);
   })();
   // All errors are handled separately
   await common.gcUntil('test 2', () => (test.finalizeCount === 3));
