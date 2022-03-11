@@ -672,7 +672,7 @@ void Reference::SetWeak() {
   }
   _persistent.SetWeak(
       _secondPassParameter, FinalizeCallback, v8::WeakCallbackType::kParameter);
-  *_secondPassParameter = this;  
+  *_secondPassParameter = this;
 }
 
 // The N-API finalizer callback may make calls into the engine. V8's heap is
@@ -682,7 +682,7 @@ void Reference::SetWeak() {
 // attach such a second-pass finalizer from the first pass finalizer. Thus,
 // we do that here to ensure that the N-API finalizer callback is free to call
 // into the engine.
- void Reference::FinalizeCallback(
+void Reference::FinalizeCallback(
     const v8::WeakCallbackInfo<SecondPassCallParameterRef>& data) {
   SecondPassCallParameterRef* parameter = data.GetParameter();
   Reference* reference = *parameter;
