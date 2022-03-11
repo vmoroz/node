@@ -1,5 +1,5 @@
-#ifndef TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_H_
-#define TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_H_
+#ifndef TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_TESTOBJECT_H_
+#define TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_TESTOBJECT_H_
 
 #include <js_native_api.h>
 
@@ -13,7 +13,7 @@ class TestObject {
                                  napi_value* instance);
 
  private:
-  TestObject(bool throw_js_in_destructor);
+  explicit TestObject(bool throw_js_in_destructor);
   ~TestObject();
 
   static napi_value New(napi_env env, napi_callback_info info);
@@ -25,4 +25,4 @@ class TestObject {
   bool throw_js_in_destructor_{false};
 };
 
-#endif  // TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_H_
+#endif  // TEST_JS_NATIVE_API_TEST_FINALIZING_QUEUE_TESTOBJECT_H_

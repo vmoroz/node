@@ -60,7 +60,7 @@ class RefTracker {
 // and to make sure that there is only one function in the call stack
 // that calls finalizers from the finalizing queue.
 struct FinalizerCallGuard {
-  FinalizerCallGuard(napi_env env) noexcept;
+  explicit FinalizerCallGuard(napi_env env) noexcept;
   ~FinalizerCallGuard() noexcept;
 
   bool HasException() const noexcept {
