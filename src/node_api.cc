@@ -33,20 +33,24 @@ v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
                         v8::True(isolate));
 }
 
-void node_napi_env__::DrainFinalizingQueueAsync() {
-  if (has_scheduled_finalizing_queue_drain) {
+void node_napi_env__::CallFinalizers() {
+  if (is_call_finalizers_scheduled) {
     return;
   }
+  is_call_finalizers_scheduled = true;
   // we need to keep the env live until the finalizer has been run
   // EnvRefHolder provides an exception safe wrapper to Ref and then
   // Unref once the lambda is freed
-  has_scheduled_finalizing_queue_drain = true;
   node_env()->SetImmediate(
       [this, liveEnv = EnvRefHolder(this)](node::Environment* node_env) {
-        has_scheduled_finalizing_queue_drain = false;
+        is_call_finalizers_scheduled = false;
         v8::HandleScope handle_scope(this->isolate);
         v8::Context::Scope context_scope(this->context());
-        this->DrainFinalizingQueue();
+        bool has_more_finalizers = false;
+        node_api_call_finalizers(this, SIZE_MAX, &has_more_finalizers);
+        if (has_more_finalizers) {
+          CallFinalizers();
+        }
       });
 }
 

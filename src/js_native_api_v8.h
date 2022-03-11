@@ -147,21 +147,8 @@ struct napi_env__ {
     });
   }
 
-  virtual void DrainFinalizingQueueAsync() {
-    //TODO: what should we do here?
-  }
-
-  void DrainFinalizingQueue() {
-    if (finalizer_call_guard) {
-      return;
-    }
-    v8impl::FinalizerCallGuard guard(this);
-    while (v8impl::RefTracker::FinalizeOne(&finalizing_queue)) {
-      if (guard.HasException()) {
-        DrainFinalizingQueueAsync();
-        break;
-      }
-    }
+  virtual void CallFinalizers() {
+    node_api_call_finalizers(this, SIZE_MAX, nullptr);
   }
 
   v8impl::Persistent<v8::Value> last_exception;
@@ -433,7 +420,7 @@ class TryCatch : public v8::TryCatch {
 
   ~TryCatch() {
     if (!HasCaught()) {
-      _env->DrainFinalizingQueue();
+      node_api_call_finalizers(_env, SIZE_MAX, nullptr);
     }
     if (HasCaught()) {
       _env->last_exception.Reset(_env->isolate, Exception());
