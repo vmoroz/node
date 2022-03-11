@@ -66,7 +66,6 @@ class RefTracker {
 struct FinalizerCallGuard {
   FinalizerCallGuard(napi_env env) noexcept;
   ~FinalizerCallGuard() noexcept;
-  static FinalizerCallGuard* Current(napi_env env) noexcept;
 
   bool HasException() const noexcept {
     return hasException_;
