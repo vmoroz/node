@@ -353,11 +353,6 @@ inline FinalizerCallGuard::~FinalizerCallGuard() noexcept {
   env_->finalizer_call_guard = nullptr;
 }
 
-inline /*static*/ FinalizerCallGuard* FinalizerCallGuard::Current(
-    napi_env env) noexcept {
-  return env->finalizer_call_guard;
-}
-
 // Adapter for napi_finalize callbacks.
 class Finalizer {
  public:
