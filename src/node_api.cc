@@ -43,11 +43,11 @@ void node_napi_env__::CallFinalizers() {
   // Unref once the lambda is freed
   node_env()->SetImmediate(
       [this, liveEnv = EnvRefHolder(this)](node::Environment* node_env) {
-        is_call_finalizers_scheduled = false;
         v8::HandleScope handle_scope(this->isolate);
         v8::Context::Scope context_scope(this->context());
         bool has_more_finalizers = false;
         node_api_call_finalizers(this, SIZE_MAX, &has_more_finalizers);
+        is_call_finalizers_scheduled = false;
         if (has_more_finalizers) {
           CallFinalizers();
         }
