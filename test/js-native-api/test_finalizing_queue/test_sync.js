@@ -9,7 +9,7 @@ const assert = require('assert');
 const test = require(`./build/${common.buildType}/test_finalizing_queue`);
 
 assert.strictEqual(test.finalizeCount, 0);
-async function runGCTests() {
+function runGCTests() {
   (() => {
     test.createObject();
   })();

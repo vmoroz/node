@@ -54,6 +54,19 @@ void node_napi_env__::CallFinalizers() {
       });
 }
 
+void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
+  node::errors::TryCatchScope try_catch(node_env());
+  node::DebugSealHandleScope seal_handle_scope(isolate);
+
+  napi_env__::CallFinalizer(cb, data, hint);
+
+  if (UNLIKELY(try_catch.HasCaught())) {
+    if (!try_catch.HasTerminated() && can_call_into_js()) {
+      node::errors::TriggerUncaughtException(isolate, try_catch);
+    }
+  }
+}
+
 namespace v8impl {
 
 namespace {

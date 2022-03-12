@@ -72,8 +72,8 @@ struct FinalizerCallGuard {
   }
 
  private:
-  napi_env env_;
-  bool hasException_;
+  napi_env env_{nullptr};
+  bool hasException_{false};
 };
 
 }  // end of namespace v8impl
@@ -130,7 +130,7 @@ struct napi_env__ {
     }
   }
 
-  void CallFinalizer(napi_finalize cb, void* data, void* hint) {
+  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) {
       cb(env, data, hint);

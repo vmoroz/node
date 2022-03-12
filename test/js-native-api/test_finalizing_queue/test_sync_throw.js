@@ -12,15 +12,19 @@ const test = require(`./build/${common.buildType}/test_finalizing_queue`);
 
 assert.strictEqual(test.finalizeCount, 0);
 async function runGCTests() {
+  let exceptionCount = 0;
+  process.on('uncaughtException', (err) => {
+    ++exceptionCount;
+    assert.strictEqual(err.message, 'Error during Finalize');
+  });
+
   (() => {
     test.createObject(/* throw on destruct */ true);
   })();
   global.gc();
-  assert.throws(() => test.drainFinalizingQueue(), {
-    name: 'Error',
-    message: 'Error during Finalize'
-  });
+  test.drainFinalizingQueue();
   assert.strictEqual(test.finalizeCount, 1);
+  assert.strictEqual(exceptionCount, 1);
 
   (() => {
     test.createObject(/* throw on destruct */ true);
@@ -28,17 +32,12 @@ async function runGCTests() {
   })();
   global.gc();
   // The finalizing queue processing is stopped on the first JS exception.
-  assert.throws(() => test.drainFinalizingQueue(), {
-    name: 'Error',
-    message: 'Error during Finalize'
-  });
+  test.drainFinalizingQueue();
   assert.strictEqual(test.finalizeCount, 2);
   // To handle the next items in the the finalizing queue we
   // must call a GC-touching function again.
-  assert.throws(() => test.drainFinalizingQueue(), {
-    name: 'Error',
-    message: 'Error during Finalize'
-  });
+  test.drainFinalizingQueue();
   assert.strictEqual(test.finalizeCount, 3);
+  assert.strictEqual(exceptionCount, 3);
 }
 runGCTests();

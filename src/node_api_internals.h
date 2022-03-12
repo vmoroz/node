@@ -16,6 +16,7 @@ struct node_napi_env__ : public napi_env__ {
   v8::Maybe<bool> mark_arraybuffer_as_untransferable(
       v8::Local<v8::ArrayBuffer> ab) const override;
   void CallFinalizers() override;
+  void CallFinalizer(napi_finalize cb, void* data, void* hint) override;
 
   inline node::Environment* node_env() const {
     return node::Environment::GetCurrent(context());
