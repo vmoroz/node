@@ -3251,6 +3251,54 @@ napi_status node_api_call_finalizers(napi_env env,
   return napi_clear_last_error(env);
 }
 
+NAPI_EXTERN napi_status
+node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
+  CHECK_ENV(env);
+
+  if (error_handler) {
+    v8::Local<v8::Value> handler =
+        v8impl::V8LocalValueFromJsValue(error_handler);
+    RETURN_STATUS_IF_FALSE(env, handler->IsFunction(), napi_function_expected);
+    env->finalizer_error_handler =
+        v8impl::Persistent<v8::Value>(env->isolate, handler);
+  } else {
+    env->finalizer_error_handler.Clear();
+  }
+
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool value) {
+  CHECK_ENV(env);
+  // Update when new feature is added
+  RETURN_STATUS_IF_FALSE(
+      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
+
+  if (value) {
+    env->features |= 1 >> static_cast<int32_t>(feature);
+  } else {
+    env->features &= ~(1 >> static_cast<int32_t>(feature));
+  }
+
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool* result) {
+  CHECK_ENV(env);
+  CHECK_ARG(result);
+  // Update when new feature is added
+  RETURN_STATUS_IF_FALSE(
+      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
+
+  *result = (env->features & (1 >> static_cast<int32_t>(feature))) != 0;
+
+  return napi_clear_last_error(env);
+}
+
 napi_status napi_adjust_external_memory(napi_env env,
                                         int64_t change_in_bytes,
                                         int64_t* adjusted_value) {

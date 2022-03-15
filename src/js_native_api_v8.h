@@ -158,8 +158,10 @@ struct napi_env__ {
   int open_handle_scopes = 0;
   int open_callback_scopes = 0;
   int refs = 1;
+  int features = 0;
   void* instance_data = nullptr;
   v8impl::FinalizerCallGuard* finalizer_call_guard = nullptr;
+  v8impl::Persistent<v8::Value> finalizer_error_handler;
 };
 
 // This class is used to keep a napi_env live in a way that
