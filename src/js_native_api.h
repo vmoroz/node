@@ -498,9 +498,19 @@ NAPI_EXTERN napi_status napi_add_finalizer(napi_env env,
                                            napi_ref* result);
 
 #ifdef NAPI_EXPERIMENTAL
-NAPI_EXTERN napi_status node_api_call_finalizers(napi_env env,
-                                                 size_t finalizer_count,
-                                                 bool* has_more_finalizers);
+NAPI_EXTERN napi_status node_api_call_queued_finalizer(
+    napi_env env, bool* has_more_finalizers napi_value* error_result);
+
+NAPI_EXTERN napi_status
+node_api_set_on_finalizer_error(napi_env env, napi_value error_handler);
+
+NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool value);
+
+NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool* result);
 #endif
 
 #endif  // NAPI_VERSION >= 5

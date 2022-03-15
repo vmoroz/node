@@ -102,6 +102,12 @@ typedef enum {
 //   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
 //     added value(s).
 
+#ifdef NAPI_EXPERIMENTAL
+typedef enum {
+  node_api_feature_async_finalizer_call,
+} node_api_feature;
+#endif
+
 typedef napi_value (*napi_callback)(napi_env env,
                                     napi_callback_info info);
 typedef void (*napi_finalize)(napi_env env,
