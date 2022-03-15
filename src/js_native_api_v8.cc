@@ -56,6 +56,47 @@
     (out) = v8::type::New((buffer), (byte_offset), (length));                  \
   } while (0)
 
+void napi_env__::HandleFinalizerThrow(v8::Local<v8::Value> value) {
+  if (!finalizer_error_handler.IsEmpty()) {
+    bool isHandled = true;
+    napi_status status = [&]() {
+      v8::Local<v8::Value> v8handler =
+          v8::Local<v8::Value>::New(env->isolate, env->finalizer_error_handler);
+      napi_value handler = v8impl::JsValueFromV8LocalValue(v8handler);
+      napi_value recv, result;
+      STATUS_CALL(napi_get_undefined(env, &recv));
+      STATUS_CALL(napi_call_function(env, recv, handler, 1, &handler, &result));
+      napi_valuetype res_type;
+      STATUS_CALL(napi_typeof(env, result, &res_type));
+      if (res_type == napi_boolean) {
+        bool bool_result;
+        STATUS_CALL(napi_get_value_bool(env, result, &bool_result));
+        if (bool_result == false) {
+          isHandled = false;
+        }
+      }
+      return napi_clear_last_error(env);
+    }();
+    if (status == napi_ok) {
+      if (!isHandled) {
+        HandleThrow(env, value);
+      }
+    } else if (status == napi_pending_exception) {
+      napi_value ex;
+      napi_get_and_clear_last_exception(env, &ex);
+      HandleThrow(env, ex);
+    } else {
+      const napi_extended_error_info* error_info;
+      napi_get_last_error_info(env, &error_info);
+      napi_throw_error(
+          env, "ERR_NAPI_FINALIZER_ERROR_HANDLER", error_info->error_message);
+      napi_clear_last_error(env);
+    }
+  } else {
+    HandleThrow(env, value);
+  }
+}
+
 namespace v8impl {
 
 namespace {
@@ -3262,7 +3303,7 @@ node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
     env->finalizer_error_handler =
         v8impl::Persistent<v8::Value>(env->isolate, handler);
   } else {
-    env->finalizer_error_handler.Clear();
+    env->finalizer_error_handler.Reset();
   }
 
   return napi_clear_last_error(env);

@@ -130,16 +130,14 @@ struct napi_env__ {
     }
   }
 
+  void HandleFinalizerThrow(v8::Local<v8::Value> value);
+
   virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
-    CallIntoModule([&](napi_env env) {
-      cb(env, data, hint);
-    }, [](napi_env env, v8::Local<v8::Value> value) {
-      if (env->finalizer_call_guard) {
-        env->finalizer_call_guard->HasException(true);
-      }
-      HandleThrow(env, value);
-    });
+    CallIntoModule([&](napi_env env) { cb(env, data, hint); },
+                   [](napi_env env, v8::Local<v8::Value> value) {
+                     env->HandleFinalizerThrow(value);
+                   });
   }
 
   virtual void CallFinalizers() {
