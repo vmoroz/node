@@ -34,6 +34,13 @@ v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
 }
 
 void node_napi_env__::CallFinalizers() {
+  bool shouldCallAsync;
+  node_api_has_feature(this, node_api_feature_async_finalizer_call, &shouldCallAsync);
+  if (!shouldCallAsync) {
+    napi_env__::CallFinalizers();
+    return;
+  }
+
   if (is_call_finalizers_scheduled) {
     return;
   }
