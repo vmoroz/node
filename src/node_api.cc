@@ -33,35 +33,10 @@ v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
                         v8::True(isolate));
 }
 
-void node_napi_env__::CallFinalizers() {
-  bool shouldCallAsync;
-  node_api_has_feature(this, node_api_feature_async_finalizer_call, &shouldCallAsync);
-  if (!shouldCallAsync) {
-    napi_env__::CallFinalizers();
-    return;
-  }
-
-  if (is_call_finalizers_scheduled) {
-    return;
-  }
-  is_call_finalizers_scheduled = true;
-  // we need to keep the env live until the finalizer has been run
-  // EnvRefHolder provides an exception safe wrapper to Ref and then
-  // Unref once the lambda is freed
-  node_env()->SetImmediate(
-      [this, liveEnv = EnvRefHolder(this)](node::Environment* node_env) {
-        v8::HandleScope handle_scope(this->isolate);
-        v8::Context::Scope context_scope(this->context());
-        bool has_more_finalizers = false;
-        node_api_call_finalizers(this, SIZE_MAX, &has_more_finalizers);
-        is_call_finalizers_scheduled = false;
-        if (has_more_finalizers) {
-          CallFinalizers();
-        }
-      });
-}
-
 void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
+  //TODO: add a guard for being called in SetImmediate
+  // Cause an unhandled exception on JS error in Finalizer callback like
+  // in the SetImmediate behavior.
   node::errors::TryCatchScope try_catch(node_env());
   node::DebugSealHandleScope seal_handle_scope(isolate);
 
@@ -71,6 +46,31 @@ void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
     if (!try_catch.HasTerminated() && can_call_into_js()) {
       node::errors::TriggerUncaughtException(isolate, try_catch);
     }
+  }
+}
+
+void node_napi_env__::DrainFinalizerQueue() {
+  bool shouldCallAsync;
+  node_api_has_feature(
+      this, node_api_feature_async_finalizer_call, &shouldCallAsync);
+  if (!shouldCallAsync) {
+    v8::HandleScope handle_scope(isolate);
+    napi_env__::DrainFinalizerQueue();
+    return;
+  }
+
+  if (!has_drain_finalizer_queue_scheduled) {
+    has_drain_finalizer_queue_scheduled = true;
+    // We need to keep the env live until the finalizer has been run
+    // EnvRefHolder provides an exception safe wrapper to Ref and then
+    // Unref once the lambda is freed
+    node_env()->SetImmediate(
+        [this, liveEnv = EnvRefHolder(this)](node::Environment* node_env) {
+          v8::HandleScope handle_scope(isolate);
+          v8::Context::Scope context_scope(context());
+          napi_env__::DrainFinalizerQueue();
+          has_drain_finalizer_queue_scheduled = false;
+        });
   }
 }
 

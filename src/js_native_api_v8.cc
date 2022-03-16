@@ -55,6 +55,17 @@
         "Invalid typed array length");                                         \
     (out) = v8::type::New((buffer), (byte_offset), (length));                  \
   } while (0)
+
+
+napi_status napi_env__::DrainFinalizerQueue() {
+  if (!is_draining_finalizer_queue) {
+    is_draining_finalizer_queue = true;
+    v8impl::RefTracker::FinalizeAll(&finalizer_queue,
+                                    false /* isEnvTeardown */);
+    is_draining_finalizer_queue = false;
+  }
+}
+
 void napi_env__::HandleFinalizerThrow(napi_env env,
                                       v8::Local<v8::Value> value) {
   if (!env->finalizer_error_handler.IsEmpty()) {
@@ -739,9 +750,9 @@ void Reference::FinalizeCallback(
 
   data.SetSecondPassCallback(SecondPassCallback);
 
-  // Add the reference to the finalizing_queue
+  // Add the reference to the finalizer_queue
   reference->Unlink();
-  reference->Link(&reference->_env->finalizing_queue);
+  reference->Link(&reference->_env->finalizer_queue);
 }
 
 // Second pass callbacks are scheduled with platform tasks. At env teardown,
@@ -763,7 +774,8 @@ void Reference::SecondPassCallback(
     return;
   }
   reference->_secondPassParameter = nullptr;
-  reference->_env->CallFinalizers();
+  reference->_env->DrainFinalizerQueue();
+  //TODO: should we delete the reference here?
 }
 
 }  // end of namespace v8impl
@@ -3265,81 +3277,6 @@ napi_status napi_add_finalizer(napi_env env,
                                          result);
 }
 
-napi_status node_api_call_finalizers(napi_env env,
-                                     size_t finalizer_count,
-                                     bool* has_more_finalizers) {
-  CHECK_ENV(env);
-  bool has_more = false;
-
-  if (!env->finalizer_call_guard) {
-    if (finalizer_count == 0) {
-      finalizer_count = SIZE_MAX;
-    }
-
-    v8impl::FinalizerCallGuard guard(env);
-    while (finalizer_count-- > 0) {
-      has_more = v8impl::RefTracker::FinalizeOne(&env->finalizing_queue);
-      if (!has_more || guard.HasException()) {
-        break;
-      }
-    }
-  }
-
-  if (has_more_finalizers) {
-    *has_more_finalizers = has_more;
-  }
-
-  return napi_clear_last_error(env);
-}
-
-NAPI_EXTERN napi_status
-node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
-  CHECK_ENV(env);
-
-  if (error_handler) {
-    v8::Local<v8::Value> handler =
-        v8impl::V8LocalValueFromJsValue(error_handler);
-    RETURN_STATUS_IF_FALSE(env, handler->IsFunction(), napi_function_expected);
-    env->finalizer_error_handler =
-        v8impl::Persistent<v8::Value>(env->isolate, handler);
-  } else {
-    env->finalizer_error_handler.Reset();
-  }
-
-  return napi_clear_last_error(env);
-}
-
-NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool value) {
-  CHECK_ENV(env);
-  // Update when new feature is added
-  RETURN_STATUS_IF_FALSE(
-      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
-
-  if (value) {
-    env->features |= 1 >> static_cast<int32_t>(feature);
-  } else {
-    env->features &= ~(1 >> static_cast<int32_t>(feature));
-  }
-
-  return napi_clear_last_error(env);
-}
-
-NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool* result) {
-  CHECK_ENV(env);
-  CHECK_ARG(env, result);
-  // Update when new feature is added
-  RETURN_STATUS_IF_FALSE(
-      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
-
-  *result = (env->features & (1 >> static_cast<int32_t>(feature))) != 0;
-
-  return napi_clear_last_error(env);
-}
-
 napi_status napi_adjust_external_memory(napi_env env,
                                         int64_t change_in_bytes,
                                         int64_t* adjusted_value) {
@@ -3415,6 +3352,54 @@ napi_status napi_is_detached_arraybuffer(napi_env env,
 
   *result = value->IsArrayBuffer() &&
             value.As<v8::ArrayBuffer>()->GetBackingStore()->Data() == nullptr;
+
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status
+node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
+  CHECK_ENV(env);
+
+  if (error_handler) {
+    v8::Local<v8::Value> handler =
+        v8impl::V8LocalValueFromJsValue(error_handler);
+    RETURN_STATUS_IF_FALSE(env, handler->IsFunction(), napi_function_expected);
+    env->finalizer_error_handler =
+        v8impl::Persistent<v8::Value>(env->isolate, handler);
+  } else {
+    env->finalizer_error_handler.Reset();
+  }
+
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool value) {
+  CHECK_ENV(env);
+  // Update when new feature is added
+  RETURN_STATUS_IF_FALSE(
+      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
+
+  if (value) {
+    env->features |= 1 >> static_cast<int32_t>(feature);
+  } else {
+    env->features &= ~(1 >> static_cast<int32_t>(feature));
+  }
+
+  return napi_clear_last_error(env);
+}
+
+NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool* result) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, result);
+  // Update when new feature is added
+  RETURN_STATUS_IF_FALSE(
+      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
+
+  *result = (env->features & (1 >> static_cast<int32_t>(feature))) != 0;
 
   return napi_clear_last_error(env);
 }
