@@ -376,7 +376,7 @@ class TryCatch : public v8::TryCatch {
 };
 
 // Wrapper around v8impl::Persistent that implements reference counting.
-class RefBase : protected Finalizer, RefTracker {
+class RefBase : protected Finalizer, protected RefTracker {
  protected:
   RefBase(napi_env env,
           uint32_t initial_refcount,

@@ -57,7 +57,7 @@
   } while (0)
 
 
-napi_status napi_env__::DrainFinalizerQueue() {
+void napi_env__::DrainFinalizerQueue() {
   if (!is_draining_finalizer_queue) {
     is_draining_finalizer_queue = true;
     v8impl::RefTracker::FinalizeAll(&finalizer_queue,
