@@ -103,7 +103,9 @@ typedef enum {
 //     added value(s).
 
 #ifdef NAPI_EXPERIMENTAL
+// Set of features that could be enabled or disabled by node_api_set_feature.
 typedef enum {
+  // Call finalizers in SetImmediate instead of GC second pass.
   node_api_feature_async_finalizer_call,
 } node_api_feature;
 #endif
