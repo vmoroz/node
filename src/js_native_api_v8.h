@@ -78,6 +78,10 @@ struct FinalizerCallGuard {
 
 }  // end of namespace v8impl
 
+// TODO: remove this public function
+napi_status node_api_call_finalizers(napi_env env,
+                                     size_t finalizer_count,
+                                     bool* has_more_finalizers);
 struct napi_env__ {
   explicit napi_env__(v8::Local<v8::Context> context)
       : isolate(context->GetIsolate()),
@@ -130,14 +134,12 @@ struct napi_env__ {
     }
   }
 
-  void HandleFinalizerThrow(v8::Local<v8::Value> value);
+  static void HandleFinalizerThrow(napi_env env, v8::Local<v8::Value> value);
 
   virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) { cb(env, data, hint); },
-                   [](napi_env env, v8::Local<v8::Value> value) {
-                     env->HandleFinalizerThrow(value);
-                   });
+                   HandleFinalizerThrow);
   }
 
   virtual void CallFinalizers() {

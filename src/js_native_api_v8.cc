@@ -55,9 +55,9 @@
         "Invalid typed array length");                                         \
     (out) = v8::type::New((buffer), (byte_offset), (length));                  \
   } while (0)
-
-void napi_env__::HandleFinalizerThrow(v8::Local<v8::Value> value) {
-  if (!finalizer_error_handler.IsEmpty()) {
+void napi_env__::HandleFinalizerThrow(napi_env env,
+                                      v8::Local<v8::Value> value) {
+  if (!env->finalizer_error_handler.IsEmpty()) {
     bool isHandled = true;
     napi_status status = [&]() {
       v8::Local<v8::Value> v8handler =
@@ -84,7 +84,7 @@ void napi_env__::HandleFinalizerThrow(v8::Local<v8::Value> value) {
     } else if (status == napi_pending_exception) {
       napi_value ex;
       napi_get_and_clear_last_exception(env, &ex);
-      HandleThrow(env, ex);
+      HandleThrow(env, v8impl::V8LocalValueFromJsValue(ex));
     } else {
       const napi_extended_error_info* error_info;
       napi_get_last_error_info(env, &error_info);
@@ -3330,7 +3330,7 @@ NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
                                              node_api_feature feature,
                                              bool* result) {
   CHECK_ENV(env);
-  CHECK_ARG(result);
+  CHECK_ARG(env, result);
   // Update when new feature is added
   RETURN_STATUS_IF_FALSE(
       env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
