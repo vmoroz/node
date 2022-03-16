@@ -496,20 +496,6 @@ NAPI_EXTERN napi_status napi_add_finalizer(napi_env env,
                                            napi_finalize finalize_cb,
                                            void* finalize_hint,
                                            napi_ref* result);
-
-#ifdef NAPI_EXPERIMENTAL
-NAPI_EXTERN napi_status
-node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler);
-
-NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool value);
-
-NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool* result);
-#endif
-
 #endif  // NAPI_VERSION >= 5
 
 #if NAPI_VERSION >= 6
@@ -585,6 +571,25 @@ NAPI_EXTERN napi_status napi_object_freeze(napi_env env,
 NAPI_EXTERN napi_status napi_object_seal(napi_env env,
                                          napi_value object);
 #endif  // NAPI_VERSION >= 8
+
+#ifdef NAPI_EXPERIMENTAL
+// By default finalizer JS errors cause an unhandled Node.js exception.
+// The error_handler is a JS function that accepts one parameter - JS error
+// object. If the error_handler is NULL, the the previously assigned error
+// handler is removed.
+NAPI_EXTERN napi_status
+node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler);
+
+// Enable or disable a Node-API feature.
+NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool value);
+
+// Check if a Node-API feature is enabled.
+NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
+                                             node_api_feature feature,
+                                             bool* result);
+#endif  // NAPI_EXPERIMENTAL
 
 EXTERN_C_END
 
