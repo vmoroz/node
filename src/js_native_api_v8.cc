@@ -3373,33 +3373,17 @@ node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
   return napi_clear_last_error(env);
 }
 
-NAPI_EXTERN napi_status node_api_set_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool value) {
+NAPI_EXTERN napi_status node_api_set_features(napi_env env,
+                                              node_api_features features) {
   CHECK_ENV(env);
-  // Update when new feature is added
-  RETURN_STATUS_IF_FALSE(
-      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
-
-  if (value) {
-    env->features |= 1 >> static_cast<int32_t>(feature);
-  } else {
-    env->features &= ~(1 >> static_cast<int32_t>(feature));
-  }
-
+  env->features = features;
   return napi_clear_last_error(env);
 }
 
-NAPI_EXTERN napi_status node_api_has_feature(napi_env env,
-                                             node_api_feature feature,
-                                             bool* result) {
+NAPI_EXTERN napi_status node_api_get_features(napi_env env,
+                                              node_api_features* features) {
   CHECK_ENV(env);
-  CHECK_ARG(env, result);
-  // Update when new feature is added
-  RETURN_STATUS_IF_FALSE(
-      env, feature <= node_api_feature_async_finalizer_call, napi_invalid_arg);
-
-  *result = (env->features & (1 >> static_cast<int32_t>(feature))) != 0;
-
+  CHECK_ARG(env, features);
+  *features = env->features;
   return napi_clear_last_error(env);
 }

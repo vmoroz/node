@@ -50,10 +50,7 @@ void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
 }
 
 void node_napi_env__::DrainFinalizerQueue() {
-  bool shouldCallAsync;
-  node_api_has_feature(
-      this, node_api_feature_async_finalizer_call, &shouldCallAsync);
-  if (!shouldCallAsync) {
+  if (HasFeature(node_api_features_call_finalizer_from_gc)) {
     v8::HandleScope handle_scope(isolate);
     napi_env__::DrainFinalizerQueue();
     return;
