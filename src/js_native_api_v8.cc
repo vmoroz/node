@@ -58,6 +58,8 @@
 
 void napi_env__::HandleFinalizerException(napi_env env,
                                       v8::Local<v8::Value> exception) {
+  // We must reset the lats exception here to enable Node-API calls in the handler.
+  env->last_exception.Reset();
   if (!env->finalizer_error_handler.IsEmpty()) {
     bool isHandled = true;
     napi_status status = [&]() {
@@ -3347,9 +3349,12 @@ node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
   if (error_handler) {
     v8::Local<v8::Value> handler =
         v8impl::V8LocalValueFromJsValue(error_handler);
-    RETURN_STATUS_IF_FALSE(env, handler->IsFunction(), napi_function_expected);
-    env->finalizer_error_handler =
-        v8impl::Persistent<v8::Value>(env->isolate, handler);
+    if (handler->IsFunction()) {
+      env->finalizer_error_handler =
+          v8impl::Persistent<v8::Value>(env->isolate, handler);
+    } else {
+      env->finalizer_error_handler.Reset();
+    }
   } else {
     env->finalizer_error_handler.Reset();
   }
