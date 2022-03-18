@@ -34,41 +34,22 @@ v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
 }
 
 void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
-  //TODO: add a guard for being called in SetImmediate
-  // Cause an unhandled exception on JS error in Finalizer callback like
-  // in the SetImmediate behavior.
-  node::errors::TryCatchScope try_catch(node_env());
-  node::DebugSealHandleScope seal_handle_scope(isolate);
-
-  napi_env__::CallFinalizer(cb, data, hint);
-
-  if (UNLIKELY(try_catch.HasCaught())) {
-    if (!try_catch.HasTerminated() && can_call_into_js()) {
-      node::errors::TriggerUncaughtException(isolate, try_catch);
-    }
-  }
-}
-
-void node_napi_env__::DrainFinalizerQueue() {
   if (HasFeature(node_api_features_call_finalizer_from_gc)) {
-    v8::HandleScope handle_scope(isolate);
-    napi_env__::DrainFinalizerQueue();
+    napi_env__::CallFinalizer(cb, data, hint);
     return;
   }
 
-  if (!has_drain_finalizer_queue_scheduled) {
-    has_drain_finalizer_queue_scheduled = true;
-    // We need to keep the env live until the finalizer has been run
-    // EnvRefHolder provides an exception safe wrapper to Ref and then
-    // Unref once the lambda is freed
-    node_env()->SetImmediate(
-        [this, liveEnv = EnvRefHolder(this)](node::Environment* node_env) {
-          v8::HandleScope handle_scope(isolate);
-          v8::Context::Scope context_scope(context());
-          napi_env__::DrainFinalizerQueue();
-          has_drain_finalizer_queue_scheduled = false;
-        });
-  }
+  // we need to keep the env live until the finalizer has been run
+  // EnvRefHolder provides an exception safe wrapper to Ref and then
+  // Unref once the lambda is freed
+  EnvRefHolder liveEnv(static_cast<napi_env>(this));
+  node_env()->SetImmediate(
+      [=, liveEnv = std::move(liveEnv)](node::Environment* node_env) {
+        napi_env env = liveEnv.env();
+        v8::HandleScope handle_scope(env->isolate);
+        v8::Context::Scope context_scope(env->context());
+        env->CallIntoModule([&](napi_env env) { cb(env, data, hint); });
+      });
 }
 
 namespace v8impl {

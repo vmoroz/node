@@ -16,7 +16,6 @@ struct node_napi_env__ : public napi_env__ {
   v8::Maybe<bool> mark_arraybuffer_as_untransferable(
       v8::Local<v8::ArrayBuffer> ab) const override;
   void CallFinalizer(napi_finalize cb, void* data, void* hint) override;
-  void DrainFinalizerQueue() override;
 
   inline node::Environment* node_env() const {
     return node::Environment::GetCurrent(context());
@@ -24,7 +23,6 @@ struct node_napi_env__ : public napi_env__ {
   inline const char* GetFilename() const { return filename.c_str(); }
 
   std::string filename;
-  bool has_drain_finalizer_queue_scheduled{false};
 };
 
 using node_napi_env = node_napi_env__*;

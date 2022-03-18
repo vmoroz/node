@@ -38,9 +38,9 @@ class RefTracker {
     next_ = nullptr;
   }
 
-  static void FinalizeAll(RefList* list, bool isEnvTeardown = true) {
+  static void FinalizeAll(RefList* list) {
     while (list->next_ != nullptr) {
-      list->next_->Finalize(isEnvTeardown);
+      list->next_->Finalize(true);
     }
   }
 
@@ -64,7 +64,6 @@ struct napi_env__ {
     // they delete during their `napi_finalizer` callbacks. If we deleted such
     // references here first, they would be doubly deleted when the
     // `napi_finalizer` deleted them subsequently.
-    v8impl::RefTracker::FinalizeAll(&finalizer_queue);
     v8impl::RefTracker::FinalizeAll(&finalizing_reflist);
     v8impl::RefTracker::FinalizeAll(&reflist);
   }
@@ -103,13 +102,13 @@ struct napi_env__ {
     }
   }
 
-  virtual void DrainFinalizerQueue(); 
-  static void HandleFinalizerThrow(napi_env env, v8::Local<v8::Value> value);
+  static void HandleFinalizerException(napi_env env,
+                                       v8::Local<v8::Value> exception);
 
   virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) { cb(env, data, hint); },
-                   HandleFinalizerThrow);
+                   HandleFinalizerException);
   }
 
   bool HasFeature(node_api_features feature) {
@@ -123,14 +122,12 @@ struct napi_env__ {
   // have such a callback. See `~napi_env__()` above for details.
   v8impl::RefTracker::RefList reflist;
   v8impl::RefTracker::RefList finalizing_reflist;
-  v8impl::RefTracker::RefList finalizer_queue;
   napi_extended_error_info last_error;
   int open_handle_scopes = 0;
   int open_callback_scopes = 0;
   int refs = 1;
   node_api_features features = node_api_features_default;
   void* instance_data = nullptr;
-  bool is_draining_finalizer_queue = false;
   v8impl::Persistent<v8::Value> finalizer_error_handler;
 };
 
@@ -380,7 +377,7 @@ class TryCatch : public v8::TryCatch {
 };
 
 // Wrapper around v8impl::Persistent that implements reference counting.
-class RefBase : protected Finalizer, protected RefTracker {
+class RefBase : protected Finalizer, RefTracker {
  protected:
   RefBase(napi_env env,
           uint32_t initial_refcount,

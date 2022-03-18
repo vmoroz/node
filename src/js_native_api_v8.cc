@@ -56,27 +56,18 @@
     (out) = v8::type::New((buffer), (byte_offset), (length));                  \
   } while (0)
 
-
-void napi_env__::DrainFinalizerQueue() {
-  if (!is_draining_finalizer_queue) {
-    is_draining_finalizer_queue = true;
-    v8impl::RefTracker::FinalizeAll(&finalizer_queue,
-                                    false /* isEnvTeardown */);
-    is_draining_finalizer_queue = false;
-  }
-}
-
-void napi_env__::HandleFinalizerThrow(napi_env env,
-                                      v8::Local<v8::Value> value) {
+void napi_env__::HandleFinalizerException(napi_env env,
+                                      v8::Local<v8::Value> exception) {
   if (!env->finalizer_error_handler.IsEmpty()) {
     bool isHandled = true;
     napi_status status = [&]() {
       v8::Local<v8::Value> v8handler =
           v8::Local<v8::Value>::New(env->isolate, env->finalizer_error_handler);
       napi_value handler = v8impl::JsValueFromV8LocalValue(v8handler);
+      napi_value err_value = v8impl::JsValueFromV8LocalValue(exception);
       napi_value recv, result;
       STATUS_CALL(napi_get_undefined(env, &recv));
-      STATUS_CALL(napi_call_function(env, recv, handler, 1, &handler, &result));
+      STATUS_CALL(napi_call_function(env, recv, handler, 1, &err_value, &result));
       napi_valuetype res_type;
       STATUS_CALL(napi_typeof(env, result, &res_type));
       if (res_type == napi_boolean) {
@@ -90,7 +81,7 @@ void napi_env__::HandleFinalizerThrow(napi_env env,
     }();
     if (status == napi_ok) {
       if (!isHandled) {
-        HandleThrow(env, value);
+        HandleThrow(env, exception);
       }
     } else if (status == napi_pending_exception) {
       napi_value ex;
@@ -99,12 +90,13 @@ void napi_env__::HandleFinalizerThrow(napi_env env,
     } else {
       const napi_extended_error_info* error_info;
       napi_get_last_error_info(env, &error_info);
+      //TODO: create error instead of throwing
       napi_throw_error(
           env, "ERR_NAPI_FINALIZER_ERROR_HANDLER", error_info->error_message);
       napi_clear_last_error(env);
     }
   } else {
-    HandleThrow(env, value);
+    HandleThrow(env, exception);
   }
 }
 
@@ -618,7 +610,6 @@ void RefBase::Finalize(bool is_env_teardown) {
     Delete(this);
   } else {
     _finalize_ran = true;
-    Unlink();
   }
 }
 
@@ -655,8 +646,6 @@ Reference::~Reference() {
   // and we need to delete it here.
   if (!_secondPassScheduled) {
     delete _secondPassParameter;
-  } else if (_secondPassParameter) {
-    *_secondPassParameter = nullptr;
   }
 }
 
@@ -749,10 +738,6 @@ void Reference::FinalizeCallback(
   reference->_secondPassScheduled = true;
 
   data.SetSecondPassCallback(SecondPassCallback);
-
-  // Add the reference to the finalizer_queue
-  reference->Unlink();
-  reference->Link(&reference->_env->finalizer_queue);
 }
 
 // Second pass callbacks are scheduled with platform tasks. At env teardown,
@@ -774,8 +759,7 @@ void Reference::SecondPassCallback(
     return;
   }
   reference->_secondPassParameter = nullptr;
-  reference->_env->DrainFinalizerQueue();
-  //TODO: should we delete the reference here?
+  reference->Finalize();
 }
 
 }  // end of namespace v8impl
