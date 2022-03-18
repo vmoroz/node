@@ -68,9 +68,9 @@ void napi_env__::HandleFinalizerException(napi_env env,
       napi_value recv, result;
       STATUS_CALL(napi_get_undefined(env, &recv));
       STATUS_CALL(napi_call_function(env, recv, handler, 1, &err_value, &result));
-      napi_valuetype res_type;
-      STATUS_CALL(napi_typeof(env, result, &res_type));
-      if (res_type == napi_boolean) {
+      napi_valuetype result_type;
+      STATUS_CALL(napi_typeof(env, result, &result_type));
+      if (result_type == napi_boolean) {
         bool bool_result;
         STATUS_CALL(napi_get_value_bool(env, result, &bool_result));
         if (bool_result == false) {
@@ -79,24 +79,24 @@ void napi_env__::HandleFinalizerException(napi_env env,
       }
       return napi_clear_last_error(env);
     }();
+
     if (status == napi_ok) {
       if (!isHandled) {
-        HandleThrow(env, exception);
+        env->isolate->ThrowException(exception);
       }
     } else if (status == napi_pending_exception) {
       napi_value ex;
       napi_get_and_clear_last_exception(env, &ex);
-      HandleThrow(env, v8impl::V8LocalValueFromJsValue(ex));
+      env->isolate->ThrowException(v8impl::V8LocalValueFromJsValue(ex));
     } else {
       const napi_extended_error_info* error_info;
       napi_get_last_error_info(env, &error_info);
-      //TODO: create error instead of throwing
       napi_throw_error(
           env, "ERR_NAPI_FINALIZER_ERROR_HANDLER", error_info->error_message);
       napi_clear_last_error(env);
     }
   } else {
-    HandleThrow(env, exception);
+    env->isolate->ThrowException(exception);
   }
 }
 
@@ -3354,20 +3354,5 @@ node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler) {
     env->finalizer_error_handler.Reset();
   }
 
-  return napi_clear_last_error(env);
-}
-
-NAPI_EXTERN napi_status node_api_set_features(napi_env env,
-                                              node_api_features features) {
-  CHECK_ENV(env);
-  env->features = features;
-  return napi_clear_last_error(env);
-}
-
-NAPI_EXTERN napi_status node_api_get_features(napi_env env,
-                                              node_api_features* features) {
-  CHECK_ENV(env);
-  CHECK_ARG(env, features);
-  *features = env->features;
   return napi_clear_last_error(env);
 }

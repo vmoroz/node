@@ -577,12 +577,6 @@ NAPI_EXTERN napi_status napi_object_seal(napi_env env,
 // Set a handler for JS errors in finalizers.
 NAPI_EXTERN napi_status
 node_api_set_finalizer_error_handler(napi_env env, napi_value error_handler);
-
-NAPI_EXTERN napi_status node_api_set_features(napi_env env,
-                                              node_api_features features);
-
-NAPI_EXTERN napi_status node_api_get_features(napi_env env,
-                                              node_api_features* features);
 #endif  // NAPI_EXPERIMENTAL
 
 EXTERN_C_END

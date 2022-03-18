@@ -111,10 +111,6 @@ struct napi_env__ {
                    HandleFinalizerException);
   }
 
-  bool HasFeature(node_api_features feature) {
-    return (features & feature) != 0;
-  }
-
   v8impl::Persistent<v8::Value> last_exception;
 
   // We store references in two different lists, depending on whether they have
@@ -126,7 +122,6 @@ struct napi_env__ {
   int open_handle_scopes = 0;
   int open_callback_scopes = 0;
   int refs = 1;
-  node_api_features features = node_api_features_default;
   void* instance_data = nullptr;
   v8impl::Persistent<v8::Value> finalizer_error_handler;
 };

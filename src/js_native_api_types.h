@@ -102,20 +102,6 @@ typedef enum {
 //   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
 //     added value(s).
 
-#ifdef NAPI_EXPERIMENTAL
-// Feature bit flags allow to tweak internal behavior of the Node-API functions.
-// E.g. we can use it to fix old bugs or returned status code.
-// The node_api_features_default defines the default set of features per the
-// Node-API version. It must be used during the native module initialization.
-// Otherwise, the node_api_features_default from NAPI_EXPERIMENTAL is used.
-typedef enum {
-  // Call finalizers in GC second pass instead of from SetImmediate.
-  node_api_features_call_finalizer_from_gc = 0x01,
-  // The default features per Node-API version.
-  node_api_features_default = node_api_features_call_finalizer_from_gc
-} node_api_features;
-#endif
-
 typedef napi_value (*napi_callback)(napi_env env,
                                     napi_callback_info info);
 typedef void (*napi_finalize)(napi_env env,
