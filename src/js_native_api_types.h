@@ -105,8 +105,8 @@ typedef enum {
 #ifdef NAPI_EXPERIMENTAL
 // Feature bit flags allow to tweak internal behavior of the Node-API functions.
 // E.g. we can use it to fix old bugs or returned status code.
-// The node_api_features_default defines the default set of features per the Node-API version.
-// It must be used during the native module initialization.
+// The node_api_features_default defines the default set of features per the
+// Node-API version. It must be used during the native module initialization.
 // Otherwise, the node_api_features_default from NAPI_EXPERIMENTAL is used.
 typedef enum {
   // Call finalizers in GC second pass instead of from SetImmediate.
