@@ -5291,8 +5291,8 @@ required in order to enable correct disposal of the reference.
 ### `node_api_set_finalizer_error_handler`
 
 <!-- YAML
-added: v18.0.0
-napiVersion: Experimental
+added: REPLACEME
+napiVersion: REPLACEME
 -->
 
 ```c
