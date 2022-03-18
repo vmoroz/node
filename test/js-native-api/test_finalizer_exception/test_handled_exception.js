@@ -59,9 +59,23 @@ function runGCTests() {
   (() => {
     test.createObject(true /* throw on destruct */);
   })();
-  gcUntilSync(3);
+  gcUntilSync(4);
   assert.strictEqual(test.finalizeCount, 4);
   assert.strictEqual(handledExceptions, 3);
   assert.strictEqual(unhandledExceptions, 2);
+
+  // Raise unhandled exception if finalizer error handler throws.
+  test.setFinalizerErrorHandler((err) => {
+    ++handledExceptions;
+    assert.strictEqual(err.message, 'Error during Finalize');
+    throw err;
+  });
+  (() => {
+    test.createObject(true /* throw on destruct */);
+  })();
+  gcUntilSync(5);
+  assert.strictEqual(test.finalizeCount, 5);
+  assert.strictEqual(handledExceptions, 4);
+  assert.strictEqual(unhandledExceptions, 3);
 }
 runGCTests();
