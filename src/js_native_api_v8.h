@@ -399,16 +399,21 @@ class RefBase : protected Finalizer, RefTracker {
   bool _delete_self;
 };
 
-class Reference : public RefBase {
+class Reference final : public RefBase {
   using SecondPassCallParameterRef = Reference*;
 
- protected:
+ private:
   template <typename... Args>
-  Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args);
+  Reference(napi_env env,
+            v8::Local<v8::Value> value,
+            node_api_reftype reftype,
+            uint32_t initial_refcount,
+            Args&&... args);
 
  public:
   static Reference* New(napi_env env,
                         v8::Local<v8::Value> value,
+                        node_api_reftype reftype,
                         uint32_t initial_refcount,
                         bool delete_self,
                         napi_finalize finalize_callback = nullptr,
@@ -419,6 +424,7 @@ class Reference : public RefBase {
   uint32_t Ref();
   uint32_t Unref();
   v8::Local<v8::Value> Get();
+  node_api_reftype RefType() noexcept;
 
  protected:
   void Finalize(bool is_env_teardown = false) override;
@@ -435,6 +441,7 @@ class Reference : public RefBase {
   v8impl::Persistent<v8::Value> _persistent;
   SecondPassCallParameterRef* _secondPassParameter;
   bool _secondPassScheduled;
+  node_api_reftype _refType{node_api_reftype_strong_or_weak};
 
   FRIEND_TEST(JsNativeApiV8Test, Reference);
 };
