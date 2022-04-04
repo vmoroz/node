@@ -298,6 +298,13 @@ NAPI_EXTERN napi_status napi_wrap(napi_env env,
                                   napi_finalize finalize_cb,
                                   void* finalize_hint,
                                   napi_ref* result);
+NAPI_EXTERN napi_status node_api_wrap(napi_env env,
+                                      napi_value js_object,
+                                      void* native_object,
+                                      napi_finalize finalize_cb,
+                                      void* finalize_hint,
+                                      node_api_flags flags,
+                                      napi_ref* result);
 NAPI_EXTERN napi_status napi_unwrap(napi_env env,
                                     napi_value js_object,
                                     void** result);
@@ -309,6 +316,12 @@ NAPI_EXTERN napi_status napi_create_external(napi_env env,
                                              napi_finalize finalize_cb,
                                              void* finalize_hint,
                                              napi_value* result);
+NAPI_EXTERN napi_status node_api_create_external(napi_env env,
+                                                 void* data,
+                                                 napi_finalize finalize_cb,
+                                                 void* finalize_hint,
+                                                 node_api_flags flags,
+                                                 napi_value* result);
 NAPI_EXTERN napi_status napi_get_value_external(napi_env env,
                                                 napi_value value,
                                                 void** result);
@@ -320,6 +333,10 @@ NAPI_EXTERN napi_status napi_create_reference(napi_env env,
                                               napi_value value,
                                               uint32_t initial_refcount,
                                               napi_ref* result);
+NAPI_EXTERN napi_status node_api_create_reference(napi_env env,
+                                                  napi_value value,
+                                                  uint32_t initial_refcount,
+                                                  napi_ref* result);
 
 // Deletes a reference. The referenced value is released, and may
 // be GC'd unless there are other references to it.
@@ -488,6 +505,13 @@ NAPI_EXTERN napi_status napi_add_finalizer(napi_env env,
                                            napi_finalize finalize_cb,
                                            void* finalize_hint,
                                            napi_ref* result);
+NAPI_EXTERN napi_status node_api_add_finalizer(napi_env env,
+                                               napi_value js_object,
+                                               void* native_object,
+                                               napi_finalize finalize_cb,
+                                               void* finalize_hint,
+                                               node_api_flags flags,
+                                               napi_ref* result);
 
 #endif  // NAPI_VERSION >= 5
 
