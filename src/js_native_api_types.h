@@ -100,11 +100,6 @@ typedef enum {
 //   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
 //     added value(s).
 
-typedef enum {
-  node_api_flags_default = 0,
-  node_api_flags_pure_finalizer = 1 << 0,
-} node_api_flags;
-
 typedef napi_value (*napi_callback)(napi_env env, napi_callback_info info);
 typedef void (*napi_finalize)(napi_env env,
                               void* finalize_data,
@@ -158,5 +153,20 @@ typedef struct {
   uint64_t upper;
 } napi_type_tag;
 #endif  // NAPI_VERSION >= 8
+
+#ifdef NAPI_EXPERIMENTAL
+typedef enum {
+  node_api_finalizer_uses_js,
+  node_api_finalizer_native_only,
+} node_api_finalizer_type;
+
+typedef struct {
+  size_t version; // version of the struct - must be 0.
+  void* data;
+  napi_finalize finalize_cb;
+  void* finalize_hint;
+  node_api_finalizer_type finalizer_type;
+} node_api_native_data;
+#endif
 
 #endif  // SRC_JS_NATIVE_API_TYPES_H_
