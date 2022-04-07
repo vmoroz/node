@@ -85,7 +85,7 @@ struct napi_env__ {
     if (--refs == 0) delete this;
   }
 
-  virtual bool can_call_into_js() const { return true; }
+  virtual bool can_call_into_js() const { return !prohibit_call_js; }
   virtual v8::Maybe<bool> mark_arraybuffer_as_untransferable(
       v8::Local<v8::ArrayBuffer> ab) const {
     return v8::Just(true);
@@ -131,6 +131,7 @@ struct napi_env__ {
   int open_callback_scopes = 0;
   int refs = 1;
   void* instance_data = nullptr;
+  bool prohibit_call_js = false;
 };
 
 // This class is used to keep a napi_env live in a way that

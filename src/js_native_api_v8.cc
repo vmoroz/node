@@ -69,9 +69,11 @@ struct FinalizerContext {
   FinalizerContext(napi_env env)
       : _env(env),
         _errorState(env->ExchangeErrorState(ErrorState())),
-        _handleScope(env->isolate) {}
+        _handleScope(env->isolate),
+        _prohibitCallJS(std::exchange(env->prohibit_call_js, true)) {}
 
   ~FinalizerContext() {
+    _env->prohibit_call_js = _prohibitCallJS;
     ErrorState errorState = _env->ExchangeErrorState(_errorState);
     if (errorState.HasError()) {
       Abort();
@@ -86,6 +88,7 @@ struct FinalizerContext {
   napi_env _env;
   ErrorState _errorState;
   v8::HandleScope _handleScope;
+  bool _prohibitCallJS;
 };
 }  // namespace v8impl
 

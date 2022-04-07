@@ -24,7 +24,7 @@ node_napi_env__::node_napi_env__(v8::Local<v8::Context> context,
 }
 
 bool node_napi_env__::can_call_into_js() const {
-  return node_env()->can_call_into_js();
+  return Super::can_call_into_js() && node_env()->can_call_into_js();
 }
 
 v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
