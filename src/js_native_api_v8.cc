@@ -90,13 +90,17 @@ struct FinalizerContext {
 }  // namespace v8impl
 
 void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
-  v8impl::FinalizerContext finalizerContext(this);
-  CallIntoModule(
-      [native_data](napi_env env) {
-        native_data->finalize_cb(
-            env, native_data->data, native_data->finalize_hint);
-      },
-      v8impl::FinalizerContext::AbortOnError);
+  if (native_data->finalizer_type == node_api_finalizer_uses_js) {
+    CallFinalizerAsync(native_data);
+  } else {
+    v8impl::FinalizerContext finalizerContext(this);
+    CallIntoModule(
+        [native_data](napi_env env) {
+          native_data->finalize_cb(
+              env, native_data->data, native_data->finalize_hint);
+        },
+        v8impl::FinalizerContext::AbortOnError);
+  }
 }
 
 void napi_env__::CallFinalizerAsync(
@@ -105,16 +109,16 @@ void napi_env__::CallFinalizerAsync(
   // EnvRefHolder provides an exception safe wrapper to Ref and then
   // Unref once the lambda is freed
   EnvRefHolder liveEnv(static_cast<napi_env>(this));
-  v8impl::SetImmediate(this, [native_data_copy = *native_data,
-                liveEnv = std::move(liveEnv)]() {
-    napi_env env = liveEnv.env();
-    v8::HandleScope handle_scope(env->isolate);
-    v8::Context::Scope context_scope(env->context());
-    env->CallIntoModule([&native_data_copy](napi_env env) {
-      native_data_copy.finalize_cb(
-          env, native_data_copy.data, native_data_copy.finalize_hint);
-    });
-  });
+  v8impl::SetImmediate(
+      this, [native_data_copy = *native_data, liveEnv = std::move(liveEnv)]() {
+        napi_env env = liveEnv.env();
+        v8::HandleScope handle_scope(env->isolate);
+        v8::Context::Scope context_scope(env->context());
+        env->CallIntoModule([&native_data_copy](napi_env env) {
+          native_data_copy.finalize_cb(
+              env, native_data_copy.data, native_data_copy.finalize_hint);
+        });
+      });
 }
 
 namespace v8impl {
