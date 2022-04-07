@@ -59,17 +59,17 @@
 
 namespace v8impl {
 
-  // We can be in the middle of JS code execution where some code has thrown an
-  // error.
-  // 1. Clean up the environment from any error.
-  // 2. Prohibit JS execution.
-  // 3. Crash if any errors were thrown.
-  // 4. Restore the environment.
+// We can be in the middle of JS code execution where some code has thrown an
+// error.
+// 1. Clean up the environment from any error.
+// 2. Prohibit JS execution.
+// 3. Crash if any errors were thrown.
+// 4. Restore the environment.
 struct FinalizerContext {
   FinalizerContext(napi_env env)
       : _env(env),
-    _errorState(env->ExchangeErrorState(ErrorState())),
-      _handleScope(env->isolate) {}
+        _errorState(env->ExchangeErrorState(ErrorState())),
+        _handleScope(env->isolate) {}
 
   ~FinalizerContext() {
     ErrorState errorState = _env->ExchangeErrorState(_errorState);
@@ -97,6 +97,24 @@ void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
             env, native_data->data, native_data->finalize_hint);
       },
       v8impl::FinalizerContext::AbortOnError);
+}
+
+void napi_env__::CallFinalizerAsync(
+    node_api_native_data* native_data) noexcept {
+  // we need to keep the env live until the finalizer has been run
+  // EnvRefHolder provides an exception safe wrapper to Ref and then
+  // Unref once the lambda is freed
+  EnvRefHolder liveEnv(static_cast<napi_env>(this));
+  v8impl::SetImmediate(this, [native_data_copy = *native_data,
+                liveEnv = std::move(liveEnv)]() {
+    napi_env env = liveEnv.env();
+    v8::HandleScope handle_scope(env->isolate);
+    v8::Context::Scope context_scope(env->context());
+    env->CallIntoModule([&native_data_copy](napi_env env) {
+      native_data_copy.finalize_cb(
+          env, native_data_copy.data, native_data_copy.finalize_hint);
+    });
+  });
 }
 
 namespace v8impl {

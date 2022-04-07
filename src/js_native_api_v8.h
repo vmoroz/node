@@ -110,6 +110,7 @@ struct napi_env__ {
   }
 
   void CallFinalizer(node_api_native_data* native_data) noexcept;
+  void CallFinalizerAsync(node_api_native_data* native_data) noexcept;
 
   v8impl::ErrorState ExchangeErrorState(v8impl::ErrorState& errorState) {
     v8impl::ErrorState previousErrorState{};

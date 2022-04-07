@@ -34,20 +34,6 @@ v8::Maybe<bool> node_napi_env__::mark_arraybuffer_as_untransferable(
                         v8::True(isolate));
 }
 
-// void node_napi_env__::CallFinalizer(napi_finalize cb, void* data, void* hint) {
-//   // we need to keep the env live until the finalizer has been run
-//   // EnvRefHolder provides an exception safe wrapper to Ref and then
-//   // Unref once the lambda is freed
-//   EnvRefHolder liveEnv(static_cast<napi_env>(this));
-//   node_env()->SetImmediate(
-//       [=, liveEnv = std::move(liveEnv)](node::Environment* node_env) {
-//         napi_env env = liveEnv.env();
-//         v8::HandleScope handle_scope(env->isolate);
-//         v8::Context::Scope context_scope(env->context());
-//         env->CallIntoModule([&](napi_env env) { cb(env, data, hint); });
-//       });
-// }
-
 namespace v8impl {
 
 namespace {

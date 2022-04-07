@@ -38,6 +38,12 @@ using PersistentToLocal = node::PersistentToLocal;
   node::Abort();
 }
 
+template <typename T>
+void SetImmediate(napi_env env, T task) {
+  node::Environment::GetCurrent(env->context())
+      ->SetImmediate([task](node::Environment* /* node_env */) { task(); });
+}
+
 }  // end of namespace v8impl
 
 #endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_
