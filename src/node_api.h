@@ -142,7 +142,7 @@ NAPI_EXTERN napi_status napi_create_external_buffer(napi_env env,
 #ifdef NAPI_EXPERIMENTAL
 NAPI_EXTERN napi_status
 node_api_create_external_buffer(napi_env env,
-                                node_api_native_data* external_data,
+                                node_api_native_data* native_data,
                                 size_t length,
                                 napi_value* result);
 #endif

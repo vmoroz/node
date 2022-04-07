@@ -901,7 +901,7 @@ napi_status napi_create_external_buffer(napi_env env,
 }
 
 napi_status node_api_create_external_buffer(napi_env env,
-                                            node_api_native_data* external_data,
+                                            node_api_native_data* native_data,
                                             size_t length,
                                             napi_value* result) {
   NAPI_PREAMBLE(env);
@@ -911,11 +911,11 @@ napi_status node_api_create_external_buffer(napi_env env,
 
   // The finalizer object will delete itself after invoking the callback.
   v8impl::Finalizer* finalizer = v8impl::Finalizer::New(
-      env, external_data, v8impl::Finalizer::kKeepEnvReference);
+      env, native_data, v8impl::Finalizer::kKeepEnvReference);
 
   v8::MaybeLocal<v8::Object> maybe =
       node::Buffer::New(isolate,
-                        reinterpret_cast<char*>(external_data->data),
+                        reinterpret_cast<char*>(native_data->data),
                         length,
                         v8impl::BufferFinalizer::FinalizeBufferCallback,
                         finalizer);

@@ -2832,15 +2832,15 @@ napi_status napi_create_external_arraybuffer(napi_env env,
 
 napi_status node_api_create_external_arraybuffer(
     napi_env env,
-    node_api_native_data* external_data,
+    node_api_native_data* native_data,
     size_t byte_length,
     napi_value* result) {
   // The API contract here is that the cleanup function runs on the JS thread,
   // and is able to use napi_env. Implementing that properly is hard, so use the
   // `Buffer` variant for easier implementation.
   napi_value buffer;
-  STATUS_CALL(node_api_create_external_buffer(
-      env, external_data, byte_length, &buffer));
+  STATUS_CALL(
+      node_api_create_external_buffer(env, native_data, byte_length, &buffer));
   return napi_get_typedarray_info(
       env, buffer, nullptr, nullptr, nullptr, result, nullptr);
 }
