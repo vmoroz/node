@@ -328,9 +328,15 @@ class CallbackBundle {
 
     v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
     Reference::New(
-        env, cbdata, 0, true, &MakeNativeData(bundle, Delete, nullptr));
+        env,
+        cbdata,
+        0,
+        true,
+        &MakeNativeData(
+            bundle, Delete, nullptr, node_api_finalizer_native_only));
     return cbdata;
   }
+
   napi_env env;   // Necessary to invoke C++ NAPI callback
   void* cb_data;  // The user provided callback data
   napi_callback cb;
