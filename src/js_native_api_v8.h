@@ -1,12 +1,10 @@
 #ifndef SRC_JS_NATIVE_API_V8_H_
 #define SRC_JS_NATIVE_API_V8_H_
 
-// This file needs to be compatible with C compilers.
-#include <string.h>  // NOLINT(modernize-deprecated-headers)
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 
-static napi_status napi_clear_last_error(napi_env env);
+napi_status napi_clear_last_error(napi_env env);
 
 namespace v8impl {
 
@@ -47,6 +45,15 @@ class RefTracker {
  private:
   RefList* next_ = nullptr;
   RefList* prev_ = nullptr;
+};
+
+struct ErrorState {
+  v8impl::Persistent<v8::Value> last_exception;
+  napi_extended_error_info last_error;
+
+  bool HasError() const noexcept {
+    return !last_exception.IsEmpty() || last_error.error_code != napi_ok;
+  }
 };
 
 }  // end of namespace v8impl
@@ -102,9 +109,13 @@ struct napi_env__ {
     }
   }
 
-  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint, node_api_finalizer_type finalizer_type) {
-    v8::HandleScope handle_scope(isolate);
-    CallIntoModule([&](napi_env env) { cb(env, data, hint); });
+  void CallFinalizer(node_api_native_data* native_data) noexcept;
+
+  v8impl::ErrorState ExchangeErrorState(v8impl::ErrorState& errorState) {
+    v8impl::ErrorState previousErrorState{};
+    previousErrorState.last_exception = std::exchange(last_exception, std::move(errorState.last_exception));
+    previousErrorState.last_error = std::exchange(last_error, std::move(errorState.last_error));
+    return previousErrorState;
   }
 
   v8impl::Persistent<v8::Value> last_exception;

@@ -34,6 +34,10 @@ using Persistent = v8::Global<T>;
 
 using PersistentToLocal = node::PersistentToLocal;
 
+[[noreturn]] inline void Abort() {
+  node::Abort();
+}
+
 }  // end of namespace v8impl
 
 #endif  // SRC_JS_NATIVE_API_V8_INTERNALS_H_

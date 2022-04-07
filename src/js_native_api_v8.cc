@@ -59,6 +59,48 @@
 
 namespace v8impl {
 
+  // We can be in the middle of JS code execution where some code has thrown an
+  // error.
+  // 1. Clean up the environment from any error.
+  // 2. Prohibit JS execution.
+  // 3. Crash if any errors were thrown.
+  // 4. Restore the environment.
+struct FinalizerContext {
+  FinalizerContext(napi_env env)
+      : _env(env),
+    _errorState(env->ExchangeErrorState(ErrorState())),
+      _handleScope(env->isolate) {}
+
+  ~FinalizerContext() {
+    ErrorState errorState = _env->ExchangeErrorState(_errorState);
+    if (errorState.HasError()) {
+      Abort();
+    }
+  }
+
+  static void AbortOnError(napi_env /*env*/, v8::Local<v8::Value> /*value*/) {
+    Abort();
+  }
+
+ private:
+  napi_env _env;
+  ErrorState _errorState;
+  v8::HandleScope _handleScope;
+};
+}  // namespace v8impl
+
+void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
+  v8impl::FinalizerContext finalizerContext(this);
+  CallIntoModule(
+      [native_data](napi_env env) {
+        native_data->finalize_cb(
+            env, native_data->data, native_data->finalize_hint);
+      },
+      v8impl::FinalizerContext::AbortOnError);
+}
+
+namespace v8impl {
+
 namespace {
 
 inline static napi_status V8NameFromPropertyDescriptor(
@@ -553,9 +595,12 @@ void RefBase::Finalize(bool is_env_teardown) {
 
   if (_finalize_callback != nullptr) {
     // This ensures that we never call the finalizer twice.
-    napi_finalize fini = _finalize_callback;
-    _finalize_callback = nullptr;
-    _env->CallFinalizer(fini, _finalize_data, _finalize_hint, _finalizer_type);
+    node_api_native_data native_data{};
+    native_data.data = _finalize_data;
+    native_data.finalize_cb = std::exchange(_finalize_callback, nullptr);
+    native_data.finalize_hint = _finalize_hint;
+    native_data.finalizer_type = _finalizer_type;
+    _env->CallFinalizer(&native_data);
   }
 
   // this is safe because if a request to delete the reference
