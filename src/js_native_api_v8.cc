@@ -58,23 +58,23 @@
   } while (0)
 
 namespace v8impl {
+namespace {
 
-// We can be in the middle of JS code execution where some code has thrown an
-// error.
-// 1. Clean up the environment from any error.
-// 2. Prohibit JS execution.
-// 3. Crash if any errors were thrown.
-// 4. Restore the environment.
+// Context to run finalizers as a part of GC finalizers.
+// It can be run in the middle of other JS code.
+// That code may have some error state which we must preserve and restore.
+// No JS code is allowed to run in this context.
+// Crash the process on any unhandled errors.
 struct FinalizerContext {
   FinalizerContext(napi_env env)
-      : _env(env),
-        _errorState(env->ExchangeErrorState(ErrorState())),
-        _handleScope(env->isolate),
-        _prohibitCallJS(std::exchange(env->prohibit_call_js, true)) {}
+      : env_(env),
+        errorState_(env->ExchangeErrorState(ErrorState())),
+        handleScope_(env->isolate),
+        prohibitCallJS_(std::exchange(env->prohibit_call_js, true)) {}
 
   ~FinalizerContext() {
-    _env->prohibit_call_js = _prohibitCallJS;
-    ErrorState errorState = _env->ExchangeErrorState(_errorState);
+    env_->prohibit_call_js = prohibitCallJS_;
+    ErrorState errorState = env_->ExchangeErrorState(errorState_);
     if (errorState.HasError()) {
       Abort();
     }
@@ -85,17 +85,21 @@ struct FinalizerContext {
   }
 
  private:
-  napi_env _env;
-  ErrorState _errorState;
-  v8::HandleScope _handleScope;
-  bool _prohibitCallJS;
+  napi_env env_;
+  ErrorState errorState_;
+  v8::HandleScope handleScope_;
+  bool prohibitCallJS_;
 };
+
+}  // namespace
 }  // namespace v8impl
 
 void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
   if (native_data->finalizer_type == node_api_finalizer_uses_js) {
     CallFinalizerAsync(native_data);
   } else {
+    // Run finalizers synchronously to allow release native objects as soon as
+    // possible. No JS calls are allowed.
     v8impl::FinalizerContext finalizerContext(this);
     CallIntoModule(
         [native_data](napi_env env) {
@@ -108,7 +112,7 @@ void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
 
 void napi_env__::CallFinalizerAsync(
     node_api_native_data* native_data) noexcept {
-  // we need to keep the env live until the finalizer has been run
+  // We need to keep the env live until the finalizer has been run
   // EnvRefHolder provides an exception safe wrapper to Ref and then
   // Unref once the lambda is freed
   EnvRefHolder liveEnv(static_cast<napi_env>(this));
@@ -124,8 +128,17 @@ void napi_env__::CallFinalizerAsync(
       });
 }
 
-namespace v8impl {
+v8impl::ErrorState napi_env__::ExchangeErrorState(
+    v8impl::ErrorState& errorState) {
+  v8impl::ErrorState previousErrorState{};
+  previousErrorState.last_exception =
+      std::exchange(last_exception, std::move(errorState.last_exception));
+  previousErrorState.last_error =
+      std::exchange(last_error, std::move(errorState.last_error));
+  return previousErrorState;
+}
 
+namespace v8impl {
 namespace {
 
 inline static napi_status V8NameFromPropertyDescriptor(
