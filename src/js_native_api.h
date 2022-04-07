@@ -421,8 +421,7 @@ napi_create_external_arraybuffer(napi_env env,
 #ifdef NAPI_EXPERIMENTAL
 NAPI_EXTERN napi_status
 node_api_create_external_arraybuffer(napi_env env,
-                                     node_api_native_data* native_data,
-                                     uint8_t* byte_start,
+                                     node_api_native_data* external_data,
                                      size_t byte_length,
                                      napi_value* result);
 #endif

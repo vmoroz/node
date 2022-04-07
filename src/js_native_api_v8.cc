@@ -226,6 +226,17 @@ inline static napi_status Unwrap(napi_env env,
   return GET_RETURN_STATUS(env);
 }
 
+node_api_native_data MakeNativeData(void* data,
+                                    napi_finalize finalize_cb,
+                                    void* finalize_hint) {
+  node_api_native_data native_data{};
+  native_data.data = data;
+  native_data.finalize_cb = finalize_cb;
+  native_data.finalize_hint = finalize_hint;
+  native_data.finalizer_type = node_api_finalizer_uses_js;
+  return native_data;
+}
+
 //=== Function napi_callback wrapper =================================
 
 // Use this data structure to associate callback data with each N-API function
@@ -247,7 +258,8 @@ class CallbackBundle {
     bundle->env = env;
 
     v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
-    Reference::New(env, cbdata, 0, true, Delete, bundle, nullptr);
+    Reference::New(
+        env, cbdata, 0, true, &MakeNativeData(bundle, Delete, nullptr));
     return cbdata;
   }
   napi_env env;   // Necessary to invoke C++ NAPI callback
@@ -399,12 +411,11 @@ enum WrapType { retrievable, anonymous };
 template <WrapType wrap_type>
 inline napi_status Wrap(napi_env env,
                         napi_value js_object,
-                        void* native_object,
-                        napi_finalize finalize_cb,
-                        void* finalize_hint,
+                        node_api_native_data* native_data,
                         napi_ref* result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, js_object);
+  CHECK_ARG(env, native_data);
 
   v8::Local<v8::Context> context = env->context();
 
@@ -421,7 +432,7 @@ inline napi_status Wrap(napi_env env,
         napi_invalid_arg);
   } else if (wrap_type == anonymous) {
     // If no finalize callback is provided, we error out.
-    CHECK_ARG(env, finalize_cb);
+    CHECK_ARG(env, native_data->finalize_cb);
   }
 
   v8impl::Reference* reference = nullptr;
@@ -430,20 +441,12 @@ inline napi_status Wrap(napi_env env,
     // ONLY in response to the finalize callback invocation. (If it is deleted
     // before then, then the finalize callback will never be invoked.)
     // Therefore a finalize callback is required when returning a reference.
-    CHECK_ARG(env, finalize_cb);
-    reference = v8impl::Reference::New(
-        env, obj, 0, false, finalize_cb, native_object, finalize_hint);
+    CHECK_ARG(env, native_data->finalize_cb);
+    reference = v8impl::Reference::New(env, obj, 0, false, native_data);
     *result = reinterpret_cast<napi_ref>(reference);
   } else {
     // Create a self-deleting reference.
-    reference = v8impl::Reference::New(
-        env,
-        obj,
-        0,
-        true,
-        finalize_cb,
-        native_object,
-        finalize_cb == nullptr ? nullptr : finalize_hint);
+    reference = v8impl::Reference::New(env, obj, 0, true, native_data);
   }
 
   if (wrap_type == retrievable) {
@@ -462,27 +465,19 @@ inline napi_status Wrap(napi_env env,
 RefBase::RefBase(napi_env env,
                  uint32_t initial_refcount,
                  bool delete_self,
-                 napi_finalize finalize_callback,
-                 void* finalize_data,
-                 void* finalize_hint)
-    : Finalizer(env, finalize_callback, finalize_data, finalize_hint),
+                 node_api_native_data* native_data)
+    : Finalizer(env, native_data),
       _refcount(initial_refcount),
       _delete_self(delete_self) {
-  Link(finalize_callback == nullptr ? &env->reflist : &env->finalizing_reflist);
+  Link(native_data->finalize_cb == nullptr ? &env->reflist
+                                           : &env->finalizing_reflist);
 }
 
 RefBase* RefBase::New(napi_env env,
                       uint32_t initial_refcount,
                       bool delete_self,
-                      napi_finalize finalize_callback,
-                      void* finalize_data,
-                      void* finalize_hint) {
-  return new RefBase(env,
-                     initial_refcount,
-                     delete_self,
-                     finalize_callback,
-                     finalize_data,
-                     finalize_hint);
+                      node_api_native_data* native_data) {
+  return new RefBase(env, initial_refcount, delete_self, native_data);
 }
 
 RefBase::~RefBase() {
@@ -560,7 +555,7 @@ void RefBase::Finalize(bool is_env_teardown) {
     // This ensures that we never call the finalizer twice.
     napi_finalize fini = _finalize_callback;
     _finalize_callback = nullptr;
-    _env->CallFinalizer(fini, _finalize_data, _finalize_hint);
+    _env->CallFinalizer(fini, _finalize_data, _finalize_hint, _finalizer_type);
   }
 
   // this is safe because if a request to delete the reference
@@ -588,16 +583,8 @@ Reference* Reference::New(napi_env env,
                           v8::Local<v8::Value> value,
                           uint32_t initial_refcount,
                           bool delete_self,
-                          napi_finalize finalize_callback,
-                          void* finalize_data,
-                          void* finalize_hint) {
-  return new Reference(env,
-                       value,
-                       initial_refcount,
-                       delete_self,
-                       finalize_callback,
-                       finalize_data,
-                       finalize_hint);
+                          node_api_native_data* native_data) {
+  return new Reference(env, value, initial_refcount, delete_self, native_data);
 }
 
 Reference::~Reference() {
@@ -2342,8 +2329,17 @@ napi_status napi_wrap(napi_env env,
                       napi_finalize finalize_cb,
                       void* finalize_hint,
                       napi_ref* result) {
+  node_api_native_data native_data =
+      v8impl::MakeNativeData(native_object, finalize_cb, finalize_hint);
   return v8impl::Wrap<v8impl::retrievable>(
-      env, js_object, native_object, finalize_cb, finalize_hint, result);
+      env, js_object, &native_data, result);
+}
+
+napi_status node_api_wrap(napi_env env,
+                          napi_value js_object,
+                          node_api_native_data* native_data,
+                          napi_ref* result) {
+  return v8impl::Wrap<v8impl::retrievable>(env, js_object, native_data, result);
 }
 
 napi_status napi_unwrap(napi_env env, napi_value obj, void** result) {
@@ -2359,18 +2355,28 @@ napi_status napi_create_external(napi_env env,
                                  napi_finalize finalize_cb,
                                  void* finalize_hint,
                                  napi_value* result) {
+  return node_api_create_external(
+      env, &v8impl::MakeNativeData(data, finalize_cb, finalize_hint), result);
+}
+
+napi_status node_api_create_external(napi_env env,
+                                     node_api_native_data* native_data,
+                                     napi_value* result) {
   NAPI_PREAMBLE(env);
+  CHECK_ARG(env, native_data);
   CHECK_ARG(env, result);
 
   v8::Isolate* isolate = env->isolate;
 
-  v8::Local<v8::Value> external_value = v8::External::New(isolate, data);
+  v8::Local<v8::Value> external_value =
+      v8::External::New(isolate, native_data->data);
 
   // The Reference object will delete itself after invoking the finalizer
   // callback.
-  v8impl::Reference::New(
-      env, external_value, 0, true, finalize_cb, data, finalize_hint);
+  v8impl::Reference::New(env, external_value, 0, true, native_data);
 
+  // TODO: [vmoroz] does not look right. If we return a ref, then we must must
+  // delete self.
   *result = v8impl::JsValueFromV8LocalValue(external_value);
 
   return napi_clear_last_error(env);
@@ -2470,8 +2476,8 @@ napi_status napi_create_reference(napi_env env,
     return napi_set_last_error(env, napi_invalid_arg);
   }
 
-  v8impl::Reference* reference =
-      v8impl::Reference::New(env, v8_value, initial_refcount, false);
+  v8impl::Reference* reference = v8impl::Reference::New(
+      env, v8_value, initial_refcount, false, &node_api_native_data{});
 
   *result = reinterpret_cast<napi_ref>(reference);
   return napi_clear_last_error(env);
@@ -2761,6 +2767,21 @@ napi_status napi_create_external_arraybuffer(napi_env env,
   napi_value buffer;
   STATUS_CALL(napi_create_external_buffer(
       env, byte_length, external_data, finalize_cb, finalize_hint, &buffer));
+  return napi_get_typedarray_info(
+      env, buffer, nullptr, nullptr, nullptr, result, nullptr);
+}
+
+napi_status node_api_create_external_arraybuffer(
+    napi_env env,
+    node_api_native_data* external_data,
+    size_t byte_length,
+    napi_value* result) {
+  // The API contract here is that the cleanup function runs on the JS thread,
+  // and is able to use napi_env. Implementing that properly is hard, so use the
+  // `Buffer` variant for easier implementation.
+  napi_value buffer;
+  STATUS_CALL(node_api_create_external_buffer(
+      env, external_data, byte_length, &buffer));
   return napi_get_typedarray_info(
       env, buffer, nullptr, nullptr, nullptr, result, nullptr);
 }
@@ -3133,8 +3154,16 @@ napi_status napi_add_finalizer(napi_env env,
                                napi_finalize finalize_cb,
                                void* finalize_hint,
                                napi_ref* result) {
-  return v8impl::Wrap<v8impl::anonymous>(
-      env, js_object, native_object, finalize_cb, finalize_hint, result);
+  node_api_native_data native_data =
+      v8impl::MakeNativeData(native_object, finalize_cb, finalize_hint);
+  return v8impl::Wrap<v8impl::anonymous>(env, js_object, &native_data, result);
+}
+
+napi_status node_api_add_finalizer(napi_env env,
+                                   napi_value js_object,
+                                   node_api_native_data* native_data,
+                                   napi_ref* result) {
+  return v8impl::Wrap<v8impl::anonymous>(env, js_object, native_data, result);
 }
 
 napi_status napi_adjust_external_memory(napi_env env,
@@ -3153,6 +3182,12 @@ napi_status napi_set_instance_data(napi_env env,
                                    void* data,
                                    napi_finalize finalize_cb,
                                    void* finalize_hint) {
+  return node_api_set_instance_data(
+      env, &v8impl::MakeNativeData(data, finalize_cb, finalize_hint));
+}
+
+napi_status node_api_set_instance_data(napi_env env,
+                                       node_api_native_data* native_data) {
   CHECK_ENV(env);
 
   v8impl::RefBase* old_data = static_cast<v8impl::RefBase*>(env->instance_data);
@@ -3162,8 +3197,7 @@ napi_status napi_set_instance_data(napi_env env,
     v8impl::RefBase::Delete(old_data);
   }
 
-  env->instance_data =
-      v8impl::RefBase::New(env, 0, true, finalize_cb, data, finalize_hint);
+  env->instance_data = v8impl::RefBase::New(env, 0, true, native_data);
 
   return napi_clear_last_error(env);
 }

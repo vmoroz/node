@@ -139,6 +139,13 @@ NAPI_EXTERN napi_status napi_create_external_buffer(napi_env env,
                                                     napi_finalize finalize_cb,
                                                     void* finalize_hint,
                                                     napi_value* result);
+#ifdef NAPI_EXPERIMENTAL
+NAPI_EXTERN napi_status
+node_api_create_external_buffer(napi_env env,
+                                node_api_native_data* external_data,
+                                size_t length,
+                                napi_value* result);
+#endif
 NAPI_EXTERN napi_status napi_create_buffer_copy(napi_env env,
                                                 size_t length,
                                                 const void* data,

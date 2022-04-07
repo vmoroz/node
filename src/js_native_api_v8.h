@@ -102,7 +102,7 @@ struct napi_env__ {
     }
   }
 
-  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
+  virtual void CallFinalizer(napi_finalize cb, void* data, void* hint, node_api_finalizer_type finalizer_type) {
     v8::HandleScope handle_scope(isolate);
     CallIntoModule([&](napi_env env) { cb(env, data, hint); });
   }
@@ -300,14 +300,13 @@ class Finalizer {
 
  protected:
   Finalizer(napi_env env,
-            napi_finalize finalize_callback,
-            void* finalize_data,
-            void* finalize_hint,
+            node_api_native_data* native_data,
             EnvReferenceMode refmode = kNoEnvReference)
       : _env(env),
-        _finalize_callback(finalize_callback),
-        _finalize_data(finalize_data),
-        _finalize_hint(finalize_hint),
+        _finalize_callback(native_data->finalize_cb),
+        _finalize_data(native_data->data),
+        _finalize_hint(native_data->finalize_hint),
+        _finalizer_type(native_data->finalizer_type),
         _has_env_reference(refmode == kKeepEnvReference) {
     if (_has_env_reference) _env->Ref();
   }
@@ -318,12 +317,9 @@ class Finalizer {
 
  public:
   static Finalizer* New(napi_env env,
-                        napi_finalize finalize_callback = nullptr,
-                        void* finalize_data = nullptr,
-                        void* finalize_hint = nullptr,
+                        node_api_native_data* native_data,
                         EnvReferenceMode refmode = kNoEnvReference) {
-    return new Finalizer(
-        env, finalize_callback, finalize_data, finalize_hint, refmode);
+    return new Finalizer(env, native_data, refmode);
   }
 
   static void Delete(Finalizer* finalizer) { delete finalizer; }
@@ -333,6 +329,7 @@ class Finalizer {
   napi_finalize _finalize_callback;
   void* _finalize_data;
   void* _finalize_hint;
+  node_api_finalizer_type _finalizer_type;
   bool _finalize_ran = false;
   bool _has_env_reference = false;
 };
@@ -357,17 +354,13 @@ class RefBase : protected Finalizer, RefTracker {
   RefBase(napi_env env,
           uint32_t initial_refcount,
           bool delete_self,
-          napi_finalize finalize_callback,
-          void* finalize_data,
-          void* finalize_hint);
+          node_api_native_data* native_data);
 
  public:
   static RefBase* New(napi_env env,
                       uint32_t initial_refcount,
                       bool delete_self,
-                      napi_finalize finalize_callback,
-                      void* finalize_data,
-                      void* finalize_hint);
+                      node_api_native_data* native_data);
 
   static inline void Delete(RefBase* reference);
 
@@ -397,9 +390,7 @@ class Reference : public RefBase {
                         v8::Local<v8::Value> value,
                         uint32_t initial_refcount,
                         bool delete_self,
-                        napi_finalize finalize_callback = nullptr,
-                        void* finalize_data = nullptr,
-                        void* finalize_hint = nullptr);
+                        node_api_native_data* native_data);
 
   virtual ~Reference();
   uint32_t Ref();
