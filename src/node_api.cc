@@ -897,8 +897,8 @@ napi_status napi_create_external_buffer(napi_env env,
                                         napi_value* result) {
   node_api_native_data native_data{};
   native_data.data = data;
-  native_data.finalize_cb = finalize_cb;
-  native_data.finalize_hint = finalize_hint;
+  native_data.finalizer = finalize_cb;
+  native_data.finalizer_state = finalize_hint;
   native_data.finalizer_type = node_api_finalizer_uses_js;
   return node_api_create_external_buffer(env, &native_data, length, result);
 }

@@ -99,8 +99,8 @@ void napi_env__::CallFinalizer(node_api_native_data* native_data) noexcept {
     v8impl::FinalizerContext finalizerContext(this);
     CallIntoModule(
         [native_data](napi_env env) {
-          native_data->finalize_cb(
-              env, native_data->data, native_data->finalize_hint);
+          native_data->finalizer(
+              env, native_data->data, native_data->finalizer_state);
         },
         v8impl::FinalizerContext::AbortOnError);
   }
@@ -118,8 +118,8 @@ void napi_env__::CallFinalizerAsync(
         v8::HandleScope handle_scope(env->isolate);
         v8::Context::Scope context_scope(env->context());
         env->CallIntoModule([&native_data_copy](napi_env env) {
-          native_data_copy.finalize_cb(
-              env, native_data_copy.data, native_data_copy.finalize_hint);
+          native_data_copy.finalizer(
+              env, native_data_copy.data, native_data_copy.finalizer_state);
         });
       });
 }
@@ -298,8 +298,8 @@ node_api_native_data MakeNativeData(void* data,
                                     void* finalize_hint) {
   node_api_native_data native_data{};
   native_data.data = data;
-  native_data.finalize_cb = finalize_cb;
-  native_data.finalize_hint = finalize_hint;
+  native_data.finalizer = finalize_cb;
+  native_data.finalizer_state = finalize_hint;
   native_data.finalizer_type = node_api_finalizer_uses_js;
   return native_data;
 }
@@ -499,7 +499,7 @@ inline napi_status Wrap(napi_env env,
         napi_invalid_arg);
   } else if (wrap_type == anonymous) {
     // If no finalize callback is provided, we error out.
-    CHECK_ARG(env, native_data->finalize_cb);
+    CHECK_ARG(env, native_data->finalizer);
   }
 
   v8impl::Reference* reference = nullptr;
@@ -508,7 +508,7 @@ inline napi_status Wrap(napi_env env,
     // ONLY in response to the finalize callback invocation. (If it is deleted
     // before then, then the finalize callback will never be invoked.)
     // Therefore a finalize callback is required when returning a reference.
-    CHECK_ARG(env, native_data->finalize_cb);
+    CHECK_ARG(env, native_data->finalizer);
     reference = v8impl::Reference::New(env, obj, 0, false, native_data);
     *result = reinterpret_cast<napi_ref>(reference);
   } else {
@@ -536,8 +536,8 @@ RefBase::RefBase(napi_env env,
     : Finalizer(env, native_data),
       _refcount(initial_refcount),
       _delete_self(delete_self) {
-  Link(native_data->finalize_cb == nullptr ? &env->reflist
-                                           : &env->finalizing_reflist);
+  Link(native_data->finalizer == nullptr ? &env->reflist
+                                         : &env->finalizing_reflist);
 }
 
 RefBase* RefBase::New(napi_env env,
@@ -622,8 +622,8 @@ void RefBase::Finalize(bool is_env_teardown) {
     // This ensures that we never call the finalizer twice.
     node_api_native_data native_data{};
     native_data.data = _finalize_data;
-    native_data.finalize_cb = std::exchange(_finalize_callback, nullptr);
-    native_data.finalize_hint = _finalize_hint;
+    native_data.finalizer = std::exchange(_finalize_callback, nullptr);
+    native_data.finalizer_state = _finalize_hint;
     native_data.finalizer_type = _finalizer_type;
     _env->CallFinalizer(&native_data);
   }

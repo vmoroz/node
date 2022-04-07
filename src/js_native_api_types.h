@@ -156,15 +156,15 @@ typedef struct {
 
 #ifdef NAPI_EXPERIMENTAL
 typedef enum {
-  node_api_finalizer_uses_js,
-  node_api_finalizer_native_only,
+  node_api_finalizer_uses_js,      // may touch GC and must run in SetImmediate
+  node_api_finalizer_native_only,  // safe to run from GC finalizer
 } node_api_finalizer_type;
 
 typedef struct {
-  size_t version; // version of the struct - must be 0.
+  size_t version;  // version of the struct - must be 0.
   void* data;
-  napi_finalize finalize_cb;
-  void* finalize_hint;
+  napi_finalize finalizer;
+  void* finalizer_state;
   node_api_finalizer_type finalizer_type;
 } node_api_native_data;
 #endif

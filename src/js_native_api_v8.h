@@ -114,8 +114,10 @@ struct napi_env__ {
 
   v8impl::ErrorState ExchangeErrorState(v8impl::ErrorState& errorState) {
     v8impl::ErrorState previousErrorState{};
-    previousErrorState.last_exception = std::exchange(last_exception, std::move(errorState.last_exception));
-    previousErrorState.last_error = std::exchange(last_error, std::move(errorState.last_error));
+    previousErrorState.last_exception =
+        std::exchange(last_exception, std::move(errorState.last_exception));
+    previousErrorState.last_error =
+        std::exchange(last_error, std::move(errorState.last_error));
     return previousErrorState;
   }
 
@@ -316,9 +318,9 @@ class Finalizer {
             node_api_native_data* native_data,
             EnvReferenceMode refmode = kNoEnvReference)
       : _env(env),
-        _finalize_callback(native_data->finalize_cb),
+        _finalize_callback(native_data->finalizer),
         _finalize_data(native_data->data),
-        _finalize_hint(native_data->finalize_hint),
+        _finalize_hint(native_data->finalizer_state),
         _finalizer_type(native_data->finalizer_type),
         _has_env_reference(refmode == kKeepEnvReference) {
     if (_has_env_reference) _env->Ref();
