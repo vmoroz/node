@@ -431,6 +431,19 @@ class Reference : public RefBase {
   FRIEND_TEST(JsNativeApiV8Test, Reference);
 };
 
+inline node_api_native_data MakeNativeData(
+    void* data,
+    napi_finalize finalizer,
+    void* finalizer_state,
+    node_api_finalizer_type finalizer_type = node_api_finalizer_uses_js) {
+  node_api_native_data native_data{};
+  native_data.data = data;
+  native_data.finalizer = finalizer;
+  native_data.finalizer_state = finalizer_state;
+  native_data.finalizer_type = finalizer_type;
+  return native_data;
+}
+
 }  // end of namespace v8impl
 
 #define STATUS_CALL(call)                                                      \

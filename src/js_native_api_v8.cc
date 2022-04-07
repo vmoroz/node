@@ -293,17 +293,6 @@ inline static napi_status Unwrap(napi_env env,
   return GET_RETURN_STATUS(env);
 }
 
-node_api_native_data MakeNativeData(void* data,
-                                    napi_finalize finalize_cb,
-                                    void* finalize_hint) {
-  node_api_native_data native_data{};
-  native_data.data = data;
-  native_data.finalizer = finalize_cb;
-  native_data.finalizer_state = finalize_hint;
-  native_data.finalizer_type = node_api_finalizer_uses_js;
-  return native_data;
-}
-
 //=== Function napi_callback wrapper =================================
 
 // Use this data structure to associate callback data with each N-API function
@@ -620,11 +609,11 @@ void RefBase::Finalize(bool is_env_teardown) {
 
   if (_finalize_callback != nullptr) {
     // This ensures that we never call the finalizer twice.
-    node_api_native_data native_data{};
-    native_data.data = _finalize_data;
-    native_data.finalizer = std::exchange(_finalize_callback, nullptr);
-    native_data.finalizer_state = _finalize_hint;
-    native_data.finalizer_type = _finalizer_type;
+    node_api_native_data native_data =
+        MakeNativeData(_finalize_data,
+                       std::exchange(_finalize_callback, nullptr),
+                       _finalize_hint,
+                       _finalizer_type);
     _env->CallFinalizer(&native_data);
   }
 
