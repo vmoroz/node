@@ -739,7 +739,8 @@ There are two types of reference:
    function.
 * `node_api_reftype_strong` - a strong reference to any type of `napi_value`.
    When the ref count goes down to 0, the reference is deleted.
-   The `napi_delete_reference` function must not be used with the strong references.
+   The `napi_delete_reference` function must not be used with the strong
+   references.
 
 ```c
 typedef enum {
