@@ -731,16 +731,16 @@ Type of the `napi_ref` reference.
 There are two types of reference:
 
 * `node_api_reftype_strong_or_weak` - a reference to an object (`napi_object`)
-   that can be a strong or a weak reference. References with ref count greater
-   than 0 are strong references and references with ref count equal to 0 are
-   weak references. The values referenced by weak references can be collected
-   at any time by GC if there are no other strong references to the
-   `napi_value`. To delete the reference we must use `napi_delete_reference`
-   function.
+  that can be a strong or a weak reference. References with ref count greater
+  than 0 are strong references and references with ref count equal to 0 are
+  weak references. The values referenced by weak references can be collected
+  at any time by GC if there are no other strong references to the
+  `napi_value`. To delete the reference we must use `napi_delete_reference`
+  function.
 * `node_api_reftype_strong` - a strong reference to any type of `napi_value`.
-   When the ref count goes down to 0, the reference is deleted.
-   The `napi_delete_reference` function must not be used with the strong
-   references.
+  When the ref count goes down to 0, the reference is deleted.
+  The `napi_delete_reference` function must not be used with the strong
+  references.
 
 ```c
 typedef enum {
