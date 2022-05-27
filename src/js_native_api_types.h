@@ -165,8 +165,8 @@ typedef struct {
 
 #ifdef NAPI_EXPERIMENTAL
 typedef enum {
-  node_api_reftype_strong_or_weak,
   node_api_reftype_strong,
+  node_api_reftype_maybe_weak,
 } node_api_reftype;
 #endif
 

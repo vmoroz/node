@@ -727,25 +727,27 @@ For more details, review the [Object lifetime management][].
 added: REPLACEME
 -->
 
+> Stability: 1 - Experimental
+
 Type of the `napi_ref` reference.
 There are two types of reference:
 
-* `node_api_reftype_strong_or_weak` - a reference to an object (`napi_object`)
-  that can be a strong or a weak reference. References with ref count greater
-  than 0 are strong references and references with ref count equal to 0 are
-  weak references. The values referenced by weak references can be collected
-  at any time by GC if there are no other strong references to the
-  `napi_value`. To delete the reference we must use `napi_delete_reference`
-  function.
 * `node_api_reftype_strong` - a strong reference to any type of `napi_value`.
   When the ref count goes down to 0, the reference is deleted.
   The `napi_delete_reference` function must not be used with the strong
   references.
+* `node_api_reftype_maybe_weak` - a reference to an object (`napi_object`) or a
+  function (`napi_function`) that can be a strong or a weak reference.
+  References with ref count greater than 0 are strong references and references
+  with ref count equal to 0 are weak references. The values referenced by weak
+  references can be collected at any time by GC if there are no other strong
+  references to the `napi_value`. To delete the reference we must use
+  `napi_delete_reference` function.
 
 ```c
 typedef enum {
-  node_api_reftype_strong_or_weak,
   node_api_reftype_strong,
+  node_api_reftype_maybe_weak,
 } node_api_reftype;
 ```
 
@@ -1660,35 +1662,36 @@ method.
 Node-API provides methods to create persistent references to a `napi_value`.
 There are two types of references:
 
-* `node_api_reftype_strong_or_weak` type is only for `napi_object` values.
 * `node_api_reftype_strong` type is for any value type.
+* `node_api_reftype_maybe_weak` type is only for `napi_object` and
+  `napi_function` values.
 
-Each persistent strong/weak reference has an associated count with a value
-of 0 or higher. The count determines if the reference will keep
-the corresponding object live. References with a count of 0 do not
+The `node_api_reftype_strong` reference has an associated count with a value of
+1 or higher. If the reference count becomes 0, then the reference is deleted.
+
+The `node_api_reftype_maybe_weak` reference has an associated count with a
+value of 0 or higher. The count determines if the reference will keep
+the corresponding object alive. References with a count of 0 do not
 prevent the object from being collected and are often called 'weak'
 references. Any count greater than 0 will prevent the object
 from being collected.
 
-The strong reference can have a reference count of 1 or higher.
-If the count becomes 0, then the reference is deleted.
-
-Strong/weak references can be created with an initial reference count, while
-the strong references always use the initial reference count 1.
-The count can then be modified through [`napi_reference_ref`][] and
-[`napi_reference_unref`][]. If an object is collected while the strong/weak
-references count is 0, all subsequent calls to get the object associated with
+References can be created with an initial reference count. The count can then
+be modified through [`napi_reference_ref`][] and
+[`napi_reference_unref`][]. If an object is collected while the
+`node_api_reftype_object` references count is 0, all subsequent calls to get
+the object associated with
 the reference [`napi_get_reference_value`][]
 will return `NULL` for the returned `napi_value`. An attempt to call
 [`napi_reference_ref`][] for a reference whose object has been collected
 results in an error.
 
-Strong/weak references must be deleted once they are no longer required by
-the addon. When a reference is deleted, it will no longer prevent the
-corresponding object from being collected. Failure to delete a persistent
-reference results in a 'memory leak' with both the native memory for the
-persistent reference and the corresponding object on the heap being retained
-forever.
+The `node_api_reftype_maybe_weak` references must be deleted once they are no
+longer required by the addon. When a reference is deleted, it will no longer
+prevent the corresponding object from being collected. Failure to delete a
+persistent reference results in a 'memory leak' with both the native memory for
+the persistent reference and the corresponding object on the heap being
+retained forever.
 
 There can be multiple persistent references created which refer to the same
 value, each of which will either keep the value alive or not based on its
@@ -1699,16 +1702,19 @@ referenced object are executed. If a new persistent reference is created
 for the same object, the finalizers for that object will not be
 run and the native memory pointed by the earlier persistent reference
 will not be freed. This can be avoided by calling
-`napi_delete_reference` in addition to `napi_reference_unref` for strong/weak
-references when possible. The `napi_delete_reference` must not be called for
-the `node_api_reftype_strong` references because the reference is deleted
-automatically after `napi_reference_unref` call sets reference count to 0.
+`napi_delete_reference` in addition to `napi_reference_unref` for
+`node_api_reftype_maybe_weak` references when possible. The
+`napi_delete_reference` must not be called for the `node_api_reftype_strong`
+references because the reference is deleted automatically after
+`napi_reference_unref` call sets reference count to 0.
 
 #### `node_api_create_reference`
 
 <!-- YAML
 added: REPLACEME
 -->
+
+> Stability: 1 - Experimental
 
 ```c
 NAPI_EXTERN napi_status node_api_create_reference(napi_env env,
@@ -1726,11 +1732,11 @@ NAPI_EXTERN napi_status node_api_create_reference(napi_env env,
 
 Returns `napi_ok` if the API succeeded.
 
-For the `node_api_reftype_strong_or_weak` `reftype` set `initial_refcount` to 0
+For the `node_api_reftype_maybe_weak` `reftype` set `initial_refcount` to 0
 for a weak reference, and value greater than 0 for a strong reference. It
-accepts only `napi_object` values.
-The `node_api_reftype_strong` ignores the `initial_refcount` and always uses 1.
-It accept `napi_value` of any type.
+accepts only `napi_object` or `napi_function` values.
+The `node_api_reftype_strong` must have the `initial_refcount` with value
+greater than 0. It accept `napi_value` of any type.
 
 #### `napi_create_reference`
 
@@ -1762,6 +1768,8 @@ to the `Object` passed in.
 <!-- YAML
 added: REPLACEME
 -->
+
+> Stability: 1 - Experimental
 
 ```c
 NAPI_EXTERN napi_status node_api_get_reference_type(napi_env env,

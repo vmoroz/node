@@ -247,7 +247,7 @@ class CallbackBundle {
     v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
     Reference::New(env,
                    cbdata,
-                   node_api_reftype_strong_or_weak,
+                   node_api_reftype_maybe_weak,
                    0,
                    true,
                    Delete,
@@ -438,7 +438,7 @@ inline napi_status Wrap(napi_env env,
     CHECK_ARG(env, finalize_cb);
     reference = v8impl::Reference::New(env,
                                        obj,
-                                       node_api_reftype_strong_or_weak,
+                                       node_api_reftype_maybe_weak,
                                        0,
                                        false,
                                        finalize_cb,
@@ -450,7 +450,7 @@ inline napi_status Wrap(napi_env env,
     reference = v8impl::Reference::New(
         env,
         obj,
-        node_api_reftype_strong_or_weak,
+        node_api_reftype_maybe_weak,
         0,
         true,
         finalize_cb,
@@ -591,15 +591,12 @@ Reference::Reference(napi_env env,
                      node_api_reftype reftype,
                      uint32_t initial_refcount,
                      Args&&... args)
-    : RefBase(
-          env,
-          (reftype == node_api_reftype_strong_or_weak) ? initial_refcount : 1,
-          std::forward<Args>(args)...),
+    : RefBase(env, initial_refcount, std::forward<Args>(args)...),
       _persistent(env->isolate, value),
       _secondPassParameter(new SecondPassCallParameterRef(this)),
       _secondPassScheduled(false),
       _refType(reftype) {
-  if (RefCount() == 0) {
+  if (RefCount() == 0 && _refType == node_api_reftype_maybe_weak) {
     SetWeak();
   }
 }
@@ -643,7 +640,7 @@ uint32_t Reference::Unref() {
   uint32_t old_refcount = RefCount();
   uint32_t refcount = RefBase::Unref();
   if (old_refcount == 1 && refcount == 0) {
-    if (_refType == node_api_reftype_strong_or_weak) {
+    if (_refType == node_api_reftype_maybe_weak) {
       SetWeak();
     } else {
       Delete(this);
@@ -2424,7 +2421,7 @@ napi_status NAPI_CDECL napi_create_external(napi_env env,
     // callback.
   v8impl::Reference::New(env,
                          external_value,
-                         node_api_reftype_strong_or_weak,
+                         node_api_reftype_maybe_weak,
                          0,
                          true,
                          finalize_cb,
@@ -2527,7 +2524,7 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
                                              uint32_t initial_refcount,
                                              napi_ref* result) {
   return node_api_create_reference(
-      env, value, node_api_reftype_strong_or_weak, initial_refcount, result);
+      env, value, node_api_reftype_maybe_weak, initial_refcount, result);
 }
 
 napi_status node_api_create_reference(napi_env env,
@@ -2542,9 +2539,13 @@ napi_status node_api_create_reference(napi_env env,
   CHECK_ARG(env, result);
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
-  if (reftype == node_api_reftype_strong_or_weak) {
+  if (reftype == node_api_reftype_maybe_weak) {
     if (!(v8_value->IsObject() || v8_value->IsFunction() ||
           v8_value->IsSymbol())) {
+      return napi_set_last_error(env, napi_invalid_arg);
+    }
+  } else if (reftype == node_api_reftype_strong) {
+    if (initial_refcount == 0) {
       return napi_set_last_error(env, napi_invalid_arg);
     }
   }
@@ -2581,7 +2582,7 @@ napi_status NAPI_CDECL napi_delete_reference(napi_env env, napi_ref ref) {
   CHECK_ARG(env, ref);
 
   v8impl::Reference* reference = reinterpret_cast<v8impl::Reference*>(ref);
-  if (reference->RefType() == node_api_reftype_strong_or_weak) {
+  if (reference->RefType() == node_api_reftype_maybe_weak) {
     v8impl::Reference::Delete(reference);
   } else {
     return napi_set_last_error(env, napi_generic_failure);
