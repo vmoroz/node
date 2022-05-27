@@ -1716,6 +1716,8 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
+> This function is targeting to replace the `napi_create_reference` function.
+
 ```c
 NAPI_EXTERN napi_status node_api_create_reference(napi_env env,
                                                   napi_value value,
