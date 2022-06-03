@@ -2527,11 +2527,11 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
       env, value, node_api_reftype_maybe_weak, initial_refcount, result);
 }
 
-napi_status node_api_create_reference(napi_env env,
-                                      napi_value value,
-                                      node_api_reftype reftype,
-                                      uint32_t initial_refcount,
-                                      napi_ref* result) {
+napi_status NAPI_CDECL node_api_create_reference(napi_env env,
+                                                 napi_value value,
+                                                 node_api_reftype reftype,
+                                                 uint32_t initial_refcount,
+                                                 napi_ref* result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -2560,9 +2560,9 @@ napi_status node_api_create_reference(napi_env env,
   return napi_clear_last_error(env);
 }
 
-napi_status node_api_get_reference_type(napi_env env,
-                                        napi_ref ref,
-                                        node_api_reftype* result) {
+napi_status NAPI_CDECL node_api_get_reference_type(napi_env env,
+                                                   napi_ref ref,
+                                                   node_api_reftype* result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
