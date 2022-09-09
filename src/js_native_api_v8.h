@@ -441,7 +441,7 @@ class Reference : public RefBase {
   v8impl::Persistent<v8::Value> _persistent;
   SecondPassCallParameterRef* _secondPassParameter;
   bool _secondPassScheduled;
-  node_api_reftype _refType{node_api_reftype_strong};
+  node_api_reftype _refType{node_api_reftype_any};
 
   FRIEND_TEST(JsNativeApiV8Test, Reference);
 };

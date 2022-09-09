@@ -14,7 +14,7 @@ static napi_value Create(napi_env env, napi_callback_info info) {
   napi_ref strong_ref;
   NODE_API_CALL(env,
                 node_api_create_reference(
-                    env, args[0], node_api_reftype_strong, 1, &strong_ref));
+                    env, args[0], node_api_reftype_any, 1, &strong_ref));
 
   std::vector<napi_ref>* strong_ref_values;
   NODE_API_CALL(env,
