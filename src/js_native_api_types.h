@@ -163,11 +163,4 @@ typedef struct {
 } napi_type_tag;
 #endif  // NAPI_VERSION >= 8
 
-#ifdef NAPI_EXPERIMENTAL
-typedef enum {
-  node_api_reftype_any,
-  node_api_reftype_object,
-} node_api_reftype;
-#endif
-
 #endif  // SRC_JS_NATIVE_API_TYPES_H_

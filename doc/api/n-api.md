@@ -721,40 +721,6 @@ minimum lifetimes explicitly.
 
 For more details, review the [Object lifetime management][].
 
-#### `node_api_reftype`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Type of the `napi_ref` reference.
-There are two types of reference:
-
-* `node_api_reftype_any` - a strong reference to any type of `napi_value`.
-  The application must fully manage the creation/deletion through the ref count.
-  When the ref count goes down to 0, the reference is deleted.
-  The `napi_delete_reference` function must not be used with the references of
-  this type.
-* `node_api_reftype_object` - a reference to only an object (`napi_object`) or a
-  function (`napi_function`). In addition to being able to fully manage the
-  creation/deletion there is the additional option of allowing the GC to
-  clean up the object and it's related reference when the reference is made weak
-  by lowering the reference count to 0.
-  References with ref count greater than 0 are strong references and references
-  with ref count equal to 0 are weak references. The values referenced by weak
-  references can be collected at any time by GC if there are no other strong
-  references to the `napi_value`. To delete the reference we must use
-  `napi_delete_reference` function.
-
-```c
-typedef enum {
-  node_api_reftype_any,
-  node_api_reftype_object,
-} node_api_reftype;
-```
-
 #### `napi_type_tag`
 
 <!-- YAML
@@ -1651,9 +1617,9 @@ If it is called more than once an error will be returned.
 
 This API can be called even if there is a pending JavaScript exception.
 
-### References to values with a lifespan longer than that of the native method
+### References to objects with a lifespan longer than that of the native method
 
-In some cases an addon will need to be able to create and reference values
+In some cases an addon will need to be able to create and reference objects
 with a lifespan longer than that of a single native method invocation. For
 example, to create a constructor and later use that constructor
 in a request to creates instances, it must be possible to reference
@@ -1663,86 +1629,39 @@ described in the earlier section. The lifespan of a normal handle is
 managed by scopes and all scopes must be closed before the end of a native
 method.
 
-Node-API provides methods to create persistent references to a `napi_value`.
-There are two types of references:
-
-* `node_api_reftype_any` type is for any value type.
-* `node_api_reftype_object` type is only for `napi_object` and
-  `napi_function` values.
-
-The `node_api_reftype_any` reference has an associated count with a value of
-1 or higher. If the reference count becomes 0, then the reference is deleted.
-
-The `node_api_reftype_object` reference has an associated count with a
-value of 0 or higher. The count determines if the reference will keep
-the corresponding object alive. References with a count of 0 do not
+Node-API provides methods to create persistent references to an object.
+Each persistent reference has an associated count with a value of 0
+or higher. The count determines if the reference will keep
+the corresponding object live. References with a count of 0 do not
 prevent the object from being collected and are often called 'weak'
 references. Any count greater than 0 will prevent the object
 from being collected.
 
-References can be created with an initial reference count. The count can then
-be modified through [`napi_reference_ref`][] and
-[`napi_reference_unref`][]. If an object is collected while the
-`node_api_reftype_object` references count is 0, all subsequent calls to get
-the object associated with
-the reference [`napi_get_reference_value`][]
+References can be created with an initial reference count. The count can
+then be modified through [`napi_reference_ref`][] and
+[`napi_reference_unref`][]. If an object is collected while the count
+for a reference is 0, all subsequent calls to
+get the object associated with the reference [`napi_get_reference_value`][]
 will return `NULL` for the returned `napi_value`. An attempt to call
 [`napi_reference_ref`][] for a reference whose object has been collected
 results in an error.
 
-The `node_api_reftype_object` references must be deleted once they are no
-longer required by the addon. When a reference is deleted, it will no longer
-prevent the corresponding object from being collected. Failure to delete a
-persistent reference results in a 'memory leak' with both the native memory for
-the persistent reference and the corresponding object on the heap being
-retained forever.
+References must be deleted once they are no longer required by the addon. When
+a reference is deleted, it will no longer prevent the corresponding object from
+being collected. Failure to delete a persistent reference results in
+a 'memory leak' with both the native memory for the persistent reference and
+the corresponding object on the heap being retained forever.
 
 There can be multiple persistent references created which refer to the same
-value, each of which will either keep the value alive or not based on its
-individual count. Multiple persistent references to the same value
+object, each of which will either keep the object live or not based on its
+individual count. Multiple persistent references to the same object
 can result in unexpectedly keeping alive native memory. The native structures
 for a persistent reference must be kept alive until finalizers for the
 referenced object are executed. If a new persistent reference is created
 for the same object, the finalizers for that object will not be
 run and the native memory pointed by the earlier persistent reference
 will not be freed. This can be avoided by calling
-`napi_delete_reference` in addition to `napi_reference_unref` for
-`node_api_reftype_object` references when possible. The
-`napi_delete_reference` must not be called for the `node_api_reftype_any`
-references because the reference is deleted automatically after
-`napi_reference_unref` call sets reference count to 0.
-
-#### `node_api_create_reference`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-> This function is targeting to replace the `napi_create_reference` function.
-
-```c
-NAPI_EXTERN napi_status node_api_create_reference(napi_env env,
-                                                  napi_value value,
-                                                  node_api_reftype reftype,
-                                                  uint32_t initial_refcount,
-                                                  napi_ref* result);
-```
-
-* `[in] env`: The environment that the API is invoked under.
-* `[in] value`: `napi_value` to which we want to create a reference.
-* `[in] reftype`: Type of the reference.
-* `[in] initial_refcount`: Initial reference count for the new reference.
-* `[out] result`: `napi_ref` pointing to the new reference.
-
-Returns `napi_ok` if the API succeeded.
-
-For the `node_api_reftype_object` `reftype` set `initial_refcount` to 0
-for a weak reference, and value greater than 0 for a strong reference. It
-accepts only `napi_object` or `napi_function` values.
-The `node_api_reftype_any` must have the `initial_refcount` with value
-greater than 0. It accept `napi_value` of any type.
+`napi_delete_reference` in addition to `napi_reference_unref` when possible.
 
 #### `napi_create_reference`
 
@@ -1768,27 +1687,6 @@ Returns `napi_ok` if the API succeeded.
 
 This API creates a new reference with the specified reference count
 to the `Object` passed in.
-
-#### `node_api_get_reference_type`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-NAPI_EXTERN napi_status node_api_get_reference_type(napi_env env,
-                                                    napi_ref ref,
-                                                    node_api_reftype* result);
-```
-
-* `[in] env`: The environment that the API is invoked under.
-* `[in] ref`: `napi_ref` which type we want to get.
-* `[out] result`: `node_api_reftype` type of the `ref`.
-
-Returns `napi_ok` if the API succeeded and the `result` contains type of the
-reference.
 
 #### `napi_delete_reference`
 

@@ -316,23 +316,6 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_get_value_external(napi_env env,
 
 // Methods to control object lifespan
 
-#ifdef NAPI_EXPERIMENTAL
-// For node_api_reftype_object set initial_refcount to 0 for a weak
-// reference, and value greater than 0 for a strong reference. The
-// node_api_reftype_any must have the initial_refcount >= 1.
-NAPI_EXTERN napi_status NAPI_CDECL
-node_api_create_reference(napi_env env,
-                          napi_value value,
-                          node_api_reftype reftype,
-                          uint32_t initial_refcount,
-                          napi_ref* result);
-
-// Get type of the reference.
-NAPI_EXTERN napi_status NAPI_CDECL node_api_get_reference_type(
-    napi_env env, napi_ref ref, node_api_reftype* result);
-#endif
-
-// Create a reference of node_api_reftype_object type.
 // Set initial_refcount to 0 for a weak reference, >0 for a strong reference.
 NAPI_EXTERN napi_status NAPI_CDECL
 napi_create_reference(napi_env env,
@@ -340,32 +323,29 @@ napi_create_reference(napi_env env,
                       uint32_t initial_refcount,
                       napi_ref* result);
 
-// Delete a node_api_reftype_object reference. The referenced value is
-// released, and may be GC'd unless there are other references to it.
-// This method cannot be used with node_api_reftype_any references.
+// Deletes a reference. The referenced value is released, and may
+// be GC'd unless there are other references to it.
 NAPI_EXTERN napi_status NAPI_CDECL napi_delete_reference(napi_env env,
                                                          napi_ref ref);
 
-// Increment the reference count, optionally returning the resulting count.
+// Increments the reference count, optionally returning the resulting count.
 // After this call the  reference will be a strong reference because its
 // refcount is >0, and the referenced object is effectively "pinned".
+// Calling this when the refcount is 0 and the object is unavailable
+// results in an error.
 NAPI_EXTERN napi_status NAPI_CDECL napi_reference_ref(napi_env env,
                                                       napi_ref ref,
                                                       uint32_t* result);
 
-// Decrement the reference count, optionally returning the resulting count.
-// For node_api_reftype_object references if the result is 0, then the
-// reference is now weak and the object may be GC'd at any time if there are no
-// other references.
-// For node_api_reftype_any references if the result is 0, then the
-// reference is deleted and the stored napi_value may be GC'd at any time if
-// there are no other references.
-// Calling this when the refcount is already 0 results in an error.
+// Decrements the reference count, optionally returning the resulting count.
+// If the result is 0 the reference is now weak and the object may be GC'd
+// at any time if there are no other references. Calling this when the
+// refcount is already 0 results in an error.
 NAPI_EXTERN napi_status NAPI_CDECL napi_reference_unref(napi_env env,
                                                         napi_ref ref,
                                                         uint32_t* result);
 
-// Attempt to get a referenced value. If the reference is weak,
+// Attempts to get a referenced value. If the reference is weak,
 // the value might no longer be available, in that case the call
 // is still successful but the result is NULL.
 NAPI_EXTERN napi_status NAPI_CDECL napi_get_reference_value(napi_env env,

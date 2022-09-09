@@ -245,14 +245,7 @@ class CallbackBundle {
     bundle->env = env;
 
     v8::Local<v8::Value> cbdata = v8::External::New(env->isolate, bundle);
-    Reference::New(env,
-                   cbdata,
-                   node_api_reftype_object,
-                   0,
-                   true,
-                   Delete,
-                   bundle,
-                   nullptr);
+    Reference::New(env, cbdata, 0, true, Delete, bundle, nullptr);
     return cbdata;
   }
   napi_env env;   // Necessary to invoke C++ NAPI callback
@@ -436,21 +429,14 @@ inline napi_status Wrap(napi_env env,
     // before then, then the finalize callback will never be invoked.)
     // Therefore a finalize callback is required when returning a reference.
     CHECK_ARG(env, finalize_cb);
-    reference = v8impl::Reference::New(env,
-                                       obj,
-                                       node_api_reftype_object,
-                                       0,
-                                       false,
-                                       finalize_cb,
-                                       native_object,
-                                       finalize_hint);
+    reference = v8impl::Reference::New(
+        env, obj, 0, false, finalize_cb, native_object, finalize_hint);
     *result = reinterpret_cast<napi_ref>(reference);
   } else {
     // Create a self-deleting reference.
     reference = v8impl::Reference::New(
         env,
         obj,
-        node_api_reftype_object,
         0,
         true,
         finalize_cb,
@@ -586,24 +572,19 @@ void RefBase::Finalize(bool is_env_teardown) {
 }
 
 template <typename... Args>
-Reference::Reference(napi_env env,
-                     v8::Local<v8::Value> value,
-                     node_api_reftype reftype,
-                     uint32_t initial_refcount,
-                     Args&&... args)
-    : RefBase(env, initial_refcount, std::forward<Args>(args)...),
+Reference::Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args)
+    : RefBase(env, std::forward<Args>(args)...),
       _persistent(env->isolate, value),
       _secondPassParameter(new SecondPassCallParameterRef(this)),
       _secondPassScheduled(false),
-      _refType(reftype) {
-  if (RefCount() == 0 && _refType == node_api_reftype_object) {
+      _canBeWeak(value->IsObject() || value->IsFunction()) {
+  if (RefCount() == 0) {
     SetWeak();
   }
 }
 
 Reference* Reference::New(napi_env env,
                           v8::Local<v8::Value> value,
-                          node_api_reftype reftype,
                           uint32_t initial_refcount,
                           bool delete_self,
                           napi_finalize finalize_callback,
@@ -611,7 +592,6 @@ Reference* Reference::New(napi_env env,
                           void* finalize_hint) {
   return new Reference(env,
                        value,
-                       reftype,
                        initial_refcount,
                        delete_self,
                        finalize_callback,
@@ -640,11 +620,7 @@ uint32_t Reference::Unref() {
   uint32_t old_refcount = RefCount();
   uint32_t refcount = RefBase::Unref();
   if (old_refcount == 1 && refcount == 0) {
-    if (_refType == node_api_reftype_object) {
-      SetWeak();
-    } else {
-      Delete(this);
-    }
+    SetWeak();
   }
   return refcount;
 }
@@ -655,10 +631,6 @@ v8::Local<v8::Value> Reference::Get() {
   } else {
     return v8::Local<v8::Value>::New(_env->isolate, _persistent);
   }
-}
-
-node_api_reftype Reference::RefType() noexcept {
-  return _refType;
 }
 
 void Reference::Finalize(bool is_env_teardown) {
@@ -681,7 +653,7 @@ void Reference::Finalize(bool is_env_teardown) {
 // the secondPassParameter so that even if it has been
 // scheduled no Finalization will be run.
 void Reference::ClearWeak() {
-  if (!_persistent.IsEmpty()) {
+  if (!_persistent.IsEmpty() && _canBeWeak) {
     _persistent.ClearWeak();
   }
   if (_secondPassParameter != nullptr) {
@@ -698,8 +670,13 @@ void Reference::SetWeak() {
     // nothing
     return;
   }
-  _persistent.SetWeak(
-      _secondPassParameter, FinalizeCallback, v8::WeakCallbackType::kParameter);
+  if (_canBeWeak) {
+    _persistent.SetWeak(_secondPassParameter,
+                        FinalizeCallback,
+                        v8::WeakCallbackType::kParameter);
+  } else {
+    _persistent.Reset();
+  }
   *_secondPassParameter = this;
 }
 
@@ -2419,14 +2396,8 @@ napi_status NAPI_CDECL napi_create_external(napi_env env,
   if (finalize_cb) {
     // The Reference object will delete itself after invoking the finalizer
     // callback.
-  v8impl::Reference::New(env,
-                         external_value,
-                         node_api_reftype_object,
-                         0,
-                         true,
-                         finalize_cb,
-                         data,
-                         finalize_hint);
+  v8impl::Reference::New(
+      env, external_value, 0, true, finalize_cb, data, finalize_hint);
   }
 
   *result = v8impl::JsValueFromV8LocalValue(external_value);
@@ -2523,15 +2494,6 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
                                              napi_value value,
                                              uint32_t initial_refcount,
                                              napi_ref* result) {
-  return node_api_create_reference(
-      env, value, node_api_reftype_object, initial_refcount, result);
-}
-
-napi_status NAPI_CDECL node_api_create_reference(napi_env env,
-                                                 napi_value value,
-                                                 node_api_reftype reftype,
-                                                 uint32_t initial_refcount,
-                                                 napi_ref* result) {
   // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
   // JS exceptions.
   CHECK_ENV(env);
@@ -2539,37 +2501,10 @@ napi_status NAPI_CDECL node_api_create_reference(napi_env env,
   CHECK_ARG(env, result);
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
-  if (reftype == node_api_reftype_object) {
-    if (!(v8_value->IsObject() || v8_value->IsFunction() ||
-          v8_value->IsSymbol())) {
-      return napi_set_last_error(env, napi_invalid_arg);
-    }
-  } else if (reftype == node_api_reftype_any) {
-    if (initial_refcount == 0) {
-      return napi_set_last_error(env, napi_invalid_arg);
-    }
-  }
-  v8impl::Reference* reference = v8impl::Reference::New(
-      env,
-      v8_value,
-      reftype,
-      initial_refcount,
-      /* delete_self: */ reftype == node_api_reftype_any);
+  v8impl::Reference* reference =
+      v8impl::Reference::New(env, v8_value, initial_refcount, false);
 
   *result = reinterpret_cast<napi_ref>(reference);
-  return napi_clear_last_error(env);
-}
-
-napi_status NAPI_CDECL node_api_get_reference_type(napi_env env,
-                                                   napi_ref ref,
-                                                   node_api_reftype* result) {
-  // Omit NAPI_PREAMBLE and GET_RETURN_STATUS because V8 calls here cannot throw
-  // JS exceptions.
-  CHECK_ENV(env);
-  CHECK_ARG(env, ref);
-  CHECK_ARG(env, result);
-
-  *result = reinterpret_cast<v8impl::Reference*>(ref)->RefType();
   return napi_clear_last_error(env);
 }
 
@@ -2581,12 +2516,7 @@ napi_status NAPI_CDECL napi_delete_reference(napi_env env, napi_ref ref) {
   CHECK_ENV(env);
   CHECK_ARG(env, ref);
 
-  v8impl::Reference* reference = reinterpret_cast<v8impl::Reference*>(ref);
-  if (reference->RefType() == node_api_reftype_object) {
-    v8impl::Reference::Delete(reference);
-  } else {
-    return napi_set_last_error(env, napi_generic_failure);
-  }
+  v8impl::Reference::Delete(reinterpret_cast<v8impl::Reference*>(ref));
 
   return napi_clear_last_error(env);
 }
