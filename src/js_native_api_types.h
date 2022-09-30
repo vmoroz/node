@@ -108,6 +108,21 @@ typedef enum {
 //   * the definition of `napi_status` in doc/api/n-api.md to reflect the newly
 //     added value(s).
 
+#ifdef NAPI_EXPERIMENTAL
+// Features allow changing internal behavior of existing Node-API functions.
+// We set them by defining array of features in NAPI_FEATURES_DEFINITON macro.
+// The NAPI_FEATURES_DEFINITON is used during module initialization in
+// NAPI_MODULE_X macro.
+// To override the set of default feature you could define
+// NAPI_FEATURES_DEFINITON macro before the node_api.h is included.
+typedef enum {
+  // We use it as the end terminator in the sequence of enabled features.
+  napi_feature_none,
+  // Use napi_ref for all value types and not only object and functions.
+  napi_feature_ref_all_value_types,
+} napi_feature;
+#endif
+
 typedef napi_value(NAPI_CDECL* napi_callback)(napi_env env,
                                               napi_callback_info info);
 typedef void(NAPI_CDECL* napi_finalize)(napi_env env,

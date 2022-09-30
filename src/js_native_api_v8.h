@@ -1,6 +1,7 @@
 #ifndef SRC_JS_NATIVE_API_V8_H_
 #define SRC_JS_NATIVE_API_V8_H_
 
+#include <array>
 #include "js_native_api_types.h"
 #include "js_native_api_v8_internals.h"
 
@@ -50,9 +51,10 @@ class RefTracker {
 }  // end of namespace v8impl
 
 struct napi_env__ {
-  explicit napi_env__(v8::Local<v8::Context> context)
+  explicit napi_env__(v8::Local<v8::Context> context, napi_feature* features)
       : isolate(context->GetIsolate()), context_persistent(isolate, context) {
     CHECK_EQ(isolate, context->GetIsolate());
+    SetFeatures(features);
     napi_clear_last_error(this);
   }
 
@@ -96,6 +98,28 @@ struct napi_env__ {
     CallIntoModule([&](napi_env env) { cb(env, data, hint); });
   }
 
+  bool HasFeature(napi_feature feature) {
+    if (feature > 0 && feature < _featureCount) {
+      return _features[feature];
+    }
+    return false;
+  }
+
+  void SetFeatures(napi_feature* features) {
+    if (features == nullptr) {
+      return;
+    }
+    // For protection in case if the array is not zero terminated.
+    size_t featureCount = _featureCount;
+    for (napi_feature* feature = features;
+         *feature != napi_feature_none && featureCount > 0;
+         ++feature, --featureCount) {
+      if (*feature > 0 && *feature < _featureCount) {
+        _features[*feature] = true;
+      }
+    }
+  }
+
   virtual void DeleteMe() {
     // First we must finalize those references that have `napi_finalizer`
     // callbacks. The reason is that addons might store other references which
@@ -122,6 +146,11 @@ struct napi_env__ {
   int open_callback_scopes = 0;
   int refs = 1;
   void* instance_data = nullptr;
+
+  // _featureCount is based on the biggest available feature value
+  static const size_t _featureCount =
+      static_cast<size_t>(napi_feature_ref_all_value_types) + 1;
+  std::array<bool, _featureCount> _features = {{false}};
 
  protected:
   // Should not be deleted directly. Delete with `napi_env__::DeleteMe()`

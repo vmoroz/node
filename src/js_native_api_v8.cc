@@ -2501,6 +2501,13 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
   CHECK_ARG(env, result);
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
+  if (!env->HasFeature(napi_feature_ref_all_value_types)) {
+    if (!(v8_value->IsObject() || v8_value->IsFunction() ||
+          v8_value->IsSymbol())) {
+      return napi_set_last_error(env, napi_invalid_arg);
+    }
+  }
+
   v8impl::Reference* reference =
       v8impl::Reference::New(env, v8_value, initial_refcount, false);
 
@@ -3256,5 +3263,14 @@ napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env,
   *result =
       value->IsArrayBuffer() && value.As<v8::ArrayBuffer>()->Data() == nullptr;
 
+  return napi_clear_last_error(env);
+}
+
+napi_status NAPI_CDECL napi_has_feature(napi_env env,
+                                        napi_feature feature,
+                                        bool* result) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, result);
+  *result = env->HasFeature(feature);
   return napi_clear_last_error(env);
 }
