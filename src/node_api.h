@@ -78,25 +78,33 @@ typedef struct napi_module {
   static void fn(void)
 #endif
 
-#ifdef NAPI_EXPERIMENTAL
-#ifndef NAPI_FEATURES_VAR
-#define NAPI_FEATURES_VAR _module_features
-#endif  // NAPI_FEATURES_VAR
-#ifndef NAPI_FEATURES_DEFINITON
-#define NAPI_FEATURES_DEFINITON                                                \
-  static napi_feature NAPI_FEATURES_VAR[] = {                                  \
-      napi_feature_ref_all_value_types,                                        \
-      napi_feature_none,                                                       \
-  };
-#endif  // NAPI_FEATURES_DEFINITON
+#ifdef NAPI_CUSTOM_FEATURES
+extern napi_feature* napi_get_module_features();
 #else
-#define NAPI_FEATURES_VAR NULL
-#define NAPI_FEATURES_DEFINITON
-#endif  // NAPI_EXPERIMENTAL
+// The set of features returned by this function must be version specific.
+// The returned array must always be terminated with napi_feature_none.
+#ifdef NAPI_EXPERIMENTAL
+inline napi_feature* napi_get_module_features() {
+  static napi_feature features[] = {
+      napi_feature_ref_all_value_types,
+      napi_feature_none,
+  };
+  return features;
+}
+#endif
+#endif // NAPI_CUSTOM_FEATURES
+
+#ifndef NAPI_GET_FEATURES
+// The NAPI_EXPERIMENTAL must be replaced with NAPI version where the features are added.
+#ifdef NAPI_EXPERIMENTAL
+#define NAPI_GET_FEATURES napi_get_module_features()
+#else
+#define NAPI_GET_FEATURES NULL
+#endif
+#endif
 
 #define NAPI_MODULE_X(modname, regfunc, priv, flags)                           \
   EXTERN_C_START                                                               \
-  NAPI_FEATURES_DEFINITON                                                      \
   static napi_module _module = {                                               \
       NAPI_MODULE_VERSION,                                                     \
       flags,                                                                   \
@@ -104,7 +112,7 @@ typedef struct napi_module {
       regfunc,                                                                 \
       #modname,                                                                \
       priv,                                                                    \
-      NAPI_FEATURES_VAR,                                                       \
+      NAPI_GET_FEATURES,                                                       \
       {0},                                                                     \
   };                                                                           \
   NAPI_C_CTOR(_register_##modname) {                                           \

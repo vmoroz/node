@@ -284,3 +284,11 @@ napi_value Init(napi_env env, napi_value exports) {
   return exports;
 }
 EXTERN_C_END
+
+napi_feature* napi_get_module_features() {
+  // Make sure that we do not include napi_feature_ref_all_value_types
+  static napi_feature features[] = {
+      napi_feature_none,
+  };
+  return features;
+}
