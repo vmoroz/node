@@ -90,7 +90,7 @@ struct napi_env__ {
     }
   }
 
-  // This should be overridden to schedule the finalization to a properiate
+  // This should be overridden to schedule the finalization to appropriate
   // timing, like next tick of the event loop.
   virtual void CallFinalizer(napi_finalize cb, void* data, void* hint) {
     v8::HandleScope handle_scope(isolate);
