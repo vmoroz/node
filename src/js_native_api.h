@@ -567,9 +567,9 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
 #endif  // NAPI_VERSION >= 8
 
 #ifdef NAPI_EXPERIMENTAL
-NAPI_EXTERN napi_status NAPI_CDECL napi_has_feature(napi_env env,
-                                                    napi_feature feature,
-                                                    bool* result);
+NAPI_EXTERN napi_status NAPI_CDECL napi_is_feature_enabled(napi_env env,
+                                                           napi_features feature,
+                                                           bool* result);
 #endif  // NAPI_EXPERIMENTAL
 
 EXTERN_C_END

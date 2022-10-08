@@ -3267,7 +3267,7 @@ napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env,
 }
 
 napi_status NAPI_CDECL napi_has_feature(napi_env env,
-                                        napi_feature feature,
+                                        napi_features feature,
                                         bool* result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
