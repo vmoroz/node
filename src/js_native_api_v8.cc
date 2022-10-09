@@ -577,7 +577,8 @@ Reference::Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args)
       _persistent(env->isolate, value),
       _secondPassParameter(new SecondPassCallParameterRef(this)),
       _secondPassScheduled(false),
-      _canBeWeak(value->IsObject() || value->IsFunction()) {
+      _canBeWeak(!env->HasFeature(napi_feature_ref_all_value_types) ||
+                 value->IsObject() || value->IsFunction()) {
   if (RefCount() == 0) {
     SetWeak();
   }
@@ -2396,8 +2397,8 @@ napi_status NAPI_CDECL napi_create_external(napi_env env,
   if (finalize_cb) {
     // The Reference object will delete itself after invoking the finalizer
     // callback.
-  v8impl::Reference::New(
-      env, external_value, 0, true, finalize_cb, data, finalize_hint);
+    v8impl::Reference::New(
+        env, external_value, 0, true, finalize_cb, data, finalize_hint);
   }
 
   *result = v8impl::JsValueFromV8LocalValue(external_value);
