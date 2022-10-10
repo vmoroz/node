@@ -12,9 +12,15 @@
     }                                                                          \
   } while (0)
 
+static uint32_t finalizeCount = 0;
+
 static void FreeData(napi_env env, void* data, void* hint) {
   NODE_API_ASSERT_RETURN_VOID(env, data != NULL, "Expects non-NULL data.");
   free(data);
+}
+
+static void Finalize(napi_env env, void* data, void* hint) {
+  ++finalizeCount;
 }
 
 static napi_status GetArgValue(napi_env env,
@@ -56,7 +62,7 @@ static napi_status GetRef(napi_env env,
   return napi_ok;
 }
 
-static napi_value ToUint32Value(napi_env env, uint32_t value) {
+static napi_value ToUInt32Value(napi_env env, uint32_t value) {
   napi_value result;
   NODE_API_CALL(env, napi_create_uint32(env, value, &result));
   return result;
@@ -100,7 +106,7 @@ static napi_value CreateRef(napi_env env, napi_callback_info info) {
   NODE_API_CALL(env,
                 napi_create_reference(env, argValue, 1, valueRefs + index));
 
-  return ToUint32Value(env, index);
+  return ToUInt32Value(env, index);
 }
 
 static napi_value GetRefValue(napi_env env, napi_callback_info info) {
@@ -116,8 +122,7 @@ static napi_value Ref(napi_env env, napi_callback_info info) {
   NODE_API_CALL(env, GetRef(env, info, &refValue));
   uint32_t refCount;
   NODE_API_CALL(env, napi_reference_ref(env, refValue, &refCount));
-
-  return ToUint32Value(env, refCount);
+  return ToUInt32Value(env, refCount);
 }
 
 static napi_value Unref(napi_env env, napi_callback_info info) {
@@ -125,8 +130,7 @@ static napi_value Unref(napi_env env, napi_callback_info info) {
   NODE_API_CALL(env, GetRef(env, info, &refValue));
   uint32_t refCount;
   NODE_API_CALL(env, napi_reference_unref(env, refValue, &refCount));
-
-  return ToUint32Value(env, refCount);
+  return ToUInt32Value(env, refCount);
 }
 
 static napi_value DeleteRef(napi_env env, napi_callback_info info) {
@@ -136,8 +140,25 @@ static napi_value DeleteRef(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
+static napi_value AddFinalizer(napi_env env, napi_callback_info info) {
+  napi_value obj;
+  NODE_API_CALL(env, GetArgValue(env, info, &obj));
+
+  napi_valuetype valueType;
+  NODE_API_CALL(env, napi_typeof(env, obj, &valueType));
+  NODE_API_ASSERT(env, valueType == napi_object, "Argument must be an object.");
+
+  NODE_API_CALL(env, napi_add_finalizer(env, obj, NULL, &Finalize, NULL, NULL));
+  return NULL;
+}
+
+static napi_value GetFinalizeCount(napi_env env, napi_callback_info info) {
+  return ToUInt32Value(env, finalizeCount);
+}
+
 EXTERN_C_START
 napi_value Init(napi_env env, napi_value exports) {
+  finalizeCount = 0;
   NODE_API_CALL(env, CheckFeature(env));
   NODE_API_CALL(env, InitRefArray(env));
 
@@ -148,6 +169,8 @@ napi_value Init(napi_env env, napi_value exports) {
       DECLARE_NODE_API_PROPERTY("ref", Ref),
       DECLARE_NODE_API_PROPERTY("unref", Unref),
       DECLARE_NODE_API_PROPERTY("deleteRef", DeleteRef),
+      DECLARE_NODE_API_PROPERTY("addFinalizer", AddFinalizer),
+      DECLARE_NODE_API_PROPERTY("getFinalizeCount", GetFinalizeCount),
   };
 
   NODE_API_CALL(
