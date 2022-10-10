@@ -98,7 +98,9 @@ struct napi_env__ {
   }
 
   bool IsFeatureEnabled(napi_features feature) {
-    return (_features & feature) != 0;
+    // By comparing results of `&` operation to the feature parameter
+    // we allow to test for multiple feature flags.
+    return (_features & feature) == feature;
   }
 
   void SetFeatures(napi_features* features) {

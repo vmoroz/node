@@ -8,7 +8,7 @@ const assert = require('assert');
 const addon = require(`./build/${buildType}/test_reference_all_types`);
 
 async function runTests() {
-  var entryCount = 0;
+  let entryCount = 0;
 
   (() => {
     // Create values of all napi_valuetype types.
@@ -45,9 +45,9 @@ async function runTests() {
       const index = addon.createRef(value);
       const refValue = addon.getRefValue(index);
       assert.strictEqual(value, refValue);
-      assert.strictEqual(2, addon.ref(index));
-      assert.strictEqual(1, addon.unref(index));
-      assert.strictEqual(0, addon.unref(index));
+      assert.strictEqual(addon.ref(index), 2);
+      assert.strictEqual(addon.unref(index), 1);
+      assert.strictEqual(addon.unref(index), 0);
     }
 
     // The references become weak pointers when the ref count is 0.
@@ -55,15 +55,16 @@ async function runTests() {
     // types to be objects and functions.
     // Here we know that the GC is not run yet because the values are
     // still in the allValues array.
-    assert.strictEqual(objectValue, addon.getRefValue(objectValueIndex));
-    assert.strictEqual(functionValue, addon.getRefValue(functionValueIndex));
+    assert.strictEqual(addon.getRefValue(objectValueIndex), objectValue);
+    assert.strictEqual(addon.getRefValue(functionValueIndex), functionValue);
 
     const objWithFinalizer = {};
     addon.addFinalizer(objWithFinalizer);
   })();
 
+  assert.strictEqual(addon.getFinalizeCount(), 0);
   await gcUntil('Wait until a finalizer is called',
-    () => (addon.getFinalizeCount() === 1));
+                () => (addon.getFinalizeCount() === 1));
 
   // Create and call finalizer again to make sure that all finalizers are run.
   (() => {
@@ -72,11 +73,11 @@ async function runTests() {
   })();
 
   await gcUntil('Wait until a finalizer is called again',
-    () => (addon.getFinalizeCount() === 1));
+                () => (addon.getFinalizeCount() === 1));
 
   // After GC and finalizers run, all references with refCount==0 must return
   // undefined value.
-  for (var i = 0; i < entryCount; ++i) {
+  for (let i = 0; i < entryCount; ++i) {
     const refValue = addon.getRefValue(i);
     assert.strictEqual(refValue, undefined);
     addon.deleteRef(i);

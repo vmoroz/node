@@ -93,7 +93,7 @@ extern napi_features napi_module_features;
 
 #endif  // NAPI_CUSTOM_FEATURES
 
-#define NAPI_FEATURES_PTR &napi_module_features,
+#define NAPI_FEATURES_PTR /* NOLINT */ &napi_module_features,
 
 #else  // NAPI_EXPERIMENTAL
 #define NAPI_DEFINE_DEFAULT_FEATURES
