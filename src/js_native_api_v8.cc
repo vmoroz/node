@@ -577,7 +577,7 @@ Reference::Reference(napi_env env, v8::Local<v8::Value> value, Args&&... args)
       _persistent(env->isolate, value),
       _secondPassParameter(new SecondPassCallParameterRef(this)),
       _secondPassScheduled(false),
-      _canBeWeak(!env->HasFeature(napi_feature_ref_all_value_types) ||
+      _canBeWeak(!env->IsFeatureEnabled(napi_feature_reference_all_types) ||
                  value->IsObject() || value->IsFunction()) {
   if (RefCount() == 0) {
     SetWeak();
@@ -2502,7 +2502,7 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
   CHECK_ARG(env, result);
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
-  if (!env->HasFeature(napi_feature_ref_all_value_types)) {
+  if (!env->IsFeatureEnabled(napi_feature_reference_all_types)) {
     if (!(v8_value->IsObject() || v8_value->IsFunction() ||
           v8_value->IsSymbol())) {
       return napi_set_last_error(env, napi_invalid_arg);
@@ -3267,11 +3267,11 @@ napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env,
   return napi_clear_last_error(env);
 }
 
-napi_status NAPI_CDECL napi_has_feature(napi_env env,
-                                        napi_features feature,
-                                        bool* result) {
+napi_status NAPI_CDECL napi_is_feature_enabled(napi_env env,
+                                               napi_features feature,
+                                               bool* result) {
   CHECK_ENV(env);
   CHECK_ARG(env, result);
-  *result = env->HasFeature(feature);
+  *result = env->IsFeatureEnabled(feature);
   return napi_clear_last_error(env);
 }

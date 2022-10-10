@@ -116,16 +116,16 @@ typedef enum {
 // For the current version it can be accessed using napi_default_features.
 // A module can override the set of features by adding NAPI_CUSTOM_FEATURES
 // definition in the gyp file and then defining value of napi_module_features
-// variable. For example, this code disables napi_feature_ref_all_value_types:
+// variable. For example, this code disables napi_feature_reference_all_types:
 // napi_features napi_module_features =
-//   napi_default_features & ~napi_feature_ref_all_value_types;
+//   napi_default_features & ~napi_feature_reference_all_types;
 typedef enum {
   // To be used when no features needs to be set.
   napi_feature_none = 0,
   // Use napi_ref for all value types and not only object and functions.
-  napi_feature_ref_all_value_types = 1 << 0,
+  napi_feature_reference_all_types = 1 << 0,
   // Each version of NAPI is going to have its own default set of features.
-  napi_default_experimental_features = napi_feature_ref_all_value_types,
+  napi_default_experimental_features = napi_feature_reference_all_types,
   // This variable must be conditionally set depending on the NAPI version.
   napi_default_features = napi_default_experimental_features,
 } napi_features;

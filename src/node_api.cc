@@ -602,11 +602,12 @@ static void napi_module_register_cb(v8::Local<v8::Object> exports,
                                     v8::Local<v8::Value> module,
                                     v8::Local<v8::Context> context,
                                     void* priv) {
-  napi_module_register_by_symbol(
+  napi_module_register_by_symbol_with_features(
       exports,
       module,
       context,
-      static_cast<const napi_module*>(priv)->nm_register_func);
+      static_cast<const napi_module*>(priv)->nm_register_func,
+      static_cast<const napi_module*>(priv)->nm_features);
 }
 
 void napi_module_register_by_symbol(v8::Local<v8::Object> exports,

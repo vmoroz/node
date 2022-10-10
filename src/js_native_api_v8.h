@@ -97,7 +97,9 @@ struct napi_env__ {
     CallIntoModule([&](napi_env env) { cb(env, data, hint); });
   }
 
-  bool HasFeature(napi_features feature) { return (_features & feature) != 0; }
+  bool IsFeatureEnabled(napi_features feature) {
+    return (_features & feature) != 0;
+  }
 
   void SetFeatures(napi_features* features) {
     if (features == nullptr) {
