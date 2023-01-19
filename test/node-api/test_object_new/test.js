@@ -52,16 +52,6 @@ function printArr(arr) {
 }
 
 {
-  console.time('v8 obj_new_as_literal');
-  let arr = [];
-  for (let i = 0; i < 1_000_000; i++) {
-    arr.push(binding.obj_new_as_literal(Object.prototype, i, 'hi'));
-  }
-  console.timeEnd('v8 obj_new_as_literal');
-  printArr(arr);
-}
-
-{
   console.time('v8 obj_new_as_json');
   let arr = [];
   for (let i = 0; i < 1_000_000; i++) {

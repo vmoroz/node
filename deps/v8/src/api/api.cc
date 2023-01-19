@@ -7303,11 +7303,12 @@ Local<v8::Object> v8::Object::New(Isolate* v8_isolate,
     return Utils::ToLocal(obj);
   }
 }
-#if 0
-Local<v8::Object> v8::Object::New2(Isolate* v8_isolate,
-                                   Local<Value> prototype_or_null,
-                                   Local<Name>* names, Local<Value>* values,
-                                   size_t length) {
+
+Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
+                                        Local<Value> prototype_or_null,
+                                        Local<Name>* names,
+                                        Local<Value>* values,
+                                        size_t length) {
   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
   i::Handle<i::Object> proto = Utils::OpenHandle(*prototype_or_null);
   if (!Utils::ApiCheck(proto->IsNull() || proto->IsJSReceiver(),
@@ -7317,253 +7318,83 @@ Local<v8::Object> v8::Object::New2(Isolate* v8_isolate,
   API_RCS_SCOPE(i_isolate, Object, New);
   ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
 
-  i::Handle<i::FixedArrayBase> elements =
-      i_isolate->factory()->empty_fixed_array();
-
-  // i::Handle<i::NameDictionary> properties =
-  //     i::NameDictionary::New(i_isolate, static_cast<int>(length));
-  // AddPropertiesAndElementsToObject(i_isolate, properties, elements, names,
-  //                                   values, length);
-
-  i::Handle<i::Map> map = i_isolate->factory()->ObjectLiteralMapFromCache(
-      i_isolate->native_context(), length);
-
-  i::Handle<i::JSObject> object = map->is_dictionary_map()
-                          ? i_isolate->factory()->NewSlowJSObjectFromMap(map)
-                          : i_isolate->factory()->NewJSObjectFromMap(map);
-  object->set_elements(*elements);
-
-  // i::Handle<i::JSObject> obj =
-  //     i_isolate->factory()->NewSlowJSObjectWithPropertiesAndElements(
-  //         i::Handle<i::HeapObject>::cast(proto), properties, elements);
-
+  const int64_t invalid_index = -1;
+  auto isValidArrayIndex = [](int64_t index) { return index >= 0; };
+  base::SmallVector<int64_t, 32> indexed_names(length);
+  size_t indexed_length = 0;
+  uint32_t max_index = 0;
   for (size_t i = 0; i < length; ++i) {
     i::Handle<i::Name> name = Utils::OpenHandle(*names[i]);
-    i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);
-
-    // See if the {name} is a valid array index, in which case we need to
-    // add the {name}/{value} pair to the {elements}, otherwise they end
-    // up in the {properties} backing store.
     uint32_t index;
     if (name->AsArrayIndex(&index)) {
-      // // If this is the first element, allocate a proper
-      // // dictionary elements backing store for {elements}.
-      // if (!elements->IsNumberDictionary()) {
-      //   elements =
-      //       i::NumberDictionary::New(i_isolate, static_cast<int>(length));
-      // }
-      // elements = i::NumberDictionary::Set(
-      //     i_isolate, i::Handle<i::NumberDictionary>::cast(elements), index,
-      //     value);
+      indexed_names[i] = index;
+      ++indexed_length;
+      if (max_index < index) {
+        max_index = index;
+      }
     } else {
-      // Internalize the {name} first.
-      name = i_isolate->factory()->InternalizeName(name);
-      // i::InternalIndex const entry = properties->FindEntry(i_isolate, name);
-      // if (entry.is_not_found()) {
-      //   // Add the {name}/{value} pair as a new entry.
-      //   properties = ToHandle(Dictionary::Add(
-      //       i_isolate, properties, name, value, i::PropertyDetails::Empty()));
-      // } else {
-      //   // Overwrite the {entry} with the {value}.
-      //   properties->ValueAtPut(entry, *value);
-      // }
-
-      i::LookupIterator it(i_isolate, object, name, object, i::LookupIterator::OWN);
-      i::JSObject::DefineOwnPropertyIgnoreAttributes(&it, value, i::NONE).Check();
+      indexed_names[i] = invalid_index;
     }
   }
 
-  return Utils::ToLocal(object);
-}
-#endif
-Local<v8::Object> v8::Object::NewAsLiteral(Isolate* v8_isolate,
-                                           Local<Value> prototype_or_null,
-                                           Local<Name>* names, Local<Value>* values,
-                                           size_t length) {
-  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
-  i::Handle<i::Object> proto = Utils::OpenHandle(*prototype_or_null);
-  if (!Utils::ApiCheck(proto->IsNull() || proto->IsJSReceiver(),
-                       "v8::Object::New", "prototype must be null or object")) {
-    return Local<v8::Object>();
-  }
-  API_RCS_SCOPE(i_isolate, Object, New);
-  ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-
-  i::Handle<i::NativeContext> native_context = i_isolate->native_context();
-  //bool use_fast_elements = (flags & ObjectLiteral::kFastElements) != 0;
-  //bool has_null_prototype = (flags & ObjectLiteral::kHasNullPrototype) != 0;
-    // set_fast_elements((max_element_index <= 32) ||
-    //                 ((2 * elements) >= max_element_index));
-  bool has_null_prototype = proto->IsNull();
-
-  // In case we have function literals, we want the object to be in
-  // slow properties mode for now. We don't go in the map cache because
-  // maps with constant functions can't be shared if the functions are
-  // not the same (which is the common case).
-  int number_of_properties = length; //TODO: elements
-
-  // Ignoring number_of_properties for force dictionary map with
-  // __proto__:null.
-  i::Handle<i::Map> map =
-      proto->IsNull()
-          ? handle(native_context->slow_object_with_null_prototype_map(),
-                   i_isolate)
-          : i_isolate->factory()->ObjectLiteralMapFromCache(native_context,
-                                                          number_of_properties);
-
-  i::Handle<i::JSObject> boilerplate =
-      i_isolate->factory()->NewFastOrSlowJSObjectFromMap(
-          map, number_of_properties);
-
-  // Normalize the elements of the boilerplate to save space if needed.
-  //if (!use_fast_elements) i::JSObject::NormalizeElements(boilerplate);
-
-  // Add the constant properties to the boilerplate.
-  //int length = object_boilerplate_description->size();
-  // TODO(verwaest): Support tracking representations in the boilerplate.
-  for (int index = 0; index < length; ++index) {
-    i::Handle<i::Name> name = Utils::OpenHandle(*names[index]);
-    i::Handle<i::Object> value = Utils::OpenHandle(*values[index]);
-
-    // uint32_t element_index = 0;
-    // if (name->ToArrayIndex(&element_index)) {
-    //   // Array index (uint32).
-    //   if (value->IsUninitialized(i_isolate)) {
-    //     value = handle(i::Smi::zero(), i_isolate);
-    //   }
-    //   i::JSObject::SetOwnElementIgnoreAttributes(boilerplate, element_index, value,
-    //                                           i::NONE)
-    //       .Check();
-    // } else {
-      //i::Handle<String> name = i::Handle<i::String>::cast(key);
-      //DCHECK(!name->AsArrayIndex(&element_index));
-      i::JSObject::SetOwnPropertyIgnoreAttributes(boilerplate, name, value, i::NONE)
-          .Check();
-    // }
-  }
-
-  if (map->is_dictionary_map() && !has_null_prototype) {
-    // TODO(cbruni): avoid making the boilerplate fast again, the clone stub
-    // supports dict-mode objects directly.
-    //i::JSObject::MigrateSlowToFast(
-    //    boilerplate, boilerplate->map().UnusedPropertyFields(), "FastLiteral");
-  }
-  return Utils::ToLocal(boilerplate);
-  //return boilerplate;
-}
-
-v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
-                                            Local<Value> prototype_or_null,
-                                            Local<Name>* names, Local<Value>* values,
-                                            size_t length) {
-
- auto parentOfDescriptorOwner = [](i::Isolate* isolate, i::Handle<i::Map> maybe_root,
-                                   i::Handle<i::Map> source, int descriptor) -> i::Handle<i::Map> {
-    if (descriptor == 0) {
-      // DCHECK_EQ(0, maybe_root->NumberOfOwnDescriptors());
-      return maybe_root;
-    }
-    return i::handle(source->FindFieldOwner(isolate, i::InternalIndex(descriptor - 1)),
-                isolate);
-  };
-
-  // size_t start = cont.index;
-  // int length = static_cast<int>(property_stack.size() - start);
-  // int named_length = length - cont.elements;
-  i::Handle<i::Map> feedback;
-
-  int named_length = length;
-
-  i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
-  i::Handle<i::Object> proto = Utils::OpenHandle(*prototype_or_null);
-  if (!Utils::ApiCheck(proto->IsNull() || proto->IsJSReceiver(),
-                       "v8::Object::New", "prototype must be null or object")) {
-    return Local<v8::Object>();
-  }
-  API_RCS_SCOPE(i_isolate, Object, New);
-  ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-
+  size_t named_length = length - indexed_length;
   i::Handle<i::Map> initial_map = i_isolate->factory()->ObjectLiteralMapFromCache(
-      i_isolate->native_context(), named_length);
+      i_isolate->native_context(),  static_cast<int>(named_length));
 
   i::Handle<i::Map> map = initial_map;
 
   i::Handle<i::FixedArrayBase> elements = i_isolate->factory()->empty_fixed_array();
 
   // First store the elements.
-  // if (cont.elements > 0) {
-  //   // Store as dictionary elements if that would use less memory.
-  //   if (i::ShouldConvertToSlowElements(cont.elements, cont.max_index + 1)) {
-  //     i::Handle<i::NumberDictionary> elms =
-  //         i::NumberDictionary::New(i_isolate, cont.elements);
-  //     for (int i = 0; i < length; i++) {
-  //       const JsonProperty& property = property_stack[start + i];
-  //       if (!property.string.is_index()) continue;
-  //       uint32_t index = property.string.index();
-  //       i::Handle<i::Object> value = property.value;
-  //       elms = i::NumberDictionary::Set(i_isolate, elms, index, value);
-  //     }
-  //     map = i::Map::AsElementsKind(i_isolate, map, i::DICTIONARY_ELEMENTS);
-  //     elements = elms;
-  //   } else {
-  //     i::Handle<i::FixedArray> elms =
-  //         i_isolate->factory()->NewFixedArrayWithHoles(cont.max_index + 1);
-  //     i::DisallowGarbageCollection no_gc;
-  //     i::WriteBarrierMode mode = elms->GetWriteBarrierMode(no_gc);
-  //     DCHECK_EQ(i::HOLEY_ELEMENTS, map->elements_kind());
+  if (indexed_length > 0) {
+    // Store as dictionary elements if that would use less memory.
+    if (i::ShouldConvertToSlowElements(static_cast<uint32_t>(indexed_length), max_index + 1)) {
+      i::Handle<i::NumberDictionary> elms =
+          i::NumberDictionary::New(i_isolate, static_cast<int>(indexed_length));
+      for (size_t i = 0; i < length; ++i) {
+        int64_t index = indexed_names[i];
+        if (!isValidArrayIndex(index)) continue;
+        i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);
+        elms = i::NumberDictionary::Set(i_isolate, elms, static_cast<uint32_t>(index), value);
+      }
+      map = i::Map::AsElementsKind(i_isolate, map, i::DICTIONARY_ELEMENTS);
+      elements = elms;
+    } else {
+      i::Handle<i::FixedArray> elms =
+          i_isolate->factory()->NewFixedArrayWithHoles(max_index + 1);
+      i::DisallowGarbageCollection no_gc;
+      i::WriteBarrierMode mode = elms->GetWriteBarrierMode(no_gc);
+      DCHECK_EQ(i::HOLEY_ELEMENTS, map->elements_kind());
 
-  //     for (int i = 0; i < length; i++) {
-  //       const JsonProperty& property = property_stack[start + i];
-  //       if (!property.string.is_index()) continue;
-  //       uint32_t index = property.string.index();
-  //       i::Handle<i::Object> value = property.value;
-  //       elms->set(static_cast<int>(index), *value, mode);
-  //     }
-  //     elements = elms;
-  //   }
-  // }
+      for (size_t i = 0; i < length; ++i) {
+        int64_t index = indexed_names[i];
+        if (!isValidArrayIndex(index)) continue;
+        i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);
+        elms->set(static_cast<int>(index), *value, mode);
+      }
+      elements = elms;
+    }
+  }
 
-  int feedback_descriptors =
-      (feedback.is_null() ||
-       feedback->elements_kind() != map->elements_kind() ||
-       feedback->instance_size() != map->instance_size())
-          ? 0
-          : feedback->NumberOfOwnDescriptors();
-
-  int i;
+  size_t i;
   int descriptor = 0;
   int new_mutable_double = 0;
-  for (i = 0; i < length; i++) {
-    //TODO:const JsonProperty& property = property_stack[start + i];
-    //TODO:if (property.string.is_index()) continue;
+  for (i = 0; i < length; ++i) {
+    if (isValidArrayIndex(indexed_names[i])) continue;
     i::Handle<i::String> expected;
     i::Handle<i::Map> target;
     i::InternalIndex descriptor_index(descriptor);
-    // if (descriptor < feedback_descriptors) {
-    //   expected =
-    //       handle(String::cast(feedback->instance_descriptors(isolate_).GetKey(
-    //                  descriptor_index)),
-    //              isolate_);
-    // } else {
-       i::TransitionsAccessor transitions(i_isolate, *map);
-       expected = transitions.ExpectedTransitionKey();
-       if (!expected.is_null()) {
-         // Directly read out the target while reading out the key, otherwise it
-         // might die while building the string below.
-         target =
-            i::TransitionsAccessor(i_isolate, *map).ExpectedTransitionTarget();
-      }
-    // }
+    i::TransitionsAccessor transitions(i_isolate, *map);
+    expected = transitions.ExpectedTransitionKey();
+    if (!expected.is_null()) {
+      // Directly read out the target while reading out the key, otherwise it
+      // might die while building the string below.
+      target =
+        i::TransitionsAccessor(i_isolate, *map).ExpectedTransitionTarget();
+    }
 
     i::Handle<i::Name> key = Utils::OpenHandle(*names[i]);
-    //i::Handle<String> key = i::MakeString(property.string, expected);
-    if (key.is_identical_to(expected)) {
-      if (descriptor < feedback_descriptors) target = feedback;
-    } else {
-      if (descriptor < feedback_descriptors) {
-        map = parentOfDescriptorOwner(i_isolate, map, feedback, descriptor);
-        feedback_descriptors = 0;
-      }
+    if (!key.is_identical_to(expected)) {
       if (!i::TransitionsAccessor(i_isolate, *map)
                .FindTransitionToField(key)
                .ToHandle(&target)) {
@@ -7571,7 +7402,7 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
       }
     }
 
-    i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);;
+    i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);
 
     i::PropertyDetails details =
         target->instance_descriptors(i_isolate).GetDetails(descriptor_index);
@@ -7581,7 +7412,13 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
       i::Representation representation = value->OptimalRepresentation(i_isolate);
       representation = representation.generalize(expected_representation);
       if (!expected_representation.CanBeInPlaceChangedTo(representation)) {
-        map = parentOfDescriptorOwner(i_isolate, map, target, descriptor);
+        if (descriptor > 0) {
+          map = i::handle(target->FindFieldOwner(i_isolate,
+                                      i::InternalIndex(descriptor - 1)),
+                          i_isolate);
+        } else {
+          DCHECK_EQ(0, map->NumberOfOwnDescriptors());
+        }
         break;
       }
       i::Handle<i::FieldType> value_type =
@@ -7607,11 +7444,6 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
                .NowContains(value));
     map = target;
     descriptor++;
-  }
-
-  // Fast path: Write all transitioned named properties.
-  if (i == length && descriptor < feedback_descriptors) {
-    map = parentOfDescriptorOwner(i_isolate, map, map, descriptor);
   }
 
   // Preallocate all mutable heap numbers so we don't need to allocate while
@@ -7647,14 +7479,12 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
         filler_address += i::HeapNumber::kSize;
       }
     }
-    for (int j = 0; j < i; j++) {
-      //const JsonProperty& property = property_stack[start + j];
-      //TODO: if (property.string.is_index()) continue;
+    for (size_t j = 0; j < i; ++j) {
+      if (isValidArrayIndex(indexed_names[j])) continue;
       i::InternalIndex descriptor_index(descriptor);
       i::PropertyDetails details =
           map->instance_descriptors(i_isolate).GetDetails(descriptor_index);
       i::Handle<i::Object> value = Utils::OpenHandle(*values[j]);;
-      //i::Object value = *property.value;
       i::FieldIndex index = i::FieldIndex::ForDescriptor(*map, descriptor_index);
       descriptor++;
 
@@ -7669,11 +7499,9 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
           }
 
           double d = static_cast<double>(i::Smi::ToInt(*value));
-          uint64_t bits = *reinterpret_cast<uint64_t*>(&d);
-              //base::bit_cast<uint64_t>();
+          uint64_t bits = base::bit_cast<uint64_t>(d);
           // Allocate simple heapnumber with immortal map, with non-pointer
           // payload, so we can skip notifying object layout change.
-
           i::HeapObject hn = i::HeapObject::FromAddress(mutable_double_address);
           hn.set_map_after_allocation(*i_isolate->factory()->heap_number_map());
           i::HeapNumber::cast(hn).set_value_as_bits(bits, kRelaxedStore);
@@ -7712,15 +7540,10 @@ v8::Local<v8::Object> v8::Object::NewAsJson(Isolate* v8_isolate,
   }
 
   // Slow path: define remaining named properties.
-  for (; i < length; i++) {
+  for (; i < length; ++i) {
     HandleScope scope(v8_isolate);
-    //const JsonProperty& property = property_stack[start + i];
-    //if (property.string.is_index()) continue;
+    if (isValidArrayIndex(indexed_names[i])) continue;
     i::Handle<i::Name> key = Utils::OpenHandle(*names[i]);
-#ifdef DEBUG
-    uint32_t index;
-    DCHECK(!key->AsArrayIndex(&index));
-#endif
     i::Handle<i::Object> value = Utils::OpenHandle(*values[i]);
     i::LookupIterator it(i_isolate, object, key, object, i::LookupIterator::OWN);
     i::JSObject::DefineOwnPropertyIgnoreAttributes(&it, value, i::NONE).Check();

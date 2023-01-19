@@ -166,33 +166,6 @@ static napi_value obj_new(napi_env env, napi_callback_info info) {
   return ToNapiValue(obj);
 }
 
-static napi_value obj_new_as_literal(napi_env env, napi_callback_info info) {
-  size_t argc = 3;
-  napi_value args[3];
-  NODE_API_CALL(env,
-                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
-
-  ModuleData* data = ModuleData::FromEnv(env);
-  v8::Local<v8::ObjectTemplate> tmpl =
-      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
-
-  napi_value foo, bar;
-  data->GetFooBar(env, &foo, &bar);
-
-  v8::Isolate* isolate = v8::Isolate::GetCurrent();
-  v8::Local<v8::Context> context = isolate->GetCurrentContext();
-
-  v8::Local<v8::Name> names[2] = {ToLocal<v8::Name>(foo),
-                                  ToLocal<v8::Name>(bar)};
-  v8::Local<v8::Value>* values =
-      reinterpret_cast<v8::Local<v8::Value>*>(args + 1);
-
-  v8::Local<v8::Object> obj = v8::Object::NewAsLiteral(
-      isolate, ToLocal<v8::Value>(args[0]), names, values, 2);
-
-  return ToNapiValue(obj);
-}
-
 static napi_value obj_new_as_json(napi_env env, napi_callback_info info) {
   size_t argc = 3;
   napi_value args[3];
@@ -243,7 +216,6 @@ static napi_value Init(napi_env env, napi_value exports) {
       DECLARE_NODE_API_PROPERTY("obj_tmpl", obj_tmpl),
       DECLARE_NODE_API_PROPERTY("obj_new_data_prop", obj_new_data_prop),
       DECLARE_NODE_API_PROPERTY("obj_new", obj_new),
-      DECLARE_NODE_API_PROPERTY("obj_new_as_literal", obj_new_as_literal),
       DECLARE_NODE_API_PROPERTY("obj_new_as_json", obj_new_as_json),
       DECLARE_NODE_API_PROPERTY("obj_new_from_js", obj_new_from_js),
   };

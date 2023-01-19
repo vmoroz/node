@@ -682,14 +682,6 @@ class V8_EXPORT Object : public Value {
                            Local<Name>* names, Local<Value>* values,
                            size_t length);
 
-  static Local<Object> New2(Isolate* isolate, Local<Value> prototype_or_null,
-                           Local<Name>* names, Local<Value>* values,
-                           size_t length);
-
-  static Local<Object> NewAsLiteral(Isolate* isolate, Local<Value> prototype_or_null,
-                                    Local<Name>* names, Local<Value>* values,
-                                    size_t length);
-
   static Local<Object> NewAsJson(Isolate* isolate, Local<Value> prototype_or_null,
                                  Local<Name>* names, Local<Value>* values,
                                  size_t length);
