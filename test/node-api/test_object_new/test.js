@@ -4,50 +4,83 @@ const common = require('../../common');
 const filename = require.resolve(`./build/${common.buildType}/test_object_new`);
 const binding = require(filename);
 
-// console.time('napi');
-// binding.test();
-// console.timeEnd('napi');
+function printArr(arr) {
+  let sum = 0;
+  for (let i = 0; i < 1_000_000; i++) {
+    sum += arr[i].foo;
+  }
+  console.log(`sum: ${sum}`);
+}
 
-console.time('v8 napi_class');
-binding.napi_class();
-console.timeEnd('v8 napi_class');
+{
+  console.time('v8 obj_napi');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_napi(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_napi');
+  printArr(arr);
+}
 
-// console.time('v8 tmpl');
-// binding.tmpl();
-// console.timeEnd('v8 tmpl');
+{
+  console.time('v8 obj_tmpl');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_tmpl(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_tmpl');
+  printArr(arr);
+}
 
-// console.time('v8 tmpl intern');
-// binding.tmpl_intern();
-// console.timeEnd('v8 tmpl intern');
+{
+  console.time('v8 obj_new_data_prop');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_new_data_prop(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_new_data_prop');
+  printArr(arr);
+}
+{
+  console.time('v8 obj_new');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_new(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_new');
+  printArr(arr);
+}
 
-// console.time('v8 obj_data_prop');
-// binding.obj_data_prop();
-// console.timeEnd('v8 obj_data_prop');
+{
+  console.time('v8 obj_new_as_literal');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_new_as_literal(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_new_as_literal');
+  printArr(arr);
+}
 
-// console.time('v8 obj_new_as_literal');
-// binding.obj_new_as_literal();
-// console.timeEnd('v8 obj_new_as_literal');
+{
+  console.time('v8 obj_new_as_json');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_new_as_json(Object.prototype, i, 'hi'));
+  }
+  console.timeEnd('v8 obj_new_as_json');
+  printArr(arr);
+}
 
-// console.time('v8 obj_new_as_json');
-// binding.obj_new_as_json();
-// console.timeEnd('v8 obj_new_as_json');
+{
+  function createObject(idx, str) {
+    return { foo: idx, bar: str };
+  }
 
-// console.time('js');
-// let arr = [];
-// for (let i = 0; i < 100000; i++) {
-//   arr.push({
-//     foo: i,
-//     bar: 'hi'
-//   });
-// }
-// console.timeEnd('js');
-
-// console.time('js2');
-// let arr2 = [];
-// for (let i = 0; i < 100000; i++) {
-//   let o = Object.create(Object);
-//   o.foo = i;
-//   o.bar = 'hi';
-//   arr2.push(o);
-// }
-// console.timeEnd('js2');
+  console.time('js obj_new_from_js');
+  let arr = [];
+  for (let i = 0; i < 1_000_000; i++) {
+    arr.push(binding.obj_new_from_js(createObject, i, 'hi'));
+  }
+  console.timeEnd('js obj_new_from_js');
+  printArr(arr);
+}

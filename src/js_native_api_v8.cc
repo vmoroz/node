@@ -2419,10 +2419,10 @@ napi_status NAPI_CDECL napi_create_reference(napi_env env,
   CHECK_ARG(env, result);
 
   v8::Local<v8::Value> v8_value = v8impl::V8LocalValueFromJsValue(value);
-  if (!(v8_value->IsObject() || v8_value->IsFunction() ||
-        v8_value->IsSymbol())) {
-    return napi_set_last_error(env, napi_invalid_arg);
-  }
+  // if (!(v8_value->IsObject() || v8_value->IsFunction() ||
+  //       v8_value->IsSymbol())) {
+  //   return napi_set_last_error(env, napi_invalid_arg);
+  // }
 
   v8impl::Reference* reference = v8impl::Reference::New(
       env, v8_value, initial_refcount, v8impl::Ownership::kUserland);

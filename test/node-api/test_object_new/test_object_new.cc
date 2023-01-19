@@ -3,223 +3,249 @@
 #include <v8.h>
 #include "../../js-native-api/common.h"
 
-static napi_value test(napi_env env, napi_callback_info info) {
-  napi_value arr, foo, bar, hi, num, obj;
-  NODE_API_CALL(env, napi_create_array(env, &arr));
+template <typename T>
+napi_value ToNapiValue(v8::Local<T> local) {
+  return reinterpret_cast<napi_value>(*local);
+}
 
-  NODE_API_CALL(env,
-                napi_create_string_utf8(env, "foo", NAPI_AUTO_LENGTH, &foo));
-  NODE_API_CALL(env,
-                napi_create_string_utf8(env, "bar", NAPI_AUTO_LENGTH, &bar));
-  NODE_API_CALL(env, napi_create_string_utf8(env, "hi", NAPI_AUTO_LENGTH, &hi));
-  for (int i = 0; i < 100000; i++) {
-    NODE_API_CALL(env, napi_create_object(env, &obj));
-    NODE_API_CALL(env, napi_create_int32(env, i, &num));
-    NODE_API_CALL(env, napi_set_property(env, obj, foo, num));
-    NODE_API_CALL(env, napi_set_property(env, obj, bar, hi));
-    NODE_API_CALL(env, napi_set_element(env, arr, i, obj));
+template <typename T>
+v8::Local<T> ToLocal(napi_value value) {
+  return *reinterpret_cast<v8::Local<T>*>(&value);
+}
+
+struct ModuleData {
+  static void Finalize(napi_env /*env*/, void* data, void* /*hint*/) {
+    delete reinterpret_cast<ModuleData*>(data);
   }
 
-  return nullptr;
-}
-
-static napi_value ctor(napi_env env, napi_callback_info info) {
-  return nullptr;
-}
-static napi_value getter(napi_env env, napi_callback_info info) {
-  return nullptr;
-}
-static napi_value setter(napi_env env, napi_callback_info info) {
-  return nullptr;
-}
-
-static napi_value napi_class(napi_env env, napi_callback_info info) {
-  napi_value arr, foo, bar, hi, num, obj, klass;
-  NODE_API_CALL(env, napi_create_array(env, &arr));
-
-  NODE_API_CALL(env,
-                napi_create_string_utf8(env, "foo", NAPI_AUTO_LENGTH, &foo));
-  NODE_API_CALL(env,
-                napi_create_string_utf8(env, "bar", NAPI_AUTO_LENGTH, &bar));
-  NODE_API_CALL(env, napi_create_string_utf8(env, "hi", NAPI_AUTO_LENGTH, &hi));
-
-  napi_property_descriptor props[] = {{nullptr,
-                                       foo,
-                                       nullptr,
-                                       getter,
-                                       setter,
-                                       nullptr,
-                                       napi_default_jsproperty,
-                                       (void*)0},
-                                      {nullptr,
-                                       bar,
-                                       nullptr,
-                                       getter,
-                                       setter,
-                                       nullptr,
-                                       napi_default_jsproperty,
-                                       (void*)1}};
-
-  NODE_API_CALL(env,
-                napi_define_class(
-                    env, "AClass", NAPI_AUTO_LENGTH, ctor, nullptr, 2, props, &klass));
-
-  for (int i = 0; i < 100000; i++) {
-    napi_value obj;
-    NODE_API_CALL(env, napi_new_instance(env, klass, 0,  nullptr, &obj));
-    //NODE_API_CALL(env, napi_create_int32(env, i, &num));
-    //NODE_API_CALL(env, napi_set_property(env, obj, foo, num));
-    //NODE_API_CALL(env, napi_set_property(env, obj, bar, hi));
-    NODE_API_CALL(env, napi_set_element(env, arr, i, obj));
+  static ModuleData* FromEnv(napi_env env) {
+    ModuleData* data{};
+    napi_get_instance_data(env, reinterpret_cast<void**>(&data));
+    return data;
   }
 
+  napi_value GetFooBar(napi_env env, napi_value* foo, napi_value* bar) {
+    if (fooRef == nullptr) {
+      v8::Isolate* isolate = v8::Isolate::GetCurrent();
+      v8::Local<v8::Name> fooName =
+          v8::String::NewFromUtf8(
+              isolate, "foo", v8::NewStringType::kInternalized)
+              .ToLocalChecked();
+      v8::Local<v8::Name> barName =
+          v8::String::NewFromUtf8(
+              isolate, "bar", v8::NewStringType::kInternalized)
+              .ToLocalChecked();
+      *foo = ToNapiValue(fooName);
+      *bar = ToNapiValue(barName);
+
+      NODE_API_CALL(env, napi_create_reference(env, *foo, 1, &fooRef));
+      NODE_API_CALL(env, napi_create_reference(env, *bar, 1, &barRef));
+    } else {
+      NODE_API_CALL(env, napi_get_reference_value(env, fooRef, foo));
+      NODE_API_CALL(env, napi_get_reference_value(env, barRef, bar));
+    }
+    return nullptr;
+  }
+
+  napi_value GetTemplate(napi_env env) {
+    napi_value result;
+    if (tmplRef == nullptr) {
+      v8::Isolate* isolate = v8::Isolate::GetCurrent();
+      v8::Local<v8::ObjectTemplate> tmpl = v8::ObjectTemplate::New(isolate);
+      tmpl->Set(isolate, "foo", v8::Null(isolate));
+      tmpl->Set(isolate, "bar", v8::Null(isolate));
+      result = ToNapiValue(tmpl);
+      NODE_API_CALL(env, napi_create_reference(env, result, 1, &tmplRef));
+    } else {
+      NODE_API_CALL(env, napi_get_reference_value(env, tmplRef, &result));
+    }
+    return result;
+  }
+
+ private:
+  napi_ref fooRef{};
+  napi_ref barRef{};
+  napi_ref tmplRef{};
+};
+
+// A method to put a break point for perf measure
+static napi_value js_perf_start(napi_env /*env*/, napi_callback_info /*info*/) {
   return nullptr;
 }
 
-static napi_value tmpl(napi_env env, napi_callback_info info) {
+// A method to put a break point for perf measure
+static napi_value js_perf_end(napi_env /*env*/, napi_callback_info /*info*/) {
+  return nullptr;
+}
+
+// Creating object using existing Node-API calls
+static napi_value obj_napi(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  napi_value obj;
+  NODE_API_CALL(env, napi_create_object(env, &obj));
+  NODE_API_CALL(env, napi_set_named_property(env, obj, "foo", args[1]));
+  NODE_API_CALL(env, napi_set_named_property(env, obj, "bar", args[2]));
+  return obj;
+}
+
+static napi_value obj_tmpl(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  ModuleData* data = ModuleData::FromEnv(env);
+  v8::Local<v8::ObjectTemplate> tmpl =
+      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
+
+  napi_value foo, bar;
+  data->GetFooBar(env, &foo, &bar);
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
-  v8::Local<v8::Array> arr = v8::Array::New(isolate, 0);
+  auto obj = tmpl->NewInstance(context).ToLocalChecked();
+  obj->Set(context, ToLocal<v8::Name>(foo), ToLocal<v8::Value>(args[1]));
+  obj->Set(context, ToLocal<v8::Name>(bar), ToLocal<v8::Value>(args[2]));
 
-  v8::Local<v8::ObjectTemplate> tpl = v8::ObjectTemplate::New(isolate);
-  tpl->Set(isolate, "foo", v8::Null(isolate));
-  tpl->Set(isolate, "bar", v8::Null(isolate));
-
-  auto foo = v8::String::NewFromUtf8(isolate, "foo").ToLocalChecked();
-  auto bar = v8::String::NewFromUtf8(isolate, "bar").ToLocalChecked();
-  auto hi = v8::String::NewFromUtf8(isolate, "hi").ToLocalChecked();
-
-  for (int i = 0; i < 100000; i++) {
-    auto obj = tpl->NewInstance(context).ToLocalChecked();
-    obj->Set(context, foo, v8::Number::New(isolate, i));
-    obj->Set(context, bar, hi);
-    arr->Set(context, i, obj);
-  }
-
-  return nullptr;
+  return ToNapiValue(obj);
 }
 
-static napi_value tmpl_intern(napi_env env, napi_callback_info info) {
+static napi_value obj_new_data_prop(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  ModuleData* data = ModuleData::FromEnv(env);
+  v8::Local<v8::ObjectTemplate> tmpl =
+      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
+
+  napi_value foo, bar;
+  data->GetFooBar(env, &foo, &bar);
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
-  v8::Local<v8::Array> arr = v8::Array::New(isolate, 0);
 
-  v8::Local<v8::ObjectTemplate> tpl = v8::ObjectTemplate::New(isolate);
-  tpl->Set(isolate, "foo", v8::Null(isolate));
-  tpl->Set(isolate, "bar", v8::Null(isolate));
+  auto obj = v8::Object::New(isolate);
+  obj->CreateDataProperty(
+      context, ToLocal<v8::Name>(foo), ToLocal<v8::Value>(args[1]));
+  obj->CreateDataProperty(
+      context, ToLocal<v8::Name>(bar), ToLocal<v8::Value>(args[2]));
 
-  auto foo =
-      v8::String::NewFromUtf8(isolate, "foo", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto bar =
-      v8::String::NewFromUtf8(isolate, "bar", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto hi =
-      v8::String::NewFromUtf8(isolate, "hi", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-
-  for (int i = 0; i < 100000; i++) {
-    auto obj = tpl->NewInstance(context).ToLocalChecked();
-    obj->Set(context, foo, v8::Number::New(isolate, i));
-    obj->Set(context, bar, hi);
-    arr->Set(context, i, obj);
-  }
-
-  return nullptr;
+  return ToNapiValue(obj);
 }
 
-static napi_value obj_data_prop(napi_env env, napi_callback_info info) {
+static napi_value obj_new(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  ModuleData* data = ModuleData::FromEnv(env);
+  v8::Local<v8::ObjectTemplate> tmpl =
+      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
+
+  napi_value foo, bar;
+  data->GetFooBar(env, &foo, &bar);
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
-  v8::Local<v8::Array> arr = v8::Array::New(isolate, 0);
 
-  auto foo =
-      v8::String::NewFromUtf8(isolate, "foo", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto bar =
-      v8::String::NewFromUtf8(isolate, "bar", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto hi =
-      v8::String::NewFromUtf8(isolate, "hi", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
+  v8::Local<v8::Name> names[2] = {ToLocal<v8::Name>(foo),
+                                  ToLocal<v8::Name>(bar)};
+  v8::Local<v8::Value>* values =
+      reinterpret_cast<v8::Local<v8::Value>*>(args + 1);
 
-  for (int i = 0; i < 100000; i++) {
-    auto obj = v8::Object::New(isolate);
-    obj->CreateDataProperty(context, foo, v8::Number::New(isolate, i));
-    obj->CreateDataProperty(context, bar, hi);
-    arr->Set(context, i, obj);
-  }
+  v8::Local<v8::Object> obj =
+      v8::Object::New(isolate, ToLocal<v8::Value>(args[0]), names, values, 2);
 
-  return nullptr;
+  return ToNapiValue(obj);
 }
 
 static napi_value obj_new_as_literal(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  ModuleData* data = ModuleData::FromEnv(env);
+  v8::Local<v8::ObjectTemplate> tmpl =
+      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
+
+  napi_value foo, bar;
+  data->GetFooBar(env, &foo, &bar);
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
-  v8::Local<v8::Array> arr = v8::Array::New(isolate, 0);
-  v8::Local<v8::Object> proto = v8::Object::New(isolate);
 
-  auto foo =
-      v8::String::NewFromUtf8(isolate, "foo", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto bar =
-      v8::String::NewFromUtf8(isolate, "bar", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto hi =
-      v8::String::NewFromUtf8(isolate, "hi", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
+  v8::Local<v8::Name> names[2] = {ToLocal<v8::Name>(foo),
+                                  ToLocal<v8::Name>(bar)};
+  v8::Local<v8::Value>* values =
+      reinterpret_cast<v8::Local<v8::Value>*>(args + 1);
 
-  v8::Local<v8::Name> names[2] = {foo, bar};
-  v8::Local<v8::Value> values[2] = {};
+  v8::Local<v8::Object> obj = v8::Object::NewAsLiteral(
+      isolate, ToLocal<v8::Value>(args[0]), names, values, 2);
 
-  for (int i = 0; i < 100000; i++) {
-    values[0] = v8::Number::New(isolate, i);
-    values[1] = hi;
-    auto obj = v8::Object::NewAsLiteral(isolate, proto, names, values, 2);
-    arr->Set(context, i, obj);
-  }
-
-  return nullptr;
+  return ToNapiValue(obj);
 }
 
 static napi_value obj_new_as_json(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value args[3];
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+
+  ModuleData* data = ModuleData::FromEnv(env);
+  v8::Local<v8::ObjectTemplate> tmpl =
+      ToLocal<v8::ObjectTemplate>(data->GetTemplate(env));
+
+  napi_value foo, bar;
+  data->GetFooBar(env, &foo, &bar);
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::Local<v8::Context> context = isolate->GetCurrentContext();
-  v8::Local<v8::Array> arr = v8::Array::New(isolate, 0);
-  v8::Local<v8::Object> proto = v8::Object::New(isolate);
 
-  auto foo =
-      v8::String::NewFromUtf8(isolate, "foo", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto bar =
-      v8::String::NewFromUtf8(isolate, "bar", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
-  auto hi =
-      v8::String::NewFromUtf8(isolate, "hi", v8::NewStringType::kInternalized)
-          .ToLocalChecked();
+  v8::Local<v8::Name> names[2] = {ToLocal<v8::Name>(foo),
+                                  ToLocal<v8::Name>(bar)};
+  v8::Local<v8::Value>* values =
+      reinterpret_cast<v8::Local<v8::Value>*>(args + 1);
 
-  v8::Local<v8::Name> names[2] = {foo, bar};
-  v8::Local<v8::Value> values[2] = {};
+  v8::Local<v8::Object> obj = v8::Object::NewAsJson(
+      isolate, ToLocal<v8::Value>(args[0]), names, values, 2);
 
-  for (int i = 0; i < 100000; i++) {
-    values[0] = v8::Number::New(isolate, i);
-    values[1] = hi;
-    auto obj = v8::Object::NewAsJson(isolate, proto, names, values, 2);
-    arr->Set(context, i, obj);
-  }
+  return ToNapiValue(obj);
+}
 
-  return nullptr;
+static napi_value obj_new_from_js(napi_env env, napi_callback_info info) {
+  size_t argc = 3;
+  napi_value result, args[3], undefined;
+  NODE_API_CALL(env,
+                napi_get_cb_info(env, info, &argc, args, nullptr, nullptr));
+  NODE_API_CALL(env, napi_get_undefined(env, &undefined));
+  NODE_API_CALL(
+      env, napi_call_function(env, undefined, args[0], 2, (args + 1), &result));
+  return result;
 }
 
 static napi_value Init(napi_env env, napi_value exports) {
+  NODE_API_CALL(env,
+                napi_set_instance_data(
+                    env, new ModuleData(), ModuleData::Finalize, nullptr));
+
   napi_property_descriptor descriptors[] = {
-      DECLARE_NODE_API_PROPERTY("test", test),
-      DECLARE_NODE_API_PROPERTY("tmpl", tmpl),
-      DECLARE_NODE_API_PROPERTY("tmpl_intern", tmpl_intern),
-      DECLARE_NODE_API_PROPERTY("obj_data_prop", obj_data_prop),
+      DECLARE_NODE_API_PROPERTY("js_perf_start", js_perf_start),
+      DECLARE_NODE_API_PROPERTY("js_perf_end", js_perf_end),
+      DECLARE_NODE_API_PROPERTY("obj_napi", obj_napi),
+      DECLARE_NODE_API_PROPERTY("obj_tmpl", obj_tmpl),
+      DECLARE_NODE_API_PROPERTY("obj_new_data_prop", obj_new_data_prop),
+      DECLARE_NODE_API_PROPERTY("obj_new", obj_new),
       DECLARE_NODE_API_PROPERTY("obj_new_as_literal", obj_new_as_literal),
       DECLARE_NODE_API_PROPERTY("obj_new_as_json", obj_new_as_json),
-      DECLARE_NODE_API_PROPERTY("napi_class", napi_class),
+      DECLARE_NODE_API_PROPERTY("obj_new_from_js", obj_new_from_js),
   };
 
   NODE_API_CALL(
