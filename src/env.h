@@ -590,10 +590,17 @@ v8::Maybe<ExitCode> SpinEventLoopInternal(Environment* env);
 v8::Maybe<ExitCode> EmitProcessExitInternal(Environment* env);
 
 /**
+ * EmbeddedEnvironment is the JavaScript engine-neutral part of an
+ * embedded environment controlled by a C/C++ caller of libnode
+ */
+class EmbeddedEnvironment {};
+
+/**
  * Environment is a per-isolate data structure that represents an execution
  * environment. Each environment has a principal realm. An environment can
  * create multiple subsidiary synthetic realms.
  */
+
 class Environment : public MemoryRetainer {
  public:
   Environment(const Environment&) = delete;
@@ -795,6 +802,7 @@ class Environment : public MemoryRetainer {
   inline void set_has_serialized_options(bool has_serialized_options);
 
   inline bool is_main_thread() const;
+  inline bool is_embedded_env() const;
   inline bool no_native_addons() const;
   inline bool should_not_register_esm_loader() const;
   inline bool should_create_inspector() const;
@@ -1224,6 +1232,9 @@ class Environment : public MemoryRetainer {
   // track of the BackingStore for a given pointer.
   std::unordered_map<char*, std::unique_ptr<v8::BackingStore>>
       released_allocated_buffers_;
+
+  // Used for embedded instances
+  EmbeddedEnvironment* embedded_;
 };
 
 }  // namespace node
