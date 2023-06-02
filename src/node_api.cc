@@ -110,6 +110,14 @@ void node_napi_env__::CallbackIntoModule(T&& call) {
   });
 }
 
+void node_napi_env__::SetImmediate(v8impl::ImmediateCallback&& callback) noexcept {
+  if (!destructing) {
+    node_env()->SetImmediate([callback = std::move(callback)](node::Environment* /*node_env*/) {
+      callback();
+    });
+  }
+}
+
 namespace v8impl {
 
 namespace {

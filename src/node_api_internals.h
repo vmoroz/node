@@ -25,6 +25,8 @@ struct node_napi_env__ : public napi_env__ {
   template <bool enforceUncaughtExceptionPolicy, typename T>
   void CallbackIntoModule(T&& call);
 
+  void SetImmediate(v8impl::ImmediateCallback&& callback) noexcept override;
+
   void DeleteMe() override;
 
   inline node::Environment* node_env() const {

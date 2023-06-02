@@ -655,6 +655,48 @@ void Reference::WeakCallback(const v8::WeakCallbackInfo<Reference>& data) {
   reference->env_->EnqueueFinalizer(reference);
 }
 
+ImmediateCallback::ImmediateCallback(napi_env env,
+                                     node_api_immediate_callback invoke_cb,
+                                     void* data,
+                                     napi_finalize finalize_cb,
+                                     void* finalize_hint) noexcept
+    : env_(env),
+      invoke_cb_(invoke_cb),
+      data_(data),
+      finalize_cb_(finalize_cb),
+      finalize_hint_(finalize_hint) {
+  env_->Ref();
+}
+
+ImmediateCallback::~ImmediateCallback() {
+  if (env_ != nullptr) {
+    if (finalize_cb_ != nullptr) {
+      finalize_cb_(env_, data_, finalize_hint_);
+    }
+    env_->Unref();
+  }
+}
+
+ImmediateCallback::ImmediateCallback(ImmediateCallback&& other) noexcept
+    : env_(std::exchange(other.env_, nullptr)),
+      invoke_cb_(other.invoke_cb_),
+      data_(other.data_),
+      finalize_cb_(other.finalize_cb_),
+      finalize_hint_(other.finalize_hint_) {}
+
+ImmediateCallback& ImmediateCallback::operator=(
+    ImmediateCallback&& other) noexcept {
+  if (this != &other) {
+    ImmediateCallback temp(std::move(*this));
+    ::new (this) ImmediateCallback(std::move(other));
+  }
+  return *this;
+}
+
+void ImmediateCallback::operator()() const noexcept {
+  invoke_cb_(env_, data_);
+}
+
 }  // end of namespace v8impl
 
 // Warning: Keep in-sync with napi_status enum
@@ -3218,5 +3260,18 @@ napi_status NAPI_CDECL napi_is_detached_arraybuffer(napi_env env,
   *result =
       value->IsArrayBuffer() && value.As<v8::ArrayBuffer>()->WasDetached();
 
+  return napi_clear_last_error(env);
+}
+
+napi_status NAPI_CDECL
+node_api_set_immediate(napi_env env,
+                       node_api_immediate_callback invoke_cb,
+                       void* data,
+                       napi_finalize finalize_cb,
+                       void* finalize_hint) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, invoke_cb);
+  env->SetImmediate(
+      v8impl::ImmediateCallback(env, invoke_cb, data, finalize_cb, finalize_hint));
   return napi_clear_last_error(env);
 }

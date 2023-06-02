@@ -48,6 +48,7 @@ class RefTracker {
 };
 
 class Finalizer;
+class ImmediateCallback;
 }  // end of namespace v8impl
 
 struct napi_env__ {
@@ -128,6 +129,9 @@ struct napi_env__ {
     v8impl::RefTracker::FinalizeAll(&finalizing_reflist);
     v8impl::RefTracker::FinalizeAll(&reflist);
     delete this;
+  }
+
+  virtual void SetImmediate(v8impl::ImmediateCallback&& /*callback*/) noexcept {
   }
 
   v8::Isolate* const isolate;  // Shortcut for context()->GetIsolate()
@@ -427,6 +431,28 @@ class Reference : public RefBase {
 
   v8impl::Persistent<v8::Value> persistent_;
   bool can_be_weak_;
+};
+
+class ImmediateCallback {
+ public:
+  ImmediateCallback(napi_env env,
+                    node_api_immediate_callback invoke_cb,
+                    void* data,
+                    napi_finalize finalize_cb,
+                    void* finalize_hint) noexcept;
+  ~ImmediateCallback();
+
+  ImmediateCallback(ImmediateCallback&& other) noexcept;
+  ImmediateCallback& operator=(ImmediateCallback&& other) noexcept;
+
+  void operator()() const noexcept;
+
+ private:
+  napi_env env_;
+  node_api_immediate_callback invoke_cb_;
+  void* data_;
+  napi_finalize finalize_cb_;
+  void* finalize_hint_;
 };
 
 }  // end of namespace v8impl

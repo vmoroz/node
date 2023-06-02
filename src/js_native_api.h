@@ -568,6 +568,15 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
                                                     napi_value object);
 #endif  // NAPI_VERSION >= 8
 
+#ifdef NAPI_EXPERIMENTAL
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_set_immediate(napi_env env,
+                       node_api_immediate_callback invoke_cb,
+                       void* data,
+                       napi_finalize finalize_cb,
+                       void* finalize_hint);
+#endif  // NAPI_EXPERIMENTAL
+
 EXTERN_C_END
 
 #endif  // SRC_JS_NATIVE_API_H_

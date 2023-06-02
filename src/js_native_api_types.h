@@ -115,6 +115,7 @@ typedef napi_value(NAPI_CDECL* napi_callback)(napi_env env,
 typedef void(NAPI_CDECL* napi_finalize)(napi_env env,
                                         void* finalize_data,
                                         void* finalize_hint);
+typedef void(NAPI_CDECL* node_api_immediate_callback)(napi_env env, void* data);
 
 typedef struct {
   // One of utf8name or name should be NULL.
