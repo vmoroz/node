@@ -58,6 +58,7 @@ set dll=
 set enable_static=
 set build_js_native_api_tests=
 set build_node_api_tests=
+set build_napi_benchmark=
 set test_node_inspect=
 set test_check_deopts=
 set v8_test_options=
@@ -101,6 +102,7 @@ if /i "%1"=="test-ci-js"    set test_args=%test_args% %test_ci_args% -p tap --lo
 if /i "%1"=="build-addons"   set build_addons=1&goto arg-ok
 if /i "%1"=="build-js-native-api-tests"   set build_js_native_api_tests=1&goto arg-ok
 if /i "%1"=="build-node-api-tests"   set build_node_api_tests=1&goto arg-ok
+if /i "%1"=="build-napi-benchmark"   set build_napi_benchmark=1&goto arg-ok
 if /i "%1"=="test-addons"   set test_args=%test_args% addons&set build_addons=1&goto arg-ok
 if /i "%1"=="test-doc"      set test_args=%test_args% %CI_DOC%&set doc=1&&set lint_js=1&set lint_md=1&goto arg-ok
 if /i "%1"=="test-js-native-api"   set test_args=%test_args% js-native-api&set build_js_native_api_tests=1&goto arg-ok
@@ -613,10 +615,10 @@ endlocal
 goto build-node-api-tests
 
 :build-node-api-tests
-if not defined build_node_api_tests goto run-tests
+if not defined build_node_api_tests goto build-napi-benchmark
 if not exist "%node_exe%" (
   echo Failed to find node.exe
-  goto run-tests
+  goto build-napi-benchmark
 )
 echo Building node-api
 :: clear
@@ -627,6 +629,25 @@ for /d %%F in (test\node-api\??_*) do (
 setlocal
 set npm_config_nodedir=%~dp0
 "%node_exe%" "%~dp0tools\build-addons.mjs" "%~dp0deps\npm\node_modules\node-gyp\bin\node-gyp.js" "%~dp0test\node-api"
+if errorlevel 1 exit /b 1
+endlocal
+goto build-napi-benchmark
+
+:build-napi-benchmark
+if not defined build_napi_benchmark goto run-tests
+if not exist "%node_exe%" (
+  echo Failed to find node.exe
+  goto run-tests
+)
+echo Building napi benchmark
+:: clear
+for /d %%F in (benchmark\napi\??_*) do (
+  rd /s /q %%F
+)
+:: building node-api
+setlocal
+set npm_config_nodedir=%~dp0
+"%node_exe%" "%~dp0tools\build-addons.mjs" "%~dp0deps\npm\node_modules\node-gyp\bin\node-gyp.js" "%~dp0benchmark\napi"
 if errorlevel 1 exit /b 1
 endlocal
 goto run-tests

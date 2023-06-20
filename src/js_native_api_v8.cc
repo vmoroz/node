@@ -314,6 +314,97 @@ inline napi_status ConcludeDeferred(napi_env env,
   return GET_RETURN_STATUS(env);
 }
 
+enum class PrivateField : int {
+  kFieldTag,
+  kWrapper,
+  kTypeTag,
+  kCount,
+};
+
+class PrivateFieldAccessor {
+ public:
+  PrivateFieldAccessor(v8::Local<v8::Context> context,
+                       v8::Local<v8::Object> obj)
+      : context_(context),
+        obj_(std::move(obj)),
+        use_internal_fields_(UseInternalFields()) {}
+
+  PrivateFieldAccessor(const PrivateFieldAccessor&) = delete;
+  PrivateFieldAccessor& operator=(const PrivateFieldAccessor&) = delete;
+
+  static void Init(v8::Isolate* isolate, v8::Local<v8::Object> obj) {
+    obj->SetAlignedPointerInInternalField(
+        static_cast<int>(PrivateField::kFieldTag),
+        const_cast<double*>(&InternalFieldTag));
+    v8::Local<v8::Primitive> undefined = v8::Undefined(isolate);
+    obj->SetInternalField(static_cast<int>(PrivateField::kWrapper), undefined);
+    obj->SetInternalField(static_cast<int>(PrivateField::kTypeTag), undefined);
+  }
+
+  bool Has(PrivateField field) {
+    if (use_internal_fields_) {
+      return !obj_->GetInternalField(static_cast<int>(field))->IsUndefined();
+    } else {
+      return obj_->HasPrivate(context_, GetPrivateKey(field)).FromJust();
+    }
+  }
+
+  v8::Local<v8::Value> Get(PrivateField field) {
+    if (use_internal_fields_) {
+      return obj_->GetInternalField(static_cast<int>(field));
+    } else {
+      return obj_->GetPrivate(context_, GetPrivateKey(field)).ToLocalChecked();
+    }
+  }
+
+  void Set(PrivateField field, v8::Local<v8::Value> value) {
+    if (use_internal_fields_) {
+      obj_->SetInternalField(static_cast<int>(field), value);
+    } else {
+      CHECK(obj_->SetPrivate(context_, GetPrivateKey(field), value).FromJust());
+    }
+  }
+
+  void Delete(PrivateField field) {
+    if (use_internal_fields_) {
+      obj_->SetInternalField(static_cast<int>(field),
+                             v8::Undefined(context_->GetIsolate()));
+    } else {
+      CHECK(obj_->DeletePrivate(context_, GetPrivateKey(field)).FromJust());
+    }
+  }
+
+ private:
+  bool UseInternalFields() {
+    if (obj_->InternalFieldCount() < static_cast<int>(PrivateField::kCount)) {
+      return false;
+    }
+
+    return obj_->GetAlignedPointerFromInternalField(
+               static_cast<int>(PrivateField::kFieldTag)) == &InternalFieldTag;
+  }
+
+  v8::Local<v8::Private> GetPrivateKey(PrivateField field) {
+    if (field == PrivateField::kWrapper) {
+      return NAPI_PRIVATE_KEY(context_, wrapper);
+    } else if (field == PrivateField::kTypeTag) {
+      return NAPI_PRIVATE_KEY(context_, type_tag);
+    } else {
+      node::Abort();
+    }
+  }
+
+ private:
+  v8::Local<v8::Context> context_{};
+  v8::Local<v8::Object> obj_{};
+  bool use_internal_fields_{};
+
+  // We use address of this variable as an object internal field tag.
+  static const double InternalFieldTag;
+};
+
+const double PrivateFieldAccessor::InternalFieldTag{};
+
 enum UnwrapAction { KeepWrap, RemoveWrap };
 
 inline napi_status Unwrap(napi_env env,
@@ -332,8 +423,8 @@ inline napi_status Unwrap(napi_env env,
   RETURN_STATUS_IF_FALSE(env, value->IsObject(), napi_invalid_arg);
   v8::Local<v8::Object> obj = value.As<v8::Object>();
 
-  auto val = obj->GetPrivate(context, NAPI_PRIVATE_KEY(context, wrapper))
-                 .ToLocalChecked();
+  PrivateFieldAccessor privateFields(context, obj);
+  v8::Local<v8::Value> val = privateFields.Get(PrivateField::kWrapper);
   RETURN_STATUS_IF_FALSE(env, val->IsExternal(), napi_invalid_arg);
   Reference* reference =
       static_cast<v8impl::Reference*>(val.As<v8::External>()->Value());
@@ -343,8 +434,7 @@ inline napi_status Unwrap(napi_env env,
   }
 
   if (action == RemoveWrap) {
-    CHECK(obj->DeletePrivate(context, NAPI_PRIVATE_KEY(context, wrapper))
-              .FromJust());
+    privateFields.Delete(PrivateField::kWrapper);
     if (reference->ownership() == Ownership::kUserland) {
       // When the wrap is been removed, the finalizer should be reset.
       reference->ResetFinalizer();
@@ -463,6 +553,13 @@ class FunctionCallbackWrapper : public CallbackWrapperBase {
     cbwrapper.InvokeCallback();
   }
 
+  static void InvokeConstructor(
+      const v8::FunctionCallbackInfo<v8::Value>& info) {
+    FunctionCallbackWrapper cbwrapper(info);
+    PrivateFieldAccessor::Init(cbwrapper._cbinfo.GetIsolate(), info.This());
+    cbwrapper.InvokeCallback();
+  }
+
   static inline napi_status NewFunction(napi_env env,
                                         napi_callback cb,
                                         void* cb_data,
@@ -488,6 +585,20 @@ class FunctionCallbackWrapper : public CallbackWrapperBase {
     RETURN_STATUS_IF_FALSE(env, !cbdata.IsEmpty(), napi_generic_failure);
 
     *result = v8::FunctionTemplate::New(env->isolate, Invoke, cbdata, sig);
+    return napi_clear_last_error(env);
+  }
+
+  static inline napi_status NewConstructorTemplate(
+      napi_env env,
+      napi_callback cb,
+      void* cb_data,
+      v8::Local<v8::FunctionTemplate>* result,
+      v8::Local<v8::Signature> sig = v8::Local<v8::Signature>()) {
+    v8::Local<v8::Value> cbdata = v8impl::CallbackBundle::New(env, cb, cb_data);
+    RETURN_STATUS_IF_FALSE(env, !cbdata.IsEmpty(), napi_generic_failure);
+
+    *result =
+        v8::FunctionTemplate::New(env->isolate, InvokeConstructor, cbdata, sig);
     return napi_clear_last_error(env);
   }
 
@@ -544,10 +655,10 @@ inline napi_status Wrap(napi_env env,
   v8::Local<v8::Object> obj = value.As<v8::Object>();
 
   // If we've already wrapped this object, we error out.
-  RETURN_STATUS_IF_FALSE(
-      env,
-      !obj->HasPrivate(context, NAPI_PRIVATE_KEY(context, wrapper)).FromJust(),
-      napi_invalid_arg);
+  v8impl::PrivateFieldAccessor privateFields(context, obj);
+  RETURN_STATUS_IF_FALSE(env,
+                         !privateFields.Has(v8impl::PrivateField::kWrapper),
+                         napi_invalid_arg);
 
   v8impl::Reference* reference = nullptr;
   if (result != nullptr) {
@@ -576,11 +687,8 @@ inline napi_status Wrap(napi_env env,
         finalize_cb == nullptr ? nullptr : finalize_hint);
   }
 
-  CHECK(obj->SetPrivate(context,
-                        NAPI_PRIVATE_KEY(context, wrapper),
-                        v8::External::New(env->isolate, reference))
-            .FromJust());
-
+  privateFields.Set(v8impl::PrivateField::kWrapper,
+                    v8::External::New(env->isolate, reference));
   return GET_RETURN_STATUS(env);
 }
 
@@ -886,12 +994,15 @@ napi_define_class(napi_env env,
 
   v8::EscapableHandleScope scope(isolate);
   v8::Local<v8::FunctionTemplate> tpl;
-  STATUS_CALL(v8impl::FunctionCallbackWrapper::NewTemplate(
+  STATUS_CALL(v8impl::FunctionCallbackWrapper::NewConstructorTemplate(
       env, constructor, callback_data, &tpl));
 
   v8::Local<v8::String> name_string;
   CHECK_NEW_FROM_UTF8_LEN(env, name_string, utf8name, length);
   tpl->SetClassName(name_string);
+
+  tpl->InstanceTemplate()->SetInternalFieldCount(
+      static_cast<int>(v8impl::PrivateField::kCount));
 
   size_t static_property_count = 0;
   for (size_t i = 0; i < property_count; i++) {
