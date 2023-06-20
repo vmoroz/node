@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <stdlib.h>
 #define NAPI_EXPERIMENTAL
 #include <node_api.h>
 
@@ -17,9 +18,10 @@ static void MyObjectDestructor(napi_env env, void* data, void* finalize_hint) {
 
 static napi_value MyObjectConstructor(napi_env env, napi_callback_info info) {
   napi_value instance;
-  NODE_API_CALL(env, napi_get_cb_info(env, info, NULL, NULL, &instance, NULL));
+  NAPI_CALL(napi_get_cb_info(env, info, NULL, NULL, &instance, NULL));
 
   int* data = malloc(sizeof(int));
+  *data = 42;
   NAPI_CALL(napi_wrap(
       env, instance, data, MyObjectDestructor, NULL /* finalize_hint */, NULL));
 
@@ -53,9 +55,9 @@ static napi_value Unwrap(napi_env env, napi_callback_info info) {
   // Time the object tag creation.
   NAPI_CALL(napi_call_function(env, argv[1], argv[2], 0, NULL, NULL));
   for (index = 0; index < n; index++) {
-    int data;
+    int* data;
     NAPI_CALL(napi_unwrap(env, obj, &data));
-    assert(data == 42);
+    assert(*data == 42);
   }
   NAPI_CALL(napi_call_function(env, argv[1], argv[3], 1, &argv[0], NULL));
 

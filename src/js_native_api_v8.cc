@@ -327,7 +327,9 @@ class PrivateFieldAccessor {
                        v8::Local<v8::Object> obj)
       : context_(context),
         obj_(std::move(obj)),
-        use_internal_fields_(UseInternalFields()) {}
+        //use_internal_fields_(UseInternalFields()) {}
+        //use_internal_fields_(false) {}
+        use_internal_fields_(false) {}
 
   PrivateFieldAccessor(const PrivateFieldAccessor&) = delete;
   PrivateFieldAccessor& operator=(const PrivateFieldAccessor&) = delete;
@@ -380,8 +382,9 @@ class PrivateFieldAccessor {
       return false;
     }
 
-    return obj_->GetAlignedPointerFromInternalField(
-               static_cast<int>(PrivateField::kFieldTag)) == &InternalFieldTag;
+    return true;
+    // return obj_->GetAlignedPointerFromInternalField(
+    //            static_cast<int>(PrivateField::kFieldTag)) == &InternalFieldTag;
   }
 
   v8::Local<v8::Private> GetPrivateKey(PrivateField field) {

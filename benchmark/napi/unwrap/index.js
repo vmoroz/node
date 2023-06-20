@@ -10,7 +10,7 @@ try {
 }
 
 const bench = common.createBenchmark(main, {
-  n: [1e3, 1e4, 1e5],
+  n: [1, 1e1, 1e2, 1e3, 1e4, 1e5],
 });
 
 function main({ n }) {
