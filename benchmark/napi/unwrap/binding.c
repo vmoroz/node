@@ -17,30 +17,23 @@ static void MyObjectDestructor(napi_env env, void* data, void* finalize_hint) {
 }
 
 static napi_value MyObjectConstructor(napi_env env, napi_callback_info info) {
-  napi_value instance;
-  NAPI_CALL(napi_get_cb_info(env, info, NULL, NULL, &instance, NULL));
+  napi_value this_arg;
+  NAPI_CALL(napi_get_cb_info(env, info, NULL, NULL, &this_arg, NULL));
 
   int* data = malloc(sizeof(int));
   *data = 42;
   NAPI_CALL(napi_wrap(
-      env, instance, data, MyObjectDestructor, NULL /* finalize_hint */, NULL));
+      env, this_arg, data, MyObjectDestructor, NULL /* finalize_hint */, NULL));
 
-  return instance;
+  return this_arg;
 }
 
-static napi_value Unwrap(napi_env env, napi_callback_info info) {
-  size_t argc = 4;
-  napi_value argv[4];
-  uint32_t n;
-  uint32_t index;
-  napi_handle_scope scope;
+static napi_value MakeObject(napi_env env, napi_callback_info info) {
+  napi_value this_arg;
+
+  NAPI_CALL(napi_get_cb_info(env, info, NULL, NULL, &this_arg, NULL));
+
   napi_value constructor;
-  napi_value obj;
-
-  NAPI_CALL(napi_get_cb_info(env, info, &argc, argv, NULL, NULL));
-  NAPI_CALL(napi_get_value_uint32(env, argv[0], &n));
-  NAPI_CALL(napi_open_handle_scope(env, &scope));
-
   NAPI_CALL(napi_define_class(env,
                               "MyObject",
                               NAPI_AUTO_LENGTH,
@@ -50,25 +43,29 @@ static napi_value Unwrap(napi_env env, napi_callback_info info) {
                               NULL,
                               &constructor));
 
+  napi_value obj;
   NAPI_CALL(napi_new_instance(env, constructor, 0, NULL, &obj));
+  return obj;
+}
 
-  // Time the object tag creation.
-  NAPI_CALL(napi_call_function(env, argv[1], argv[2], 0, NULL, NULL));
-  for (index = 0; index < n; index++) {
-    int* data;
-    NAPI_CALL(napi_unwrap(env, obj, &data));
-    assert(*data == 42);
-  }
-  NAPI_CALL(napi_call_function(env, argv[1], argv[3], 1, &argv[0], NULL));
+static napi_value Unwrap(napi_env env, napi_callback_info info) {
+  napi_value this_arg;
 
-  NAPI_CALL(napi_close_handle_scope(env, scope));
+  NAPI_CALL(napi_get_cb_info(env, info, NULL, NULL, &this_arg, NULL));
+
+  int* data;
+  NAPI_CALL(napi_unwrap(env, this_arg, (void*)&data));
+  assert(*data == 42);
+
   return NULL;
 }
 
 NAPI_MODULE_INIT() {
   napi_property_descriptor desc[] = {
       NODE_API_DECLARE_METHOD("unwrap", Unwrap),
+      NODE_API_DECLARE_METHOD("makeObject", MakeObject),
   };
-  NAPI_CALL(napi_define_properties(env, exports, 1, desc));
+  NAPI_CALL(napi_define_properties(
+      env, exports, sizeof(desc) / sizeof(napi_property_descriptor), desc));
   return exports;
 }

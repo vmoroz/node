@@ -14,5 +14,11 @@ const bench = common.createBenchmark(main, {
 });
 
 function main({ n }) {
-  binding.unwrap(n, bench, bench.start, bench.end);
+  const obj = binding.makeObject();
+  const obj_unwrap = binding.unwrap.bind(obj);
+  bench.start();
+  for (let i = 0; i < n; i++) {
+    obj_unwrap();
+  }
+  bench.end(n);
 }
