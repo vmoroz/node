@@ -7,22 +7,22 @@
 #define CHECK(op, msg)                                                         \
   if (op != napi_ok) {                                                         \
     fprintf(stderr, "Failed: %s\n", msg);                                      \
-    return -1;                                                                 \
+    return 1;                                                                  \
   }
 
 int main(int argc, char* argv[]) {
-  napi_platform platform;
+  node_api_platform platform;
 
   if (argc < 3) {
-    fprintf(stderr, "napi_modules <cjs.cjs> <es6.mjs>\n");
-    return -2;
+    fprintf(stderr, "node_api_modules <cjs.cjs> <es6.mjs>\n");
+    return 2;
   }
 
-  CHECK(napi_create_platform(0, NULL, NULL, &platform),
+  CHECK(node_api_create_platform(0, NULL, NULL, &platform),
         "Failed creating the platform");
 
   napi_env env;
-  CHECK(napi_create_environment(platform, NULL, NULL, NAPI_VERSION, &env),
+  CHECK(node_api_create_environment(platform, NULL, NULL, NAPI_VERSION, &env),
         "Failed running JS");
 
   napi_handle_scope scope;
@@ -52,7 +52,7 @@ int main(int argc, char* argv[]) {
 
   CHECK(napi_call_function(env, global, import, 1, &es6, &es6_promise),
         "import");
-  CHECK(napi_await_promise(env, es6_promise, &es6_module), "await");
+  CHECK(node_api_await_promise(env, es6_promise, &es6_module), "await");
 
   CHECK(napi_get_property(env, es6_module, value, &es6_result), "value");
   CHECK(napi_get_value_string_utf8(
@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
   }
 
   CHECK(napi_close_handle_scope(env, scope), "Failed destroying handle scope");
-  CHECK(napi_destroy_environment(env, NULL), "destroy");
-  CHECK(napi_destroy_platform(platform), "Failed destroying the platform");
+  CHECK(node_api_destroy_environment(env, NULL), "destroy");
+  CHECK(node_api_destroy_platform(platform), "Failed destroying the platform");
   return 0;
 }

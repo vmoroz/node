@@ -1206,7 +1206,7 @@
     }, # embedtest
 
     {
-      'target_name': 'napi_embedding',
+      'target_name': 'node_api_embedding',
       'type': 'executable',
 
       'dependencies': [
@@ -1231,7 +1231,7 @@
 
       'sources': [
         'src/node_snapshot_stub.cc',
-        'test/embedding/napi_embedding.c',
+        'test/embedding/node_api_embedding.c',
       ],
 
       'conditions': [
@@ -1255,10 +1255,10 @@
           ],
         }],
       ],
-    }, # napi_embedding
+    }, # node_api_embedding
 
     {
-      'target_name': 'napi_modules',
+      'target_name': 'node_api_modules',
       'type': 'executable',
 
       'dependencies': [
@@ -1283,7 +1283,7 @@
 
       'sources': [
         'src/node_snapshot_stub.cc',
-        'test/embedding/napi_modules.c',
+        'test/embedding/node_api_modules.c',
       ],
 
       'conditions': [
@@ -1307,7 +1307,7 @@
           ],
         }],
       ],
-    }, # napi_modules
+    }, # node_api_modules
 
     {
       'target_name': 'overlapped-checker',

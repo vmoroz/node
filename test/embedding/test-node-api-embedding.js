@@ -9,7 +9,7 @@ common.allowGlobals(global.require);
 common.allowGlobals(global.embedVars);
 common.allowGlobals(global.import);
 common.allowGlobals(global.module);
-let binary = `out/${common.buildType}/napi_embedding`;
+let binary = `out/${common.buildType}/node_api_embedding`;
 if (common.isWindows) {
   binary += '.exe';
 }

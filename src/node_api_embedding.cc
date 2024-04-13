@@ -53,10 +53,10 @@ class EmbeddedEnvironment : public node::EmbeddedEnvironment {
 }  // end of namespace v8impl
 
 napi_status NAPI_CDECL
-napi_create_platform(int argc,
-                     char** argv,
-                     napi_error_message_handler err_handler,
-                     napi_platform* result) {
+node_api_create_platform(int argc,
+                         char** argv,
+                         node_api_error_message_handler err_handler,
+                         node_api_platform* result) {
   argv = uv_setup_args(argc, argv);
   std::vector<std::string> args(argv, argv + argc);
   if (args.size() < 1) args.push_back("libnode");
@@ -86,11 +86,11 @@ napi_create_platform(int argc,
   v8::V8::Initialize();
   reinterpret_cast<node::InitializationResultImpl*>(node_platform.get())
       ->platform_ = v8_platform.release();
-  *result = reinterpret_cast<napi_platform>(node_platform.release());
+  *result = reinterpret_cast<node_api_platform>(node_platform.release());
   return napi_ok;
 }
 
-napi_status NAPI_CDECL napi_destroy_platform(napi_platform platform) {
+napi_status NAPI_CDECL node_api_destroy_platform(node_api_platform platform) {
   auto wrapper = reinterpret_cast<node::InitializationResult*>(platform);
   v8::V8::Dispose();
   v8::V8::DisposePlatform();
@@ -101,11 +101,11 @@ napi_status NAPI_CDECL napi_destroy_platform(napi_platform platform) {
 }
 
 napi_status NAPI_CDECL
-napi_create_environment(napi_platform platform,
-                        napi_error_message_handler err_handler,
-                        const char* main_script,
-                        int32_t api_version,
-                        napi_env* result) {
+node_api_create_environment(node_api_platform platform,
+                            node_api_error_message_handler err_handler,
+                            const char* main_script,
+                            int32_t api_version,
+                            napi_env* result) {
   auto wrapper = reinterpret_cast<node::InitializationResult*>(platform);
   std::vector<std::string> errors_vec;
 
@@ -164,7 +164,7 @@ napi_create_environment(napi_platform platform,
         if (ret.IsEmpty()) return ret;
 
         std::string name =
-            "embedder_main_napi_" + std::to_string(env->thread_id());
+            "embedder_main_node_api_" + std::to_string(env->thread_id());
         if (resource != nullptr) {
           env->builtin_loader()->Add(name.c_str(), node::UnionBytes(resource));
           return realm->ExecuteBootstrapper(name.c_str());
@@ -179,7 +179,8 @@ napi_create_environment(napi_platform platform,
   return napi_ok;
 }
 
-napi_status NAPI_CDECL napi_destroy_environment(napi_env env, int* exit_code) {
+napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
+                                                    int* exit_code) {
   CHECK_ARG(env, env);
   node_napi_env node_env = reinterpret_cast<node_napi_env>(env);
 
@@ -197,7 +198,7 @@ napi_status NAPI_CDECL napi_destroy_environment(napi_env env, int* exit_code) {
   return napi_ok;
 }
 
-napi_status NAPI_CDECL napi_run_environment(napi_env env) {
+napi_status NAPI_CDECL node_api_run_environment(napi_env env) {
   CHECK_ARG(env, env);
   node_napi_env node_env = reinterpret_cast<node_napi_env>(env);
 
@@ -207,14 +208,14 @@ napi_status NAPI_CDECL napi_run_environment(napi_env env) {
   return napi_ok;
 }
 
-static void napi_promise_error_handler(
+static void node_api_promise_error_handler(
     const v8::FunctionCallbackInfo<v8::Value>& info) {
   return;
 }
 
-napi_status napi_await_promise(napi_env env,
-                               napi_value promise,
-                               napi_value* result) {
+napi_status node_api_await_promise(napi_env env,
+                                   napi_value promise,
+                                   napi_value* result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 
@@ -228,7 +229,8 @@ napi_status napi_await_promise(napi_env env,
 
   v8::Local<v8::Value> rejected = v8::Boolean::New(env->isolate, false);
   v8::Local<v8::Function> err_handler =
-      v8::Function::New(env->context(), napi_promise_error_handler, rejected)
+      v8::Function::New(
+          env->context(), node_api_promise_error_handler, rejected)
           .ToLocalChecked();
 
   if (promise_object->Catch(env->context(), err_handler).IsEmpty())
