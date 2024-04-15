@@ -1213,6 +1213,7 @@
         '<(node_lib_target_name)',
         'deps/histogram/histogram.gyp:histogram',
         'deps/uvwasi/uvwasi.gyp:uvwasi',
+        'deps/ada/ada.gyp:ada',
       ],
 
       'includes': [
@@ -1254,6 +1255,10 @@
             'Ws2_32.lib',
           ],
         }],
+        # Avoid excessive LTO
+        ['enable_lto=="true"', {
+          'ldflags': [ '-fno-lto' ],
+        }],
       ],
     }, # node_api_embedding
 
@@ -1265,6 +1270,7 @@
         '<(node_lib_target_name)',
         'deps/histogram/histogram.gyp:histogram',
         'deps/uvwasi/uvwasi.gyp:uvwasi',
+        'deps/ada/ada.gyp:ada',
       ],
 
       'includes': [
@@ -1305,6 +1311,10 @@
             'winmm.lib',
             'Ws2_32.lib',
           ],
+        }],
+        # Avoid excessive LTO
+        ['enable_lto=="true"', {
+          'ldflags': [ '-fno-lto' ],
         }],
       ],
     }, # node_api_modules
