@@ -153,25 +153,8 @@ node_api_create_environment(node_api_platform platform,
 
   auto env = emb_env->setup()->env();
 
-  auto ret = node::LoadEnvironment(
-      env,
-      [env, resource = main_resource.get()](
-          const node::StartExecutionCallbackInfo& info)
-          -> v8::MaybeLocal<v8::Value> {
-        node::Realm* realm = env->principal_realm();
-        auto ret = realm->ExecuteBootstrapper(
-            "internal/bootstrap/switches/is_embedded_env");
-        if (ret.IsEmpty()) return ret;
+  auto ret = node::LoadEnvironment(env, std::string_view(main_script));
 
-        std::string name =
-            "embedder_main_node_api_" + std::to_string(env->thread_id());
-        if (resource != nullptr) {
-          env->builtin_loader()->Add(name.c_str(), node::UnionBytes(resource));
-          return realm->ExecuteBootstrapper(name.c_str());
-        } else {
-          return v8::Undefined(env->isolate());
-        }
-      });
   if (ret.IsEmpty()) return napi_pending_exception;
 
   emb_env->seal();

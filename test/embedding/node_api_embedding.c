@@ -12,7 +12,9 @@
 static int RunNodeInstance(node_api_platform platform);
 
 const char* main_script =
-    "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };";
+    "globalThis.require = require('module').createRequire(process.execPath);\n"
+    "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
+    "require('vm').runInThisContext(process.argv[1]);";
 
 #define CHECK(test, msg)                                                       \
   if (test != napi_ok) {                                                       \

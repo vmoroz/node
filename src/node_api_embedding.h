@@ -4,19 +4,11 @@
 #include "js_native_api.h"
 #include "js_native_api_types.h"
 
-#ifdef __cplusplus
-#define EXTERN_C_START extern "C" {
-#define EXTERN_C_END }
-#else
-#define EXTERN_C_START
-#define EXTERN_C_END
-#endif
-
 typedef struct node_api_platform__* node_api_platform;
 
 EXTERN_C_START
 
-typedef void (*node_api_error_message_handler)(const char* msg);
+typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_platform(int argc,

@@ -462,9 +462,6 @@ MaybeLocal<Value> BuiltinLoader::CompileAndCall(Local<Context> context,
                  realm->builtin_module_require(),
                  realm->internal_binding_loader(),
                  realm->primordials()};
-  } else if (strncmp(id, "embedder_main_", strlen("embedder_main_")) == 0) {
-    // Synthetic embedder main scripts from LoadEnvironment(): process, require
-    arguments = {realm->process_object(), realm->builtin_module_require()};
   } else {
     // This should be invoked with the other CompileAndCall() methods, as
     // we are unable to generate the arguments.

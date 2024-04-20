@@ -833,6 +833,7 @@ void Environment::set_process_exit_handler(
 inline EmbeddedEnvironment* Environment::get_embedded() {
   return embedded_;
 }
+
 inline void Environment::set_embedded(EmbeddedEnvironment* env) {
   embedded_ = env;
 }
