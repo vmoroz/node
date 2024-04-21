@@ -1176,6 +1176,7 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/utf8_args.c',
       ],
 
       'conditions': [
