@@ -1,4 +1,6 @@
 #define NAPI_EXPERIMENTAL
+#include "utf8_args.h"
+
 #include <assert.h>
 #include <node_api.h>
 #include <node_api_embedding.h>
@@ -16,28 +18,39 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
-#define CHECK(test, msg)                                                       \
-  if (test != napi_ok) {                                                       \
+#define CHECK(status, msg)                                                     \
+  if (status != napi_ok) {                                                     \
+    exit_code = 1;                                                             \
     fprintf(stderr, "%s\n", msg);                                              \
     goto fail;                                                                 \
   }
 
-int main(int argc, char** argv) {
-  node_api_platform platform;
+#define CHECK_EXIT_CODE(code)                                                  \
+  if (code != 0) {                                                             \
+    exit_code = code;                                                          \
+    goto fail;                                                                 \
+  }
 
+int main(int argc, char* argv[]) {
+  int exit_code = 0;
+
+  GetUtf8CommandLineArgs(&argc, &argv);
+
+  node_api_platform platform;
   CHECK(node_api_create_platform(argc, argv, NULL, &platform),
         "Failed creating the platform");
 
-  int exit_code = RunNodeInstance(platform);
+  CHECK_EXIT_CODE(RunNodeInstance(platform));
 
   CHECK(node_api_destroy_platform(platform), "Failed destroying the platform");
 
-  return exit_code;
 fail:
-  return 1;
+  FreeUtf8CommandLineArgs(argc, argv);
+  return exit_code;
 }
 
 int callMe(napi_env env) {
+  int exit_code = 0;
   napi_handle_scope scope;
   napi_value global;
   napi_value cb;
@@ -80,12 +93,9 @@ int callMe(napi_env env) {
   napi_value object;
   CHECK(napi_create_object(env, &object), "Failed creating an object\n");
 
-  napi_close_handle_scope(env, scope);
-  return 0;
-
 fail:
   napi_close_handle_scope(env, scope);
-  return 1;
+  return exit_code;
 }
 
 char callback_buf[32];
@@ -106,6 +116,7 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
 }
 
 int waitMe(napi_env env) {
+  int exit_code = 0;
   napi_handle_scope scope;
   napi_value global;
   napi_value cb;
@@ -152,15 +163,13 @@ int waitMe(napi_env env) {
     goto fail;
   }
 
-  napi_close_handle_scope(env, scope);
-  return 0;
-
 fail:
   napi_close_handle_scope(env, scope);
-  return 1;
+  return exit_code;
 }
 
 int waitMeWithCheese(napi_env env) {
+  int exit_code = 0;
   napi_handle_scope scope;
   napi_value global;
   napi_value cb;
@@ -230,31 +239,26 @@ int waitMeWithCheese(napi_env env) {
     goto fail;
   }
 
-  napi_close_handle_scope(env, scope);
-  return 0;
-
 fail:
   napi_close_handle_scope(env, scope);
-  return 1;
+  return exit_code;
 }
 
 int RunNodeInstance(node_api_platform platform) {
-  napi_env env;
-  int exit_code;
+  int exit_code = 0;
 
+  napi_env env;
   CHECK(node_api_create_environment(
             platform, NULL, main_script, NAPI_VERSION, &env),
         "Failed running JS");
 
-  if (callMe(env) != 0) exit_code = -1;
-  if (waitMe(env) != 0) exit_code = -1;
-  if (waitMeWithCheese(env) != 0) exit_code = -1;
+  CHECK_EXIT_CODE(callMe(env));
+  CHECK_EXIT_CODE(waitMe(env));
+  CHECK_EXIT_CODE(waitMeWithCheese(env));
 
   CHECK(node_api_destroy_environment(env, &exit_code),
         "napi_destroy_environment");
 
-  return exit_code;
-
 fail:
-  return 1;
+  return exit_code;
 }

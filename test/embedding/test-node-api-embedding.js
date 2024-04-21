@@ -21,19 +21,18 @@ function resolveBuiltBinary(binary) {
   return path.join(path.dirname(process.execPath), binary);
 }
 
-const binary = resolveBuiltBinary('node_api_embedding');
-assert.strictEqual(fs.existsSync(binary), true);
+const binary = resolveBuiltBinary('node_api_embedtest');
+assert(fs.existsSync(binary));
 
 spawnSyncAndAssert(binary, ['console.log(42)'], {
   trim: true,
   stdout: '42',
 });
 
-// TODO: Windows seems not supporting UTF8 in the console.
-// spawnSyncAndAssert(binary, ['console.log(embedVars.nön_ascıı)'], {
-//   trim: true,
-//   stdout: '🏳️‍🌈',
-// });
+spawnSyncAndAssert(binary, ['console.log(embedVars.nön_ascıı)'], {
+  trim: true,
+  stdout: '🏳️‍🌈',
+});
 
 spawnSyncAndExit(binary, ['throw new Error()'], {
   status: 1,

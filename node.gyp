@@ -1206,7 +1206,7 @@
     }, # embedtest
 
     {
-      'target_name': 'node_api_embedding',
+      'target_name': 'node_api_embedtest',
       'type': 'executable',
 
       'dependencies': [
@@ -1232,14 +1232,15 @@
 
       'sources': [
         'src/node_snapshot_stub.cc',
-        'test/embedding/node_api_embedding.c',
+        'test/embedding/node_api_embedtest.c',
+        'test/embedding/utf8_args.c',
       ],
 
       'conditions': [
         ['OS=="solaris"', {
           'ldflags': [ '-I<(SHARED_INTERMEDIATE_DIR)' ]
         }],
-        # Skip cctest while building shared lib node for Windows
+        # Skip node_api_embedtest while building shared lib node for Windows
         [ 'OS=="win" and node_shared=="true"', {
           'type': 'none',
         }],
@@ -1260,7 +1261,7 @@
           'ldflags': [ '-fno-lto' ],
         }],
       ],
-    }, # node_api_embedding
+    }, # node_api_embedtest
 
     {
       'target_name': 'node_api_modules',
