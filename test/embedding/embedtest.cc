@@ -1,10 +1,9 @@
 #ifdef NDEBUG
 #undef NDEBUG
 #endif
-#include "node.h"
-#include "utf8_args.h"
-#include "uv.h"
 #include <assert.h>
+#include "executable_wrapper.h"
+#include "node.h"
 
 #include <algorithm>
 
@@ -28,10 +27,10 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args);
 
-int main(int argc, char** argv) {
-  GetUtf8CommandLineArgs(&argc, &argv);
+NODE_MAIN(int argc, node::argv_type raw_argv[]) {
+  char** argv = nullptr;
+  node::FixupMain(argc, raw_argv, &argv);
 
-  argv = uv_setup_args(argc, argv);
   std::vector<std::string> args(argv, argv + argc);
   std::unique_ptr<node::InitializationResult> result =
       node::InitializeOncePerProcess(
@@ -57,8 +56,6 @@ int main(int argc, char** argv) {
   V8::DisposePlatform();
 
   node::TearDownOncePerProcess();
-
-  FreeUtf8CommandLineArgs(argc, argv);
   return ret;
 }
 
