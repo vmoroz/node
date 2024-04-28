@@ -1,5 +1,4 @@
 #define NAPI_EXPERIMENTAL
-#include "utf8_args.h"
 
 #include <assert.h>
 #include <node_api.h>
@@ -31,10 +30,8 @@ const char* main_script =
     goto fail;                                                                 \
   }
 
-int main(int argc, char* argv[]) {
+int test_main(int argc, char** argv) {
   int exit_code = 0;
-
-  GetUtf8CommandLineArgs(&argc, &argv);
 
   node_api_platform platform;
   CHECK(node_api_create_platform(argc, argv, NULL, &platform),
@@ -45,7 +42,6 @@ int main(int argc, char* argv[]) {
   CHECK(node_api_destroy_platform(platform), "Failed destroying the platform");
 
 fail:
-  FreeUtf8CommandLineArgs(argc, argv);
   return exit_code;
 }
 

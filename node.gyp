@@ -1177,6 +1177,7 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/test_main.cc',
       ],
 
       'conditions': [
@@ -1223,6 +1224,7 @@
 
       'include_dirs': [
         'src',
+        'tools',
         'tools/msvs/genfiles',
         'deps/v8/include',
         'deps/cares/include',
@@ -1234,7 +1236,7 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/node_api_embedtest.c',
-        'test/embedding/utf8_args.c',
+        'test/embedding/test_main.cc',
       ],
 
       'conditions': [
@@ -1281,6 +1283,7 @@
 
       'include_dirs': [
         'src',
+        'tools',
         'tools/msvs/genfiles',
         'deps/v8/include',
         'deps/cares/include',
