@@ -30,7 +30,7 @@ const char* main_script =
     goto fail;                                                                 \
   }
 
-int test_main(int argc, char** argv) {
+int test_main_node_api(int argc, char** argv) {
   int exit_code = 0;
 
   node_api_platform platform;

@@ -61,7 +61,7 @@ node_api_create_platform(int argc,
   std::vector<std::string> args(argv, argv + argc);
   if (args.size() < 1) args.push_back("libnode");
 
-  std::unique_ptr<node::InitializationResult> node_platform =
+  std::shared_ptr<node::InitializationResult> node_platform =
       node::InitializeOncePerProcess(
           args,
           {node::ProcessInitializationFlags::kNoInitializeV8,
@@ -84,18 +84,21 @@ node_api_create_platform(int argc,
       node::MultiIsolatePlatform::Create(thread_pool_size);
   v8::V8::InitializePlatform(v8_platform.get());
   v8::V8::Initialize();
-  reinterpret_cast<node::InitializationResultImpl*>(node_platform.get())
-      ->platform_ = v8_platform.release();
-  *result = reinterpret_cast<node_api_platform>(node_platform.release());
+  static_cast<node::InitializationResultImpl*>(node_platform.get())->platform_ =
+      v8_platform.release();
+  *result = reinterpret_cast<node_api_platform>(
+      new std::shared_ptr<node::InitializationResult>(
+          std::move(node_platform)));
   return napi_ok;
 }
 
 napi_status NAPI_CDECL node_api_destroy_platform(node_api_platform platform) {
-  auto wrapper = reinterpret_cast<node::InitializationResult*>(platform);
+  auto wrapper =
+      reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform);
   v8::V8::Dispose();
   v8::V8::DisposePlatform();
   node::TearDownOncePerProcess();
-  delete wrapper->platform();
+  delete wrapper->get()->platform();
   delete wrapper;
   return napi_ok;
 }
@@ -106,7 +109,8 @@ node_api_create_environment(node_api_platform platform,
                             const char* main_script,
                             int32_t api_version,
                             napi_env* result) {
-  auto wrapper = reinterpret_cast<node::InitializationResult*>(platform);
+  auto wrapper =
+      *reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform);
   std::vector<std::string> errors_vec;
 
   auto setup = node::CommonEnvironmentSetup::Create(

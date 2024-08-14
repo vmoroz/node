@@ -10,7 +10,7 @@
     return 1;                                                                  \
   }
 
-int main(int argc, char* argv[]) {
+int test_main_node_api_modules(int argc, char** argv) {
   node_api_platform platform;
 
   if (argc < 3) {
