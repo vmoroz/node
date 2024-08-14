@@ -99,6 +99,7 @@
       'src/module_wrap.cc',
       'src/node.cc',
       'src/node_api.cc',
+      'src/node_api_embedding.cc',
       'src/node_binding.cc',
       'src/node_blob.cc',
       'src/node_buffer.cc',
@@ -1285,6 +1286,9 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/node_api_embedtest.c',
+        'test/embedding/node_api_modules.c',
+        'test/embedding/test_main.cc',
       ],
 
       'conditions': [
@@ -1313,7 +1317,6 @@
         }],
       ],
     }, # embedtest
-
     {
       'target_name': 'overlapped-checker',
       'type': 'executable',
