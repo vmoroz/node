@@ -1,9 +1,10 @@
-#define NAPI_EXPERIMENTAL
+#include "node_api_embedtest.h"
 
-#include <assert.h>
+#define NAPI_EXPERIMENTAL
 #include <node_api.h>
 #include <node_api_embedding.h>
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -17,13 +18,6 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
-#define CHECK(status, msg)                                                     \
-  if (status != napi_ok) {                                                     \
-    exit_code = 1;                                                             \
-    fprintf(stderr, "%s\n", msg);                                              \
-    goto fail;                                                                 \
-  }
-
 #define CHECK_EXIT_CODE(code)                                                  \
   if (code != 0) {                                                             \
     exit_code = code;                                                          \
@@ -34,12 +28,11 @@ int node_api_test_main(int argc, char** argv) {
   int exit_code = 0;
 
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, NULL, &platform),
-        "Failed creating the platform");
+  CHECK(node_api_create_platform(argc, argv, NULL, &platform));
 
   CHECK_EXIT_CODE(RunNodeInstance(platform));
 
-  CHECK(node_api_destroy_platform(platform), "Failed destroying the platform");
+  CHECK(node_api_destroy_platform(platform));
 
 fail:
   return exit_code;
@@ -54,16 +47,14 @@ int callMe(napi_env env) {
 
   napi_open_handle_scope(env, &scope);
 
-  CHECK(napi_get_global(env, &global), "Failed accessing the global object");
+  CHECK(napi_get_global(env, &global));
 
-  CHECK(napi_create_string_utf8(env, "callMe", strlen("callMe"), &key),
-        "create string");
+  CHECK(napi_create_string_utf8(env, "callMe", NAPI_AUTO_LENGTH, &key));
 
-  CHECK(napi_get_property(env, global, key, &cb),
-        "Failed accessing the global object");
+  CHECK(napi_get_property(env, global, key, &cb));
 
   napi_valuetype cb_type;
-  CHECK(napi_typeof(env, cb, &cb_type), "Failed accessing the global object");
+  CHECK(napi_typeof(env, cb, &cb_type));
 
   if (cb_type == napi_function) {
     napi_value undef;
@@ -87,7 +78,7 @@ int callMe(napi_env env) {
   }
 
   napi_value object;
-  CHECK(napi_create_object(env, &object), "Failed creating an object\n");
+  CHECK(napi_create_object(env, &object));
 
 fail:
   napi_close_handle_scope(env, scope);
@@ -120,15 +111,14 @@ int waitMe(napi_env env) {
 
   napi_open_handle_scope(env, &scope);
 
-  CHECK(napi_get_global(env, &global), "Failed accessing the global object");
+  CHECK(napi_get_global(env, &global));
 
   napi_create_string_utf8(env, "waitMe", strlen("waitMe"), &key);
 
-  CHECK(napi_get_property(env, global, key, &cb),
-        "Failed accessing the global object");
+  CHECK(napi_get_property(env, global, key, &cb));
 
   napi_valuetype cb_type;
-  CHECK(napi_typeof(env, cb, &cb_type), "Failed accessing the global object");
+  CHECK(napi_typeof(env, cb, &cb_type));
 
   if (cb_type == napi_function) {
     napi_value undef;
@@ -136,8 +126,7 @@ int waitMe(napi_env env) {
     napi_value args[2];
     napi_create_string_utf8(env, "waited", strlen("waited"), &args[0]);
     CHECK(napi_create_function(
-              env, "wait_cb", strlen("wait_cb"), c_cb, NULL, &args[1]),
-          "Failed creating function");
+        env, "wait_cb", strlen("wait_cb"), c_cb, NULL, &args[1]));
 
     napi_value result;
     memset(callback_buf, 0, 32);
@@ -147,7 +136,7 @@ int waitMe(napi_env env) {
       goto fail;
     }
 
-    CHECK(node_api_run_environment(env), "Failed spinning the event loop");
+    CHECK(node_api_run_environment(env));
 
     if (strncmp(callback_buf, "waited you", strlen("waited you"))) {
       fprintf(stderr, "Invalid value received: %s\n", callback_buf);
@@ -173,15 +162,14 @@ int waitMeWithCheese(napi_env env) {
 
   napi_open_handle_scope(env, &scope);
 
-  CHECK(napi_get_global(env, &global), "Failed accessing the global object");
+  CHECK(napi_get_global(env, &global));
 
   napi_create_string_utf8(env, "waitPromise", strlen("waitPromise"), &key);
 
-  CHECK(napi_get_property(env, global, key, &cb),
-        "Failed accessing the global object");
+  CHECK(napi_get_property(env, global, key, &cb));
 
   napi_valuetype cb_type;
-  CHECK(napi_typeof(env, cb, &cb_type), "Failed accessing the global object");
+  CHECK(napi_typeof(env, cb, &cb_type));
 
   if (cb_type == napi_function) {
     napi_value undef;
@@ -194,8 +182,7 @@ int waitMeWithCheese(napi_env env) {
     memset(callback_buf, 0, 32);
     napi_value promise;
     napi_value result;
-    CHECK(napi_call_function(env, undef, cb, 1, &arg, &promise),
-          "Failed evaluating the function");
+    CHECK(napi_call_function(env, undef, cb, 1, &arg, &promise));
 
     if (!strncmp(
             callback_buf, "waited with cheese", strlen("waited with cheese"))) {
@@ -203,8 +190,7 @@ int waitMeWithCheese(napi_env env) {
       goto fail;
     }
 
-    CHECK(napi_is_promise(env, promise, &result_type),
-          "Failed evaluating the result");
+    CHECK(napi_is_promise(env, promise, &result_type));
 
     if (!result_type) {
       fprintf(stderr, "Result is not a Promise\n");
@@ -245,15 +231,13 @@ int RunNodeInstance(node_api_platform platform) {
 
   napi_env env;
   CHECK(node_api_create_environment(
-            platform, NULL, main_script, NAPI_VERSION, &env),
-        "Failed running JS");
+      platform, NULL, main_script, NAPI_VERSION, &env));
 
   CHECK_EXIT_CODE(callMe(env));
   CHECK_EXIT_CODE(waitMe(env));
   CHECK_EXIT_CODE(waitMeWithCheese(env));
 
-  CHECK(node_api_destroy_environment(env, &exit_code),
-        "napi_destroy_environment");
+  CHECK(node_api_destroy_environment(env, &exit_code));
 
 fail:
   return exit_code;
