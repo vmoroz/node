@@ -269,3 +269,13 @@ for (const extraSnapshotArgs of [
     { stdout: 'waited without cheese' }
   );
 }
+/*
+runTest(
+  `node-api modules`,
+  spawnSyncAndExitWithoutError,
+  ['cjs.cjs', 'es6.mjs', '--node-api-modules'],
+  {
+    cwd: __dirname,
+  }
+);
+*/
