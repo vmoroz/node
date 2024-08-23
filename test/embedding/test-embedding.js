@@ -34,9 +34,9 @@ function runTest(testName, spawn, ...args) {
 
 function runCommonApiTests(apiType) {
   runTest(
-    `console.log ${apiType}`,
+    `${apiType}: console.log`,
     spawnSyncAndAssert,
-    ['console.log(42)', apiType],
+    [apiType, 'console.log(42)'],
     {
       trim: true,
       stdout: '42',
@@ -44,9 +44,9 @@ function runCommonApiTests(apiType) {
   );
 
   runTest(
-    `console.log non-ascii ${apiType}`,
+    `${apiType}: console.log non-ascii`,
     spawnSyncAndAssert,
-    ['console.log(embedVars.nön_ascıı)', apiType],
+    [apiType, 'console.log(embedVars.nön_ascıı)'],
     {
       trim: true,
       stdout: '🏳️‍🌈',
@@ -54,9 +54,9 @@ function runCommonApiTests(apiType) {
   );
 
   runTest(
-    `throw new Error() ${apiType}`,
+    `${apiType}: throw new Error()`,
     spawnSyncAndExit,
-    ['throw new Error()', apiType],
+    [apiType, 'throw new Error()'],
     {
       status: 1,
       signal: null,
@@ -64,9 +64,9 @@ function runCommonApiTests(apiType) {
   );
 
   runTest(
-    `require("lib/internal/test/binding") ${apiType}`,
+    `${apiType}: require("lib/internal/test/binding")`,
     spawnSyncAndExit,
-    ['require("lib/internal/test/binding")', apiType],
+    [apiType, 'require("lib/internal/test/binding")'],
     {
       status: 1,
       signal: null,
@@ -74,9 +74,9 @@ function runCommonApiTests(apiType) {
   );
 
   runTest(
-    `process.exitCode = 8 ${apiType}`,
+    `${apiType}: process.exitCode = 8`,
     spawnSyncAndExit,
-    ['process.exitCode = 8', apiType],
+    [apiType, 'process.exitCode = 8'],
     {
       status: 8,
       signal: null,
@@ -86,9 +86,9 @@ function runCommonApiTests(apiType) {
   {
     const fixturePath = JSON.stringify(fixtures.path('exit.js'));
     runTest(
-      `require(fixturePath) ${apiType}`,
+      `${apiType}: require(fixturePath)`,
       spawnSyncAndExit,
-      [`require(${fixturePath})`, 92, apiType],
+      [apiType, `require(${fixturePath})`, 92],
       {
         status: 92,
         signal: null,
@@ -97,18 +97,37 @@ function runCommonApiTests(apiType) {
   }
 
   runTest(
-    `syntax error ${apiType}`,
+    `${apiType}: syntax error`,
     spawnSyncAndExit,
-    ['0syntax_error', apiType],
+    [apiType, '0syntax_error'],
     {
       status: 1,
       stderr: /SyntaxError: Invalid or unexpected token/,
     }
   );
+
+  // Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
+  // TODO: Fix for node-api
+  runTest(
+    `cpp-api: check kDisableNodeOptionsEnv`,
+    spawnSyncAndExit,
+    ['cpp-api', 'require("os")'],
+    {
+      env: {
+        ...process.env,
+        NODE_REPL_EXTERNAL_MODULE: 'fs',
+      },
+    },
+    {
+      status: 9,
+      signal: null,
+      stderr: `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with kDisableNodeOptionsEnv${os.EOL}`,
+    }
+  );
 }
 
-runCommonApiTests('--cpp-api');
-runCommonApiTests('--node-api');
+runCommonApiTests('cpp-api');
+runCommonApiTests('node-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -146,7 +165,7 @@ for (const extraSnapshotArgs of [
 
   fs.rmSync(blobPath, { force: true });
   runTest(
-    `build basic snapshot ${extraSnapshotArgs.join(' ')} --cpp-api`,
+    `cpp-api: build basic snapshot ${extraSnapshotArgs.join(' ')}`,
     spawnSyncAndExitWithoutError,
     ['--', ...buildSnapshotArgs],
     {
@@ -155,7 +174,7 @@ for (const extraSnapshotArgs of [
   );
 
   runTest(
-    `run basic snapshot ${extraSnapshotArgs.join(' ')} --cpp-api`,
+    `cpp-api: run basic snapshot ${extraSnapshotArgs.join(' ')}`,
     spawnSyncAndAssert,
     ['--', ...runSnapshotArgs],
     { cwd: tmpdir.path },
@@ -190,7 +209,7 @@ for (const extraSnapshotArgs of [
   fs.rmSync(blobPath, { force: true });
 
   runTest(
-    `build create-worker-and-vm snapshot --cpp-api`,
+    `cpp-api: build create-worker-and-vm snapshot`,
     spawnSyncAndExitWithoutError,
     ['--', ...buildSnapshotArgs],
     {
@@ -199,7 +218,7 @@ for (const extraSnapshotArgs of [
   );
 
   runTest(
-    `run create-worker-and-vm snapshot --cpp-api`,
+    `cpp-api: run create-worker-and-vm snapshot`,
     spawnSyncAndExitWithoutError,
     ['--', ...runEmbeddedArgs],
     {
@@ -208,72 +227,53 @@ for (const extraSnapshotArgs of [
   );
 }
 
-// Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
-{
-  runTest(
-    `check kDisableNodeOptionsEnv --cpp-api`,
-    spawnSyncAndExit,
-    ['require("os")', '--cpp-api'],
-    {
-      env: {
-        ...process.env,
-        NODE_REPL_EXTERNAL_MODULE: 'fs',
-      },
-    },
-    {
-      status: 9,
-      signal: null,
-      stderr: `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with kDisableNodeOptionsEnv${os.EOL}`,
-    }
-  );
-}
-
 // Node-API specific tests
 {
   runTest(
-    `callMe --node-api`,
+    `node-api: callMe`,
     spawnSyncAndAssert,
-    ['function callMe(text) { return text + " you"; }', '--node-api'],
+    ['node-api', 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
 
   runTest(
-    `waitMe --node-api`,
+    `node-api: waitMe`,
     spawnSyncAndAssert,
     [
+      'node-api',
       'function waitMe(text, cb) { setTimeout(() => cb(text + " you"), 1); }',
-      '--node-api',
     ],
     { stdout: 'waited you' }
   );
 
   runTest(
-    `waitPromise --node-api`,
+    `node-api: waitPromise`,
     spawnSyncAndAssert,
     [
+      'node-api',
       'function waitPromise(text)' +
         '{ return new Promise((res) => setTimeout(() => res(text + " with cheese"), 1)); }',
-      '--node-api',
     ],
     { stdout: 'waited with cheese' }
   );
 
   runTest(
-    `waitPromise reject --node-api`,
+    `node-api: waitPromise reject`,
     spawnSyncAndAssert,
     [
+      'node-api',
       'function waitPromise(text)' +
         '{ return new Promise((res, rej) => setTimeout(() => rej(text + " without cheese"), 1)); }',
-      '--node-api',
     ],
     { stdout: 'waited without cheese' }
   );
 }
+
 /*
 runTest(
-  `node-api modules`,
+  `node-api-modules: load modules`,
   spawnSyncAndExitWithoutError,
-  ['cjs.cjs', 'es6.mjs', '--node-api-modules'],
+  ['node-api-modules', 'cjs.cjs', 'es6.mjs', ],
   {
     cwd: __dirname,
   }
