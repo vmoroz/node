@@ -86,16 +86,20 @@ node_api_create_platform(int argc,
   std::shared_ptr<node::InitializationResult> node_platform =
       node::InitializeOncePerProcess(
           args,
-          {node::ProcessInitializationFlags::kNoInitializeV8,
+          {node::ProcessInitializationFlags::kDisableNodeOptionsEnv,
+           node::ProcessInitializationFlags::kNoInitializeV8,
            node::ProcessInitializationFlags::kNoInitializeNodeV8Platform});
 
-  for (const std::string& error : node_platform->errors()) {
-    if (err_handler != nullptr) {
+  if (err_handler != nullptr) {
+    for (const std::string& error : node_platform->errors()) {
       err_handler(error.c_str());
-    } else {
+    }
+  } else {
+    for (const std::string& error : node_platform->errors()) {
       fprintf(stderr, "%s\n", error.c_str());
     }
   }
+
   if (node_platform->early_return() != 0) {
     return napi_generic_failure;
   }
@@ -115,13 +119,13 @@ node_api_create_platform(int argc,
 }
 
 napi_status NAPI_CDECL node_api_destroy_platform(node_api_platform platform) {
-  auto wrapper =
-      reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform);
+  std::unique_ptr<std::shared_ptr<node::InitializationResult>> wrapper{
+      reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform)};
+  std::unique_ptr<node::MultiIsolatePlatform> v8_platform{
+      static_cast<node::InitializationResultImpl*>(wrapper->get())->platform_};
   v8::V8::Dispose();
   v8::V8::DisposePlatform();
   node::TearDownOncePerProcess();
-  delete wrapper->get()->platform();
-  delete wrapper;
   return napi_ok;
 }
 
