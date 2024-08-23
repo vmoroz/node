@@ -804,14 +804,6 @@ void Environment::set_process_exit_handler(
   process_exit_handler_ = std::move(handler);
 }
 
-inline EmbeddedEnvironment* Environment::get_embedded() {
-  return embedded_;
-}
-
-inline void Environment::set_embedded(EmbeddedEnvironment* env) {
-  embedded_ = env;
-}
-
 #define VP(PropertyName, StringValue) V(v8::Private, PropertyName)
 #define VY(PropertyName, StringValue) V(v8::Symbol, PropertyName)
 #define VS(PropertyName, StringValue) V(v8::String, PropertyName)

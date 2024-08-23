@@ -1,12 +1,11 @@
 #ifndef SRC_NODE_API_EMBEDDING_H_
 #define SRC_NODE_API_EMBEDDING_H_
 
-#include "js_native_api.h"
-#include "js_native_api_types.h"
-
-typedef struct node_api_platform__* node_api_platform;
+#include "node_api.h"
 
 EXTERN_C_START
+
+typedef struct node_api_platform__* node_api_platform;
 
 typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
 
@@ -26,14 +25,20 @@ node_api_create_environment(node_api_platform platform,
                             int32_t api_version,
                             napi_env* result);
 
+NAPI_EXTERN napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
+                                                                int* exit_code);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_open_environment_scope(napi_env env);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_close_environment_scope(napi_env env);
+
 NAPI_EXTERN napi_status NAPI_CDECL node_api_run_environment(napi_env env);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                                           napi_value promise,
                                                           napi_value* result);
-
-NAPI_EXTERN napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
-                                                                int* exit_code);
 
 EXTERN_C_END
 
