@@ -10,6 +10,15 @@
 #include "simdutf.h"
 #include "util-inl.h"
 
+namespace node {
+
+// Declare functions implemented in embed_helpers.cc
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env);
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
+    Environment* env, const std::function<bool(void)>& shouldContinue);
+
+}  // end of namespace node
+
 namespace v8impl {
 namespace {
 

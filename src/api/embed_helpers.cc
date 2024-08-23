@@ -29,8 +29,8 @@ enum class SpinEventLoopCleanupMode {
  * then shutdown the environment. Returns a reference to the
  * exit value or an empty reference on unexpected exit.
  * If cleanupMode is kNoCleanup, then the environment will not be cleaned up.
- * If shouldContinue is a callable object that returns bool, then the loop will
- * break when it returns false.
+ * If shouldContinue is an invocable that returns bool, then the loop will
+ * break after shouldContinue returns false.
  */
 template <
     SpinEventLoopCleanupMode cleanupMode = SpinEventLoopCleanupMode::kNormal,
@@ -135,16 +135,14 @@ Maybe<int> SpinEventLoop(Environment* env) {
   return ExitCodeToInt(SpinEventLoopInternalImpl(env));
 }
 
-Maybe<int> SpinEventLoopWithoutCleanup(Environment* env) {
-  return ExitCodeToInt(
-      SpinEventLoopInternalImpl<SpinEventLoopCleanupMode::kNoCleanup>(env));
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env) {
+  return SpinEventLoopInternalImpl<SpinEventLoopCleanupMode::kNoCleanup>(env);
 }
 
-Maybe<int> SpinEventLoopWithoutCleanup(
-    Environment* env, const std::function<bool(void)>& condition) {
-  return ExitCodeToInt(
-      SpinEventLoopInternalImpl<SpinEventLoopCleanupMode::kNoCleanup>(
-          env, condition));
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
+    Environment* env, const std::function<bool(void)>& shouldContinue) {
+  return SpinEventLoopInternalImpl<SpinEventLoopCleanupMode::kNoCleanup>(
+      env, shouldContinue);
 }
 
 struct CommonEnvironmentSetup::Impl {
