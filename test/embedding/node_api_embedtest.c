@@ -41,6 +41,7 @@ int callMe(napi_env env) {
   napi_valuetype cb_type;
   CHECK(napi_typeof(env, cb, &cb_type));
 
+  // Only evaluate callMe if it was registered as a function.
   if (cb_type == napi_function) {
     napi_value undef;
     CHECK(napi_get_undefined(env, &undef));
@@ -59,9 +60,6 @@ int callMe(napi_env env) {
   } else if (cb_type != napi_undefined) {
     FAIL("Invalid callMe value\n");
   }
-
-  napi_value object;
-  CHECK(napi_create_object(env, &object));
 
   CHECK(node_api_close_environment_scope(env));
   return 0;
@@ -92,6 +90,7 @@ int waitMe(napi_env env) {
   napi_valuetype cb_type;
   CHECK(napi_typeof(env, cb, &cb_type));
 
+  // Only evaluate waitMe if it was registered as a function.
   if (cb_type == napi_function) {
     napi_value undef;
     CHECK(napi_get_undefined(env, &undef));
@@ -135,6 +134,7 @@ int waitMeWithCheese(napi_env env) {
   napi_valuetype cb_type;
   CHECK(napi_typeof(env, cb, &cb_type));
 
+  // Only evaluate waitPromise if it was registered as a function.
   if (cb_type == napi_function) {
     napi_value undef;
     napi_get_undefined(env, &undef);
