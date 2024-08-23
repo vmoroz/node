@@ -168,7 +168,7 @@ node_api_create_environment(node_api_platform platform,
 
 napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
                                                     int* exit_code) {
-  CHECK_ARG(env, env);
+  CHECK_ENV(env);
   node_napi_env node_env = reinterpret_cast<node_napi_env>(env);
 
   int r = node::SpinEventLoop(node_env->node_env()).FromMaybe(1);
@@ -186,7 +186,7 @@ napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
 }
 
 napi_status NAPI_CDECL node_api_run_environment(napi_env env) {
-  CHECK_ARG(env, env);
+  CHECK_ENV(env);
   node_napi_env node_env = reinterpret_cast<node_napi_env>(env);
 
   if (node::SpinEventLoopWithoutCleanup(node_env->node_env()).IsNothing())
@@ -200,9 +200,9 @@ static void node_api_promise_error_handler(
   return;
 }
 
-napi_status node_api_await_promise(napi_env env,
-                                   napi_value promise,
-                                   napi_value* result) {
+napi_status NAPI_CDECL node_api_await_promise(napi_env env,
+                                              napi_value promise,
+                                              napi_value* result) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 
