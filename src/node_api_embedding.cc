@@ -143,10 +143,14 @@ node_api_create_environment(node_api_platform platform,
   std::vector<std::string> errors_vec;
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
-      node::CommonEnvironmentSetup::Create(wrapper->platform(),
-                                           &errors_vec,
-                                           wrapper->args(),
-                                           wrapper->exec_args());
+      node::CommonEnvironmentSetup::Create(
+          wrapper->platform(),
+          &errors_vec,
+          wrapper->args(),
+          wrapper->exec_args(),
+          static_cast<node::EnvironmentFlags::Flags>(
+              node::EnvironmentFlags::kDefaultFlags |
+              node::EnvironmentFlags::kNoCreateInspector));
 
   for (const std::string& error : errors_vec) {
     if (err_handler != nullptr) {

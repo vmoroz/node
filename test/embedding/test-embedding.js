@@ -267,6 +267,16 @@ for (const extraSnapshotArgs of [
     ],
     { stdout: 'waited without cheese' }
   );
+
+  runTest(
+    `node-api-concurrent: run 12 environments concurrently`,
+    spawnSyncAndAssert,
+    ['node-api-concurrent', 'my_count = 1'],
+    {
+      trim: true,
+      stdout: '12',
+    }
+  );
 }
 
 /*
