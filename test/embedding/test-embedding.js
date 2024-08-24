@@ -277,6 +277,19 @@ for (const extraSnapshotArgs of [
       stdout: '12',
     }
   );
+
+  runTest(
+    'node-api-multi-env: run 12 environments in the same thread',
+    spawnSyncAndAssert,
+    [
+      'node-api-multi-env',
+      'myCount = 0; function incMyCount() { ++myCount; if (myCount < 5) { setTimeout(incMyCount, 1); } }',
+    ],
+    {
+      trim: true,
+      stdout: '60',
+    }
+  );
 }
 
 /*

@@ -8,6 +8,7 @@ EXTERN_C_START
 typedef struct node_api_platform__* node_api_platform;
 
 typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
+typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_platform(int argc,
@@ -35,6 +36,12 @@ NAPI_EXTERN napi_status NAPI_CDECL
 node_api_close_environment_scope(napi_env env);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_run_environment(napi_env env);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_run_environment_if(napi_env env,
+                            node_api_run_predicate predicate,
+                            void* predicate_data,
+                            bool* has_more_work);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                                           napi_value promise,

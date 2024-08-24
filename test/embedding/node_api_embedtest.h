@@ -11,6 +11,16 @@
     }                                                                          \
   } while (0)
 
+#define CHECK_TRUE(expr)                                                       \
+  do {                                                                         \
+    if (!(expr)) {                                                             \
+      fprintf(stderr, "Failed: %s\n", #expr);                                  \
+      fprintf(stderr, "File: %s\n", __FILE__);                                 \
+      fprintf(stderr, "Line: %d\n", __LINE__);                                 \
+      return 1;                                                                \
+    }                                                                          \
+  } while (0)
+
 #define FAIL(...)                                                              \
   do {                                                                         \
     fprintf(stderr, __VA_ARGS__);                                              \
@@ -19,8 +29,9 @@
 
 #define CHECK_EXIT_CODE(code)                                                  \
   do {                                                                         \
-    if (code != 0) {                                                           \
-      return code;                                                             \
+    int exit_code = (code);                                                    \
+    if (exit_code != 0) {                                                      \
+      return exit_code;                                                        \
     }                                                                          \
   } while (0)
 

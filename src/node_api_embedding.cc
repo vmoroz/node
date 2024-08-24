@@ -229,8 +229,33 @@ napi_status NAPI_CDECL node_api_run_environment(napi_env env) {
   v8impl::EmbeddedEnvironment* embedded_env =
       reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
 
-  if (node::SpinEventLoopWithoutCleanup(embedded_env->node_env()).IsNothing())
+  if (node::SpinEventLoopWithoutCleanup(embedded_env->node_env()).IsNothing()) {
     return napi_closing;
+  }
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
+node_api_run_environment_if(napi_env env,
+                            node_api_run_predicate predicate,
+                            void* predicate_data,
+                            bool* has_more_work) {
+  CHECK_ENV(env);
+  CHECK_ARG(env, predicate);
+  v8impl::EmbeddedEnvironment* embedded_env =
+      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+
+  if (node::SpinEventLoopWithoutCleanup(
+          embedded_env->node_env(),
+          [predicate, predicate_data]() { return predicate(predicate_data); })
+          .IsNothing()) {
+    return napi_closing;
+  }
+
+  if (has_more_work != nullptr) {
+    *has_more_work = uv_loop_alive(embedded_env->node_env()->event_loop());
+  }
 
   return napi_ok;
 }

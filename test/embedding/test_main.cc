@@ -6,6 +6,7 @@ extern "C" int cpp_api_test_main(int argc, char** argv);
 extern "C" int node_api_test_main(int argc, char** argv);
 extern "C" int node_api_modules_test_main(int argc, char** argv);
 extern "C" int node_api_concurrent_test_main(int argc, char** argv);
+extern "C" int node_api_multi_env_test_main(int argc, char** argv);
 
 void RemoveArg1(int& argc, char** argv) {
   for (int i = 2; i < argc; i++) {
@@ -33,6 +34,9 @@ NODE_MAIN(int argc, node::argv_type raw_argv[]) {
     } else if (strcmp(arg1, "node-api-concurrent") == 0) {
       RemoveArg1(argc, argv);
       return node_api_concurrent_test_main(argc, argv);
+    } else if (strcmp(arg1, "node-api-multi-env") == 0) {
+      RemoveArg1(argc, argv);
+      return node_api_multi_env_test_main(argc, argv);
     }
   }
   return cpp_api_test_main(argc, argv);
