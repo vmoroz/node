@@ -271,7 +271,7 @@ for (const extraSnapshotArgs of [
   runTest(
     `node-api-concurrent: run 12 environments concurrently`,
     spawnSyncAndAssert,
-    ['node-api-concurrent', 'my_count = 1'],
+    ['node-api-concurrent', 'myCount = 1'],
     {
       trim: true,
       stdout: '12',
@@ -288,6 +288,19 @@ for (const extraSnapshotArgs of [
     {
       trim: true,
       stdout: '60',
+    }
+  );
+
+  runTest(
+    'node-api-multi-thread: run and environment from multiple threads',
+    spawnSyncAndAssert,
+    [
+      'node-api-multi-thread',
+      'myCount = 0; function incMyCount() { ++myCount; if (myCount < 5) { setTimeout(incMyCount, 1); } }',
+    ],
+    {
+      trim: true,
+      stdout: '5',
     }
   );
 }
