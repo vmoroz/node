@@ -98,7 +98,8 @@ class EmbeddedEnvironment final : public node_napi_env__ {
 napi_status NAPI_CDECL
 node_api_create_platform(int argc,
                          char** argv,
-                         node_api_error_message_handler err_handler,
+                         node_api_error_handler err_handler,
+                         void* err_handler_data,
                          node_api_platform* result) {
   argv = uv_setup_args(argc, argv);
   std::vector<std::string> args(argv, argv + argc);
@@ -111,14 +112,18 @@ node_api_create_platform(int argc,
            node::ProcessInitializationFlags::kNoInitializeV8,
            node::ProcessInitializationFlags::kNoInitializeNodeV8Platform});
 
-  if (err_handler != nullptr) {
+  if (err_handler != nullptr &&
+      (node_platform->early_return() || !node_platform->errors().empty())) {
+    std::vector<const char*> errors_vec;
+    errors_vec.reserve(node_platform->errors().size());
     for (const std::string& error : node_platform->errors()) {
-      err_handler(error.c_str());
+      errors_vec.push_back(error.c_str());
     }
-  } else {
-    for (const std::string& error : node_platform->errors()) {
-      fprintf(stderr, "%s\n", error.c_str());
-    }
+    err_handler(err_handler_data,
+                node_platform->early_return(),
+                node_platform->exit_code(),
+                errors_vec.size(),
+                errors_vec.data());
   }
 
   if (node_platform->early_return() != 0) {

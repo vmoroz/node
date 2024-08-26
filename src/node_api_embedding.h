@@ -7,13 +7,19 @@ EXTERN_C_START
 
 typedef struct node_api_platform__* node_api_platform;
 
+typedef void(NAPI_CDECL* node_api_error_handler)(void* data,
+                                                 bool early_return,
+                                                 int32_t exit_code,
+                                                 size_t msg_count,
+                                                 const char** msg_list);
 typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_platform(int argc,
                          char** argv,
-                         node_api_error_message_handler err_handler,
+                         node_api_error_handler err_handler,
+                         void* err_handler_data,
                          node_api_platform* result);
 
 NAPI_EXTERN napi_status NAPI_CDECL

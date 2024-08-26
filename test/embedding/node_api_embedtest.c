@@ -19,7 +19,7 @@ const char* main_script =
 
 int node_api_test_main(int argc, char** argv) {
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, NULL, &platform));
+  CHECK(node_api_create_platform(argc, argv, NULL, NULL, &platform));
 
   CHECK_EXIT_CODE(RunNodeInstance(platform));
 
