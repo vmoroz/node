@@ -12,9 +12,13 @@ typedef void(NAPI_CDECL* node_api_error_handler)(void* data,
                                                  int32_t exit_code,
                                                  size_t msg_count,
                                                  const char** msg_list);
+// TODO(vmoroz): Add `void* data` parameter
 typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
+// TODO(vmoroz): Add passing flags for InitializeOncePerProcess
+// TODO(vmoroz): Add passing thread pool size for MultiIsolatePlatform
+// TODO(vmoroz): Access the parsed lists of arguments.
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_platform(int argc,
                          char** argv,
@@ -25,6 +29,13 @@ node_api_create_platform(int argc,
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_destroy_platform(node_api_platform platform);
 
+// TODO(vmoroz): Consider creating opaque environment options type.
+// TODO(vmoroz): Remove the main_script parameter.
+// TODO(vmoroz): Add ABI-safe way to access internal module functionality.
+// TODO(vmoroz): Add ability to create snapshots and to load them.
+// TODO(vmoroz): Pass the parsed arguments.
+// TODO(vmoroz): Pass EnvironmentFlags
+// TODO(vmoroz): Allow setting the global inspector for a specific environment.
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_environment(node_api_platform platform,
                             node_api_error_message_handler err_handler,
