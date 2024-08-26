@@ -29,14 +29,26 @@ struct IsolateLocker {
         handle_scope_(env_setup->isolate()),
         context_scope_(env_setup->context()) {}
 
+  bool IsLocked() const {
+    return v8::Locker::IsLocked(v8::Isolate::GetCurrent());
+  }
+
+  void IncrementLockCount() { ++lock_count_; }
+
+  bool DecrementLockCount() {
+    --lock_count_;
+    return lock_count_ == 0;
+  }
+
  private:
+  int32_t lock_count_ = 1;
   v8::Locker v8_locker_;
   v8::Isolate::Scope isolate_scope_;
   v8::HandleScope handle_scope_;
   v8::Context::Scope context_scope_;
 };
 
-class EmbeddedEnvironment : public node_napi_env__ {
+class EmbeddedEnvironment final : public node_napi_env__ {
  public:
   explicit EmbeddedEnvironment(
       std::unique_ptr<node::CommonEnvironmentSetup>&& env_setup,
@@ -46,6 +58,10 @@ class EmbeddedEnvironment : public node_napi_env__ {
       : node_napi_env__(context, module_filename, module_api_version),
         env_setup_(std::move(env_setup)) {}
 
+  static EmbeddedEnvironment* FromNapiEnv(napi_env env) {
+    return static_cast<EmbeddedEnvironment*>(env);
+  }
+
   node::CommonEnvironmentSetup* env_setup() { return env_setup_.get(); }
 
   std::unique_ptr<node::CommonEnvironmentSetup> ResetEnvSetup() {
@@ -53,14 +69,19 @@ class EmbeddedEnvironment : public node_napi_env__ {
   }
 
   napi_status OpenScope() {
-    if (isolate_locker_.has_value()) return napi_generic_failure;
-    isolate_locker_.emplace(env_setup_.get());
+    if (isolate_locker_.has_value()) {
+      if (!isolate_locker_->IsLocked()) return napi_generic_failure;
+      isolate_locker_->IncrementLockCount();
+    } else {
+      isolate_locker_.emplace(env_setup_.get());
+    }
     return napi_ok;
   }
 
   napi_status CloseScope() {
     if (!isolate_locker_.has_value()) return napi_generic_failure;
-    isolate_locker_.reset();
+    if (!isolate_locker_->IsLocked()) return napi_generic_failure;
+    if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
     return napi_ok;
   }
 
@@ -190,7 +211,7 @@ napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
                                                     int* exit_code) {
   CHECK_ENV(env);
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   if (embedded_env->IsScopeOpened()) return napi_generic_failure;
 
@@ -211,7 +232,7 @@ napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
 napi_status NAPI_CDECL node_api_open_environment_scope(napi_env env) {
   CHECK_ENV(env);
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   return embedded_env->OpenScope();
 }
@@ -219,7 +240,7 @@ napi_status NAPI_CDECL node_api_open_environment_scope(napi_env env) {
 napi_status NAPI_CDECL node_api_close_environment_scope(napi_env env) {
   CHECK_ENV(env);
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   return embedded_env->CloseScope();
 }
@@ -227,7 +248,7 @@ napi_status NAPI_CDECL node_api_close_environment_scope(napi_env env) {
 napi_status NAPI_CDECL node_api_run_environment(napi_env env) {
   CHECK_ENV(env);
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   if (node::SpinEventLoopWithoutCleanup(embedded_env->node_env()).IsNothing()) {
     return napi_closing;
@@ -244,7 +265,7 @@ node_api_run_environment_if(napi_env env,
   CHECK_ENV(env);
   CHECK_ARG(env, predicate);
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   if (node::SpinEventLoopWithoutCleanup(
           embedded_env->node_env(),
@@ -272,7 +293,7 @@ napi_status NAPI_CDECL node_api_await_promise(napi_env env,
   CHECK_ARG(env, result);
 
   v8impl::EmbeddedEnvironment* embedded_env =
-      reinterpret_cast<v8impl::EmbeddedEnvironment*>(env);
+      v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
   v8::EscapableHandleScope scope(env->isolate);
 
