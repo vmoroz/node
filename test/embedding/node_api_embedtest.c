@@ -17,9 +17,33 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
+typedef struct {
+  const char* exe_name;
+  int exit_code;
+} platform_error_data;
+
+void NAPI_CDECL handle_platform_error(void* data,
+                                      bool early_return,
+                                      int32_t exit_code,
+                                      size_t msg_count,
+                                      const char** msg_list) {
+  platform_error_data* error_data = data;
+  for (size_t i = 0; i < msg_count; ++i)
+    fprintf(stderr, "%s: %s\n", error_data->exe_name, msg_list[i]);
+  if (early_return) {
+    error_data->exit_code = exit_code;
+  }
+}
+
 int node_api_test_main(int argc, char** argv) {
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, NULL, NULL, &platform));
+  platform_error_data error_data = {};
+  error_data.exe_name = argv[0];
+  napi_status status = node_api_create_platform(
+      argc, argv, handle_platform_error, &error_data, &platform);
+  if (status != napi_ok) {
+    return error_data.exit_code;
+  }
 
   CHECK_EXIT_CODE(RunNodeInstance(platform));
 

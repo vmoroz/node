@@ -107,11 +107,10 @@ function runCommonApiTests(apiType) {
   );
 
   // Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
-  // TODO: Fix for node-api
   runTest(
-    `cpp-api: check kDisableNodeOptionsEnv`,
+    `${apiType}: check kDisableNodeOptionsEnv`,
     spawnSyncAndExit,
-    ['cpp-api', 'require("os")'],
+    [apiType, 'require("os")'],
     {
       env: {
         ...process.env,
