@@ -61,7 +61,7 @@ extern "C" int node_api_concurrent_test_main(int argc, char** argv) {
 }
 
 // We can use multiple environments at the same thread.
-// For each use we must open and close scope.
+// For each use we must open and close the environment scope.
 extern "C" int node_api_multi_env_test_main(int argc, char** argv) {
   node_api_platform platform;
   CHECK(node_api_create_platform(
@@ -98,10 +98,18 @@ extern "C" int node_api_multi_env_test_main(int argc, char** argv) {
       CHECK(node_api_open_environment_scope(env));
 
       bool has_more_work = false;
-      CHECK(node_api_run_environment_if(
+      bool had_run_once = false;
+      CHECK(node_api_run_environment_while(
           env,
-          [](void* /*predicate_data*/) { return false; },
-          nullptr,
+          [](void* predicate_data) {
+            bool* had_run_once = static_cast<bool*>(predicate_data);
+            if (*had_run_once) {
+              return false;
+            }
+            *had_run_once = true;
+            return true;
+          },
+          &had_run_once,
           &has_more_work));
       more_work |= has_more_work;
 

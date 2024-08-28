@@ -61,10 +61,10 @@ node_api_close_environment_scope(napi_env env);
 NAPI_EXTERN napi_status NAPI_CDECL node_api_run_environment(napi_env env);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_run_environment_if(napi_env env,
-                            node_api_run_predicate predicate,
-                            void* predicate_data,
-                            bool* has_more_work);
+node_api_run_environment_while(napi_env env,
+                               node_api_run_predicate predicate,
+                               void* predicate_data,
+                               bool* has_more_work);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                                           napi_value promise,

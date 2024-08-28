@@ -297,20 +297,22 @@ napi_status NAPI_CDECL node_api_run_environment(napi_env env) {
 }
 
 napi_status NAPI_CDECL
-node_api_run_environment_if(napi_env env,
-                            node_api_run_predicate predicate,
-                            void* predicate_data,
-                            bool* has_more_work) {
+node_api_run_environment_while(napi_env env,
+                               node_api_run_predicate predicate,
+                               void* predicate_data,
+                               bool* has_more_work) {
   CHECK_ENV(env);
   CHECK_ARG(env, predicate);
   v8impl::EmbeddedEnvironment* embedded_env =
       v8impl::EmbeddedEnvironment::FromNapiEnv(env);
 
-  if (node::SpinEventLoopWithoutCleanup(
-          embedded_env->node_env(),
-          [predicate, predicate_data]() { return predicate(predicate_data); })
-          .IsNothing()) {
-    return napi_closing;
+  if (predicate(predicate_data)) {
+    if (node::SpinEventLoopWithoutCleanup(
+            embedded_env->node_env(),
+            [predicate, predicate_data]() { return predicate(predicate_data); })
+            .IsNothing()) {
+      return napi_closing;
+    }
   }
 
   if (has_more_work != nullptr) {
