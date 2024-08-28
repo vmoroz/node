@@ -7,27 +7,32 @@ EXTERN_C_START
 
 typedef struct node_api_platform__* node_api_platform;
 
-typedef void(NAPI_CDECL* node_api_error_handler)(void* data,
-                                                 bool early_return,
-                                                 int32_t exit_code,
-                                                 size_t msg_count,
-                                                 const char** msg_list);
-// TODO(vmoroz): Add `void* data` parameter
-typedef void(NAPI_CDECL* node_api_error_message_handler)(const char* msg);
+typedef void(NAPI_CDECL* node_api_get_strings_callback)(
+    void* data, size_t str_count, const char* str_array[]);
+
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 // TODO(vmoroz): Add passing flags for InitializeOncePerProcess
-// TODO(vmoroz): Add passing thread pool size for MultiIsolatePlatform
-// TODO(vmoroz): Access the parsed lists of arguments.
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_platform(int argc,
                          char** argv,
-                         node_api_error_handler err_handler,
-                         void* err_handler_data,
+                         int32_t* exit_code,
+                         node_api_get_strings_callback get_errors_cb,
+                         void* errors_data,
                          node_api_platform* result);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_destroy_platform(node_api_platform platform);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_get_platform_args(node_api_platform platform,
+                           node_api_get_strings_callback get_strings_cb,
+                           void* strings_data);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_get_platform_exec_args(node_api_platform platform,
+                                node_api_get_strings_callback get_strings_cb,
+                                void* strings_data);
 
 // TODO(vmoroz): Consider creating opaque environment options type.
 // TODO(vmoroz): Remove the main_script parameter.
@@ -38,7 +43,8 @@ node_api_destroy_platform(node_api_platform platform);
 // TODO(vmoroz): Allow setting the global inspector for a specific environment.
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_environment(node_api_platform platform,
-                            node_api_error_message_handler err_handler,
+                            node_api_get_strings_callback get_errors_cb,
+                            void* errors_data,
                             const char* main_script,
                             int32_t api_version,
                             napi_env* result);

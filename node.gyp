@@ -1286,6 +1286,7 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/embedtest_snapshot_node_api.cc',
         'test/embedding/node_api_concurrent_embedtest.cc',
         'test/embedding/node_api_embedtest.c',
         'test/embedding/node_api_modules_embedtest.c',

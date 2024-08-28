@@ -15,7 +15,8 @@ extern "C" int node_api_concurrent_test_main(int argc, char** argv) {
   std::atomic<int32_t> global_count{0};
   std::atomic<int32_t> global_exit_code{0};
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, nullptr, nullptr, &platform));
+  CHECK(node_api_create_platform(
+      argc, argv, nullptr, nullptr, nullptr, &platform));
 
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
@@ -25,7 +26,7 @@ extern "C" int node_api_concurrent_test_main(int argc, char** argv) {
       int exit_code = [&]() {
         napi_env env;
         CHECK(node_api_create_environment(
-            platform, nullptr, main_script, NAPI_VERSION, &env));
+            platform, nullptr, nullptr, main_script, NAPI_VERSION, &env));
 
         CHECK(node_api_open_environment_scope(env));
 
@@ -63,7 +64,8 @@ extern "C" int node_api_concurrent_test_main(int argc, char** argv) {
 // For each use we must open and close scope.
 extern "C" int node_api_multi_env_test_main(int argc, char** argv) {
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, nullptr, nullptr, &platform));
+  CHECK(node_api_create_platform(
+      argc, argv, nullptr, nullptr, nullptr, &platform));
 
   const size_t env_count = 12;
   std::vector<napi_env> envs;
@@ -71,7 +73,7 @@ extern "C" int node_api_multi_env_test_main(int argc, char** argv) {
   for (size_t i = 0; i < env_count; i++) {
     napi_env env;
     CHECK(node_api_create_environment(
-        platform, nullptr, main_script, NAPI_VERSION, &env));
+        platform, nullptr, nullptr, main_script, NAPI_VERSION, &env));
     envs.push_back(env);
 
     CHECK(node_api_open_environment_scope(env));
@@ -139,10 +141,11 @@ extern "C" int node_api_multi_env_test_main(int argc, char** argv) {
 // at a time is using it.
 extern "C" int node_api_multi_thread_test_main(int argc, char** argv) {
   node_api_platform platform;
-  CHECK(node_api_create_platform(argc, argv, nullptr, nullptr, &platform));
+  CHECK(node_api_create_platform(
+      argc, argv, nullptr, nullptr, nullptr, &platform));
   napi_env env;
   CHECK(node_api_create_environment(
-      platform, nullptr, main_script, NAPI_VERSION, &env));
+      platform, nullptr, nullptr, main_script, NAPI_VERSION, &env));
 
   std::mutex mutex;
   std::atomic<int32_t> result_count{0};

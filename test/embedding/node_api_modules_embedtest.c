@@ -13,10 +13,11 @@ int node_api_modules_test_main(int argc, char** argv) {
   }
 
   node_api_platform platform;
-  CHECK(node_api_create_platform(0, NULL, NULL, NULL, &platform));
+  CHECK(node_api_create_platform(0, NULL, NULL, NULL, NULL, &platform));
 
   napi_env env;
-  CHECK(node_api_create_environment(platform, NULL, NULL, NAPI_VERSION, &env));
+  CHECK(node_api_create_environment(
+      platform, NULL, NULL, NULL, NAPI_VERSION, &env));
 
   CHECK(node_api_open_environment_scope(env));
 

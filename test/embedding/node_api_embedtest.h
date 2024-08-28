@@ -1,6 +1,21 @@
 #ifndef TEST_EMBEDDING_NODE_API_EMBEDTEST_H_
 #define TEST_EMBEDDING_NODE_API_EMBEDTEST_H_
 
+#include <node_api_embedding.h>
+
+#ifdef __cplusplus
+
+#include <string>
+#include <vector>
+
+extern "C" inline void NAPI_CDECL GetStringVector(void* data,
+                                                  size_t count,
+                                                  const char** strs) {
+  static_cast<std::vector<std::string>*>(data)->assign(strs, strs + count);
+}
+
+#endif
+
 #define CHECK(expr)                                                            \
   do {                                                                         \
     if ((expr) != napi_ok) {                                                   \

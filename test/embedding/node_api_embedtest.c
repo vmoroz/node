@@ -17,32 +17,25 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
-typedef struct {
-  const char* exe_name;
-  int exit_code;
-} platform_error_data;
+const char* errors[30];
+int error_count = 0;
 
-void NAPI_CDECL handle_platform_error(void* data,
-                                      bool early_return,
-                                      int32_t exit_code,
-                                      size_t msg_count,
-                                      const char** msg_list) {
-  platform_error_data* error_data = data;
-  for (size_t i = 0; i < msg_count; ++i)
-    fprintf(stderr, "%s: %s\n", error_data->exe_name, msg_list[i]);
-  if (early_return) {
-    error_data->exit_code = exit_code;
+static void NAPI_CDECL get_errors(void* data, size_t count, const char** strs) {
+  error_count = (int)count;
+  for (size_t i = 0; i < count && i < 30; ++i) {
+    errors[i] = strs[i];
   }
 }
 
 int node_api_test_main(int argc, char** argv) {
+  int exit_code = 0;
   node_api_platform platform;
-  platform_error_data error_data = {};
-  error_data.exe_name = argv[0];
   napi_status status = node_api_create_platform(
-      argc, argv, handle_platform_error, &error_data, &platform);
+      argc, argv, &exit_code, get_errors, NULL, &platform);
   if (status != napi_ok) {
-    return error_data.exit_code;
+    for (size_t i = 0; i < error_count; ++i)
+      fprintf(stderr, "%s: %s\n", argv[0], errors[i]);
+    return exit_code;
   }
 
   CHECK_EXIT_CODE(RunNodeInstance(platform));
@@ -210,7 +203,7 @@ int waitMeWithCheese(napi_env env) {
 int RunNodeInstance(node_api_platform platform) {
   napi_env env;
   CHECK(node_api_create_environment(
-      platform, NULL, main_script, NAPI_VERSION, &env));
+      platform, NULL, NULL, main_script, NAPI_VERSION, &env));
 
   CHECK_EXIT_CODE(callMe(env));
   CHECK_EXIT_CODE(waitMe(env));

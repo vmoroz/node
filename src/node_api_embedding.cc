@@ -95,11 +95,21 @@ class EmbeddedEnvironment final : public node_napi_env__ {
 }  // end of anonymous namespace
 }  // end of namespace v8impl
 
+std::vector<const char*> ToCStringVector(const std::vector<std::string>& vec) {
+  std::vector<const char*> result;
+  result.reserve(vec.size());
+  for (const std::string& str : vec) {
+    result.push_back(str.c_str());
+  }
+  return result;
+}
+
 napi_status NAPI_CDECL
 node_api_create_platform(int argc,
                          char** argv,
-                         node_api_error_handler err_handler,
-                         void* err_handler_data,
+                         int32_t* exit_code,
+                         node_api_get_strings_callback get_errors_cb,
+                         void* errors_data,
                          node_api_platform* result) {
   argv = uv_setup_args(argc, argv);
   std::vector<std::string> args(argv, argv + argc);
@@ -112,18 +122,13 @@ node_api_create_platform(int argc,
            node::ProcessInitializationFlags::kNoInitializeV8,
            node::ProcessInitializationFlags::kNoInitializeNodeV8Platform});
 
-  if (err_handler != nullptr &&
-      (node_platform->early_return() || !node_platform->errors().empty())) {
-    std::vector<const char*> errors_vec;
-    errors_vec.reserve(node_platform->errors().size());
-    for (const std::string& error : node_platform->errors()) {
-      errors_vec.push_back(error.c_str());
-    }
-    err_handler(err_handler_data,
-                node_platform->early_return(),
-                node_platform->exit_code(),
-                errors_vec.size(),
-                errors_vec.data());
+  if (get_errors_cb != nullptr && !node_platform->errors().empty()) {
+    std::vector<const char*> errors_vec =
+        ToCStringVector(node_platform->errors());
+    get_errors_cb(errors_data, errors_vec.size(), errors_vec.data());
+  }
+  if (exit_code != nullptr) {
+    *exit_code = node_platform->exit_code();
   }
 
   if (node_platform->early_return() != 0) {
@@ -156,8 +161,39 @@ napi_status NAPI_CDECL node_api_destroy_platform(node_api_platform platform) {
 }
 
 napi_status NAPI_CDECL
+node_api_get_platform_args(node_api_platform platform,
+                           node_api_get_strings_callback get_strings_cb,
+                           void* strings_data) {
+  CHECK_ENV(platform);
+  CHECK_ENV(get_strings_cb);
+
+  auto wrapper =
+      reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform);
+  std::vector<const char*> args = ToCStringVector((*wrapper)->args());
+  get_strings_cb(strings_data, args.size(), args.data());
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
+node_api_get_platform_exec_args(node_api_platform platform,
+                                node_api_get_strings_callback get_strings_cb,
+                                void* strings_data) {
+  CHECK_ENV(platform);
+  CHECK_ENV(get_strings_cb);
+
+  auto wrapper =
+      reinterpret_cast<std::shared_ptr<node::InitializationResult>*>(platform);
+  std::vector<const char*> exec_args = ToCStringVector((*wrapper)->exec_args());
+  get_strings_cb(strings_data, exec_args.size(), exec_args.data());
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
 node_api_create_environment(node_api_platform platform,
-                            node_api_error_message_handler err_handler,
+                            node_api_get_strings_callback get_errors_cb,
+                            void* errors_data,
                             const char* main_script,
                             int32_t api_version,
                             napi_env* result) {
@@ -178,13 +214,11 @@ node_api_create_environment(node_api_platform platform,
               node::EnvironmentFlags::kDefaultFlags |
               node::EnvironmentFlags::kNoCreateInspector));
 
-  for (const std::string& error : errors_vec) {
-    if (err_handler != nullptr) {
-      err_handler(error.c_str());
-    } else {
-      fprintf(stderr, "%s\n", error.c_str());
-    }
+  if (get_errors_cb != nullptr && !errors_vec.empty()) {
+    std::vector<const char*> errors = ToCStringVector(errors_vec);
+    get_errors_cb(errors_data, errors.size(), errors.data());
   }
+
   if (env_setup == nullptr) {
     return napi_generic_failure;
   }
