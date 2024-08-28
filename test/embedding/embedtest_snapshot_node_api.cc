@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <optional>
+
 static int RunNodeInstance(node_api_platform platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args);
@@ -49,9 +51,6 @@ int RunNodeInstance(node_api_platform platform,
   //   return exit_code;
   // }
 
-  // int RunNodeInstance(MultiIsolatePlatform* platform,
-  //                     const std::vector<std::string>& args,
-  //                     const std::vector<std::string>& exec_args) {
   int exit_code = 0;
 
   // Format of the arguments of this binary:
@@ -67,68 +66,71 @@ int RunNodeInstance(node_api_platform platform,
   //           arg1 arg2...
   // No snapshot:
   // embedtest arg1 arg2...
-  // node::EmbedderSnapshotData::Pointer snapshot;
 
-  // std::string binary_path = args[0];
-  // std::vector<std::string> filtered_args;
-  // bool is_building_snapshot = false;
-  // bool snapshot_as_file = false;
-  // std::optional<node::SnapshotConfig> snapshot_config;
-  // std::string snapshot_blob_path;
-  // for (size_t i = 0; i < args.size(); ++i) {
-  //   const std::string& arg = args[i];
-  //   if (arg == "--embedder-snapshot-create") {
-  //     is_building_snapshot = true;
-  //   } else if (arg == "--embedder-snapshot-as-file") {
-  //     snapshot_as_file = true;
-  //   } else if (arg == "--without-code-cache") {
-  //     if (!snapshot_config.has_value()) {
-  //       snapshot_config = node::SnapshotConfig{};
-  //     }
-  //     snapshot_config.value().flags = static_cast<node::SnapshotFlags>(
-  //         static_cast<uint32_t>(snapshot_config.value().flags) |
-  //         static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
-  //   } else if (arg == "--embedder-snapshot-blob") {
-  //     assert(i + 1 < args.size());
-  //     snapshot_blob_path = args[i + 1];
-  //     i++;
-  //   } else {
-  //     filtered_args.push_back(arg);
-  //   }
-  // }
+  // TODO: node::EmbedderSnapshotData::Pointer snapshot;
 
-  // if (!snapshot_blob_path.empty() && !is_building_snapshot) {
-  //   FILE* fp = fopen(snapshot_blob_path.c_str(), "rb");
-  //   assert(fp != nullptr);
-  //   if (snapshot_as_file) {
-  //     snapshot = node::EmbedderSnapshotData::FromFile(fp);
-  //   } else {
-  //     uv_fs_t req = uv_fs_t();
-  //     int statret =
-  //         uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
-  //     assert(statret == 0);
-  //     size_t filesize = req.statbuf.st_size;
-  //     uv_fs_req_cleanup(&req);
+  std::string binary_path = args[0];
+  std::vector<std::string> filtered_args;
+  bool is_building_snapshot = false;
+  bool snapshot_as_file = false;
+  // TODO: std::optional<node::SnapshotConfig> snapshot_config;
+  std::string snapshot_blob_path;
+  for (size_t i = 0; i < args.size(); ++i) {
+    const std::string& arg = args[i];
+    if (arg == "--embedder-snapshot-create") {
+      is_building_snapshot = true;
+    } else if (arg == "--embedder-snapshot-as-file") {
+      snapshot_as_file = true;
+    } else if (arg == "--without-code-cache") {
+      // TODO: Add environment flag kSnapshotWithoutCodeCache
+      // TODO: if (!snapshot_config.has_value()) {
+      //   snapshot_config = node::SnapshotConfig{};
+      // }
+      // snapshot_config.value().flags = static_cast<node::SnapshotFlags>(
+      //     static_cast<uint32_t>(snapshot_config.value().flags) |
+      //     static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
+    } else if (arg == "--embedder-snapshot-blob") {
+      assert(i + 1 < args.size());
+      snapshot_blob_path = args[i + 1];
+      i++;
+    } else {
+      filtered_args.push_back(arg);
+    }
+  }
 
-  //     std::vector<char> vec(filesize);
-  //     size_t read = fread(vec.data(), filesize, 1, fp);
-  //     assert(read == 1);
-  //     snapshot = node::EmbedderSnapshotData::FromBlob(vec);
-  //   }
-  //   assert(snapshot);
-  //   int ret = fclose(fp);
-  //   assert(ret == 0);
-  // }
+  if (!snapshot_blob_path.empty() && !is_building_snapshot) {
+    // TODO: pass snapshot to env creation
+    FILE* fp = fopen(snapshot_blob_path.c_str(), "rb");
+    assert(fp != nullptr);
+    if (snapshot_as_file) {
+      // TODO: snapshot = node::EmbedderSnapshotData::FromFile(fp);
+    } else {
+      uv_fs_t req = uv_fs_t();
+      int statret =
+          uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
+      assert(statret == 0);
+      size_t filesize = req.statbuf.st_size;
+      uv_fs_req_cleanup(&req);
 
-  // if (is_building_snapshot) {
-  //   // It contains at least the binary path, the code to snapshot,
-  //   // and --embedder-snapshot-create (which is filtered, so at least
-  //   // 2 arguments should remain after filtering).
-  //   assert(filtered_args.size() >= 2);
-  //   // Insert an anonymous filename as process.argv[1].
-  //   filtered_args.insert(filtered_args.begin() + 1,
-  //                        node::GetAnonymousMainPath());
-  // }
+      std::vector<char> vec(filesize);
+      size_t read = fread(vec.data(), filesize, 1, fp);
+      assert(read == 1);
+      // TODO: snapshot = node::EmbedderSnapshotData::FromBlob(vec);
+    }
+    assert(snapshot);
+    int ret = fclose(fp);
+    assert(ret == 0);
+  }
+
+  if (is_building_snapshot) {
+    // It contains at least the binary path, the code to snapshot,
+    // and --embedder-snapshot-create (which is filtered, so at least
+    // 2 arguments should remain after filtering).
+    assert(filtered_args.size() >= 2);
+    // Insert an anonymous filename as process.argv[1].
+    // TODO: filtered_args.insert(filtered_args.begin() + 1,
+    //                     node::GetAnonymousMainPath());
+  }
 
   // std::vector<std::string> errors;
   // std::unique_ptr<CommonEnvironmentSetup> setup;
