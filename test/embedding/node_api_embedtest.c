@@ -17,7 +17,7 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
-const char* exe_name;
+static const char* exe_name;
 
 static void NAPI_CDECL get_errors(void* data,
                                   size_t count,

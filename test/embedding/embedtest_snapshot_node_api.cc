@@ -7,6 +7,35 @@
 
 #include <optional>
 
+class CStringArray {
+ public:
+  explicit CStringArray(const std::vector<std::string>& strings) noexcept
+      : size_(strings.size()) {
+    if (size_ < inplace_buffer_.size()) {
+      cstrings_ = inplace_buffer_.data();
+    } else {
+      allocated_buffer_ = std::make_unique<const char*[]>(size_);
+      cstrings_ = allocated_buffer_.get();
+    }
+    for (size_t i = 0; i < size_; ++i) {
+      cstrings_[i] = strings[i].c_str();
+    }
+  }
+
+  CStringArray() = delete;
+  CStringArray(const CStringArray&) = delete;
+  CStringArray& operator=(const CStringArray&) = delete;
+
+  const char** cstrings() const { return cstrings_; }
+  size_t size() const { return size_; }
+
+ private:
+  const char** cstrings_;
+  size_t size_;
+  std::array<const char*, 32> inplace_buffer_;
+  std::unique_ptr<const char*[]> allocated_buffer_;
+};
+
 static int RunNodeInstance();
 
 extern "C" int test_main_snapshot_node_api(size_t argc, const char* argv[]) {
@@ -36,6 +65,16 @@ extern "C" int test_main_snapshot_node_api(size_t argc, const char* argv[]) {
 
   CHECK(node_api_uninit_once_per_process());
   return 0;
+}
+
+static const char* exe_name;
+
+static void NAPI_CDECL get_errors(void* data,
+                                  size_t count,
+                                  const char* errors[]) {
+  for (size_t i = 0; i < count && i < 30; ++i) {
+    fprintf(stderr, "%s: %s\n", exe_name, errors[i]);
+  }
 }
 
 int RunNodeInstance() {
@@ -75,7 +114,7 @@ int RunNodeInstance() {
   std::vector<std::string> filtered_args;
   bool is_building_snapshot = false;
   bool snapshot_as_file = false;
-  // TODO: std::optional<node::SnapshotConfig> snapshot_config;
+  node_api_snapshot_flags snapshot_flags = node_api_snapshot_no_flags;
   std::string snapshot_blob_path;
   for (size_t i = 0; i < args.size(); ++i) {
     const std::string& arg = args[i];
@@ -84,13 +123,8 @@ int RunNodeInstance() {
     } else if (arg == "--embedder-snapshot-as-file") {
       snapshot_as_file = true;
     } else if (arg == "--without-code-cache") {
-      // TODO: Add environment flag kSnapshotWithoutCodeCache
-      // TODO: if (!snapshot_config.has_value()) {
-      //   snapshot_config = node::SnapshotConfig{};
-      // }
-      // snapshot_config.value().flags = static_cast<node::SnapshotFlags>(
-      //     static_cast<uint32_t>(snapshot_config.value().flags) |
-      //     static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
+      snapshot_flags = static_cast<node_api_snapshot_flags>(
+          snapshot_flags | node_api_snapshot_no_code_cache);
     } else if (arg == "--embedder-snapshot-blob") {
       assert(i + 1 < args.size());
       snapshot_blob_path = args[i + 1];
@@ -100,28 +134,27 @@ int RunNodeInstance() {
     }
   }
 
+  bool use_snapshot = false;
   if (!snapshot_blob_path.empty() && !is_building_snapshot) {
-    // TODO: pass snapshot to env creation
+    use_snapshot = true;
     FILE* fp = fopen(snapshot_blob_path.c_str(), "rb");
     assert(fp != nullptr);
-    if (snapshot_as_file) {
-      // TODO: snapshot = node::EmbedderSnapshotData::FromFile(fp);
-    } else {
-      uv_fs_t req = uv_fs_t();
-      int statret =
-          uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
-      assert(statret == 0);
-      size_t filesize = req.statbuf.st_size;
-      uv_fs_req_cleanup(&req);
+    // Node-API only supports loading snapshots from blobs.
+    uv_fs_t req = uv_fs_t();
+    int statret =
+        uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
+    assert(statret == 0);
+    size_t filesize = req.statbuf.st_size;
+    uv_fs_req_cleanup(&req);
 
-      std::vector<char> vec(filesize);
-      size_t read = fread(vec.data(), filesize, 1, fp);
-      assert(read == 1);
-      // TODO: snapshot = node::EmbedderSnapshotData::FromBlob(vec);
-    }
+    std::vector<char> vec(filesize);
+    size_t read = fread(vec.data(), filesize, 1, fp);
+    assert(read == 1);
     assert(snapshot);
     int ret = fclose(fp);
     assert(ret == 0);
+
+    CHECK(node_api_env_options_set_snapshot(options, vec.data(), vec.size()));
   }
 
   if (is_building_snapshot) {
@@ -130,8 +163,29 @@ int RunNodeInstance() {
     // 2 arguments should remain after filtering).
     assert(filtered_args.size() >= 2);
     // Insert an anonymous filename as process.argv[1].
-    // TODO: filtered_args.insert(filtered_args.begin() + 1,
-    //                     node::GetAnonymousMainPath());
+    filtered_args.insert(filtered_args.begin() + 1, "__node_anonymous_main");
+  }
+
+  CStringArray filtered_args_arr(filtered_args);
+  CHECK(node_api_env_options_set_args(
+      options, filtered_args_arr.size(), filtered_args_arr.cstrings()));
+
+  if (!snapshot_blob_path.empty() && is_building_snapshot) {
+    CHECK(node_api_env_options_create_snapshot(
+        options,
+        [](void* cb_data, const char* snapshot_data, size_t snapshot_size) {
+          const char* snapshot_blob_path = static_cast<const char*>(cb_data);
+          FILE* fp = fopen(snapshot_blob_path, "wb");
+          assert(fp != nullptr);
+
+          size_t written = fwrite(snapshot_data, snapshot_size, 1, fp);
+          assert(written == 1);
+
+          int ret = fclose(fp);
+          assert(ret == 0);
+        },
+        const_cast<char*>(snapshot_blob_path.c_str()),
+        snapshot_flags));
   }
 
   // std::vector<std::string> errors;
@@ -199,24 +253,38 @@ int RunNodeInstance() {
   //   exit_code = node::SpinEventLoop(env).FromMaybe(1);
   // }
 
-  // if (!snapshot_blob_path.empty() && is_building_snapshot) {
-  //   snapshot = setup->CreateSnapshot();
-  //   assert(snapshot);
+  napi_env env;
+  if (use_snapshot) {
+    CHECK(node_api_create_env(
+        options, get_errors, nullptr, nullptr, NAPI_VERSION, &env));
+  } else if (is_building_snapshot) {
+    // Environment created for snapshotting must set process.argv[1] to
+    // the name of the main script, which was inserted above.
+    CHECK(node_api_create_env(
+        options,
+        get_errors,
+        nullptr,
+        "const assert = require('assert');"
+        "assert(require('v8').startupSnapshot.isBuildingSnapshot());"
+        "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
+        "globalThis.require = require;"
+        "require('vm').runInThisContext(process.argv[2]);",
+        NAPI_VERSION,
+        &env));
+  } else {
+    CHECK(node_api_create_env(
+        options,
+        get_errors,
+        nullptr,
+        "const publicRequire = require('module').createRequire(process.cwd() + '/');"
+        "globalThis.require = publicRequire;"
+        "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
+        "require('vm').runInThisContext(process.argv[1]);",
+        NAPI_VERSION,
+        &env));
+  }
 
-  //   FILE* fp = fopen(snapshot_blob_path.c_str(), "wb");
-  //   assert(fp != nullptr);
-  //   if (snapshot_as_file) {
-  //     snapshot->ToFile(fp);
-  //   } else {
-  //     const std::vector<char> vec = snapshot->ToBlob();
-  //     size_t written = fwrite(vec.data(), vec.size(), 1, fp);
-  //     assert(written == 1);
-  //   }
-  //   int ret = fclose(fp);
-  //   assert(ret == 0);
-  // }
-
-  // node::Stop(env);
+  CHECK(node_api_delete_env(env, &exit_code));
 
   return exit_code;
 }

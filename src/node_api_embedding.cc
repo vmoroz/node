@@ -121,6 +121,9 @@ struct EmbeddedEnvironmentOptions {
 
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
+  node::EmbedderSnapshotData::Pointer snapshot_;
+  std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
+  std::optional<node::SnapshotConfig> snapshot_config_;
 };
 
 struct IsolateLocker {
@@ -187,6 +190,8 @@ class EmbeddedEnvironment final : public node_napi_env__ {
   }
 
   bool IsScopeOpened() const { return isolate_locker_.has_value(); }
+
+  std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
 
  private:
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
@@ -386,6 +391,50 @@ napi_status NAPI_CDECL node_api_env_options_set_exec_args(
 }
 
 napi_status NAPI_CDECL
+node_api_env_options_set_snapshot(node_api_env_options options,
+                                  const char* snapshot_data,
+                                  size_t snapshot_size) {
+  if (options == nullptr) return napi_invalid_arg;
+  if (snapshot_data == nullptr) return napi_invalid_arg;
+
+  v8impl::EmbeddedEnvironmentOptions* env_options =
+      reinterpret_cast<v8impl::EmbeddedEnvironmentOptions*>(options);
+  env_options->snapshot_ = node::EmbedderSnapshotData::FromBlob(
+      std::string_view(snapshot_data, snapshot_size));
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
+node_api_env_options_create_snapshot(node_api_env_options options,
+                                     node_api_get_string_callback get_blob_cb,
+                                     void* blob_cb_data,
+                                     node_api_snapshot_flags snapshot_flags) {
+  if (options == nullptr) return napi_invalid_arg;
+  if (get_blob_cb == nullptr) return napi_invalid_arg;
+
+  v8impl::EmbeddedEnvironmentOptions* env_options =
+      reinterpret_cast<v8impl::EmbeddedEnvironmentOptions*>(options);
+  env_options->create_snapshot_ =
+      [get_blob_cb, blob_cb_data](const node::EmbedderSnapshotData* snapshot) {
+        std::vector<char> blob = snapshot->ToBlob();
+        get_blob_cb(blob_cb_data, blob.data(), blob.size());
+      };
+
+  if ((snapshot_flags & node_api_snapshot_no_code_cache) != 0) {
+    if (!env_options->snapshot_config_.has_value()) {
+      env_options->snapshot_config_ = node::SnapshotConfig{};
+    }
+    env_options->snapshot_config_.value().flags =
+        static_cast<node::SnapshotFlags>(
+            static_cast<uint32_t>(env_options->snapshot_config_.value().flags) |
+            static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
+  }
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
 node_api_create_env(node_api_env_options options,
                     node_api_get_strings_callback get_errors_cb,
                     void* errors_data,
@@ -400,15 +449,37 @@ node_api_create_env(node_api_env_options options,
       reinterpret_cast<v8impl::EmbeddedEnvironmentOptions*>(options);
   std::vector<std::string> errors;
 
-  std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
-      node::CommonEnvironmentSetup::Create(
-          v8impl::EmbeddedPlatform::GetInstance()->get_v8_platform(),
+  std::unique_ptr<node::CommonEnvironmentSetup> env_setup;
+  node::MultiIsolatePlatform* platform =
+      v8impl::EmbeddedPlatform::GetInstance()->get_v8_platform();
+  node::EnvironmentFlags::Flags flags =
+      static_cast<node::EnvironmentFlags::Flags>(
+          node::EnvironmentFlags::kDefaultFlags |
+          node::EnvironmentFlags::kNoCreateInspector);
+  if (env_options->snapshot_) {
+    env_setup = node::CommonEnvironmentSetup::CreateFromSnapshot(
+        platform,
+        &errors,
+        env_options->snapshot_.get(),
+        env_options->args_,
+        env_options->exec_args_,
+        flags);
+  } else if (env_options->create_snapshot_) {
+    if (env_options->snapshot_config_.has_value()) {
+      env_setup = node::CommonEnvironmentSetup::CreateForSnapshotting(
+          platform,
           &errors,
           env_options->args_,
           env_options->exec_args_,
-          static_cast<node::EnvironmentFlags::Flags>(
-              node::EnvironmentFlags::kDefaultFlags |
-              node::EnvironmentFlags::kNoCreateInspector));
+          env_options->snapshot_config_.value());
+    } else {
+      env_setup = node::CommonEnvironmentSetup::CreateForSnapshotting(
+          platform, &errors, env_options->args_, env_options->exec_args_);
+    }
+  } else {
+    env_setup = node::CommonEnvironmentSetup::Create(
+        platform, &errors, env_options->args_, env_options->exec_args_);
+  }
 
   if (get_errors_cb != nullptr && !errors.empty()) {
     v8impl::CStringArray cerrors(errors);
@@ -426,7 +497,7 @@ node_api_create_env(node_api_env_options options,
   v8impl::IsolateLocker isolate_locker(env_setup_ptr);
   v8impl::EmbeddedEnvironment* embedded_env = new v8impl::EmbeddedEnvironment(
       std::move(env_setup), env_setup_ptr->context(), filename, api_version);
-
+  embedded_env->create_snapshot_ = env_options->create_snapshot_;
   embedded_env->node_env()->AddCleanupHook(
       [](void* arg) { static_cast<napi_env>(arg)->Unref(); },
       static_cast<void*>(embedded_env));
@@ -435,7 +506,9 @@ node_api_create_env(node_api_env_options options,
   node::Environment* node_env = env_setup_ptr->env();
 
   v8::MaybeLocal<v8::Value> ret =
-      node::LoadEnvironment(node_env, std::string_view(main_script));
+      env_options->snapshot_
+          ? node::LoadEnvironment(node_env, node::StartExecutionCallback{})
+          : node::LoadEnvironment(node_env, std::string_view(main_script));
 
   if (ret.IsEmpty()) return napi_pending_exception;
 
@@ -458,6 +531,13 @@ napi_status NAPI_CDECL node_api_delete_env(napi_env env, int* exit_code) {
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
       embedded_env->ResetEnvSetup();
+
+  if (embedded_env->create_snapshot_) {
+    node::EmbedderSnapshotData::Pointer snapshot = env_setup->CreateSnapshot();
+    assert(snapshot);
+    embedded_env->create_snapshot_(snapshot.get());
+  }
+
   node::Stop(embedded_env->node_env());
 
   return napi_ok;

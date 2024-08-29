@@ -27,8 +27,21 @@ typedef enum {
   node_api_platform_generate_predictable_snapshot = 1 << 7,
 } node_api_platform_flags;
 
+typedef enum {
+  node_api_snapshot_no_flags = 0,
+  // Whether code cache should be generated as part of the snapshot.
+  // Code cache reduces the time spent on compiling functions included
+  // in the snapshot at the expense of a bigger snapshot size and
+  // potentially breaking portability of the snapshot.
+  node_api_snapshot_no_code_cache = 1 << 0,
+} node_api_snapshot_flags;
+
 typedef void(NAPI_CDECL* node_api_get_strings_callback)(
     void* data, size_t str_count, const char* str_array[]);
+
+typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
+                                                       const char* str,
+                                                       size_t size);
 
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
@@ -64,6 +77,17 @@ node_api_env_options_get_exec_args(node_api_env_options options,
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_exec_args(
     node_api_env_options options, size_t argc, const char* argv[]);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_env_options_set_snapshot(node_api_env_options options,
+                                  const char* snapshot_data,
+                                  size_t snapshot_size);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_env_options_create_snapshot(node_api_env_options options,
+                                     node_api_get_string_callback get_blob_cb,
+                                     void* blob_cb_data,
+                                     node_api_snapshot_flags snapshot_flags);
 
 // TODO(vmoroz): Remove the main_script parameter.
 // TODO(vmoroz): Add ABI-safe way to access internal module functionality.
