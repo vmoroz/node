@@ -5,7 +5,27 @@
 
 EXTERN_C_START
 
-typedef struct node_api_platform__* node_api_platform;
+typedef struct node_api_env_options__* node_api_env_options;
+
+typedef enum {
+  node_api_platform_no_flags = 0,
+  // Enable reading the NODE_OPTIONS environment variable.
+  node_api_platform_enable_env_var = 1 << 0,
+  // Initialize ICU.
+  node_api_platform_init_icu = 1 << 1,
+  // Initialize OpenSSL config.
+  node_api_platform_init_openssl = 1 << 2,
+  // Initialize Node.js debugging based on environment variables.
+  node_api_platform_parse_global_debug_vars = 1 << 3,
+  // Adjust OS resource limits for this process.
+  node_api_platform_adjust_resource_limits = 1 << 4,
+  // Do not map code segments into large pages for this process.
+  node_api_platform_no_large_pages = 1 << 5,
+  // Allow printing output for --help, --version, --v8-options.
+  node_api_platform_print_help_or_version = 1 << 6,
+  // Initialize the process for predictable snapshot generation.
+  node_api_platform_generate_predictable_snapshot = 1 << 7,
+} node_api_platform_flags;
 
 typedef void(NAPI_CDECL* node_api_get_strings_callback)(
     void* data, size_t str_count, const char* str_array[]);
@@ -14,25 +34,37 @@ typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 // TODO(vmoroz): Add passing flags for InitializeOncePerProcess
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_create_platform(int argc,
-                         char** argv,
-                         int32_t* exit_code,
-                         node_api_get_strings_callback get_errors_cb,
-                         void* errors_data,
-                         node_api_platform* result);
+node_api_init_once_per_process(size_t argc,
+                               const char* argv[],
+                               node_api_platform_flags flags,
+                               node_api_get_strings_callback get_errors_cb,
+                               void* errors_data,
+                               bool* early_return,
+                               int32_t* exit_code);
+
+NAPI_EXTERN napi_status NAPI_CDECL node_api_uninit_once_per_process();
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_destroy_platform(node_api_platform platform);
+node_api_create_env_options(node_api_env_options* result);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_get_platform_args(node_api_platform platform,
-                           node_api_get_strings_callback get_strings_cb,
-                           void* strings_data);
+node_api_delete_env_options(node_api_env_options options);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_get_platform_exec_args(node_api_platform platform,
-                                node_api_get_strings_callback get_strings_cb,
-                                void* strings_data);
+node_api_env_options_get_args(node_api_env_options options,
+                              node_api_get_strings_callback get_strings_cb,
+                              void* strings_data);
+
+NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_args(
+    node_api_env_options options, size_t argc, const char* argv[]);
+
+NAPI_EXTERN napi_status NAPI_CDECL
+node_api_env_options_get_exec_args(node_api_env_options options,
+                                   node_api_get_strings_callback get_strings_cb,
+                                   void* strings_data);
+
+NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_exec_args(
+    node_api_env_options options, size_t argc, const char* argv[]);
 
 // TODO(vmoroz): Consider creating opaque environment options type.
 // TODO(vmoroz): Remove the main_script parameter.
@@ -42,29 +74,27 @@ node_api_get_platform_exec_args(node_api_platform platform,
 // TODO(vmoroz): Pass EnvironmentFlags
 // TODO(vmoroz): Allow setting the global inspector for a specific environment.
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_create_environment(node_api_platform platform,
-                            node_api_get_strings_callback get_errors_cb,
-                            void* errors_data,
-                            const char* main_script,
-                            int32_t api_version,
-                            napi_env* result);
+node_api_create_env(node_api_env_options options,
+                    node_api_get_strings_callback get_errors_cb,
+                    void* errors_data,
+                    const char* main_script,
+                    int32_t api_version,
+                    napi_env* result);
 
-NAPI_EXTERN napi_status NAPI_CDECL node_api_destroy_environment(napi_env env,
-                                                                int* exit_code);
+NAPI_EXTERN napi_status NAPI_CDECL node_api_delete_env(napi_env env,
+                                                       int* exit_code);
 
-NAPI_EXTERN napi_status NAPI_CDECL
-node_api_open_environment_scope(napi_env env);
+NAPI_EXTERN napi_status NAPI_CDECL node_api_open_env_scope(napi_env env);
 
-NAPI_EXTERN napi_status NAPI_CDECL
-node_api_close_environment_scope(napi_env env);
+NAPI_EXTERN napi_status NAPI_CDECL node_api_close_env_scope(napi_env env);
 
-NAPI_EXTERN napi_status NAPI_CDECL node_api_run_environment(napi_env env);
+NAPI_EXTERN napi_status NAPI_CDECL node_api_run_env(napi_env env);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_run_environment_while(napi_env env,
-                               node_api_run_predicate predicate,
-                               void* predicate_data,
-                               bool* has_more_work);
+node_api_run_env_while(napi_env env,
+                       node_api_run_predicate predicate,
+                       void* predicate_data,
+                       bool* has_more_work);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                                           napi_value promise,

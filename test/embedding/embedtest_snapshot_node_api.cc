@@ -37,20 +37,17 @@ extern "C" int test_main_snapshot_node_api(int argc, char** argv) {
 int RunNodeInstance(node_api_platform platform,
                     const std::vector<std::string>& args,
                     const std::vector<std::string>& exec_args) {
+
+
   //   napi_env env;
   //   CHECK(node_api_create_environment(
   //       platform, NULL, main_script, NAPI_VERSION, &env));
 
-  //   CHECK_EXIT_CODE(callMe(env));
-  //   CHECK_EXIT_CODE(waitMe(env));
-  //   CHECK_EXIT_CODE(waitMeWithCheese(env));
-
+  
   //   int exit_code;
   //   CHECK(node_api_destroy_environment(env, &exit_code));
 
-  //   return exit_code;
-  // }
-
+  
   int exit_code = 0;
 
   // Format of the arguments of this binary:
