@@ -7,47 +7,45 @@
 
 #include <optional>
 
-static int RunNodeInstance(node_api_platform platform,
-                           const std::vector<std::string>& args,
-                           const std::vector<std::string>& exec_args);
+static int RunNodeInstance();
 
-extern "C" int test_main_snapshot_node_api(int argc, char** argv) {
+extern "C" int test_main_snapshot_node_api(size_t argc, const char* argv[]) {
   std::vector<std::string> args(argv, argv + argc);
+  bool early_return = false;
   int exit_code = 0;
 
-  node_api_platform platform;
   std::vector<std::string> errors;
-  napi_status status = node_api_create_platform(
-      argc, argv, &exit_code, GetStringVector, &errors, &platform);
-  if (status != napi_ok) {
-    for (const std::string& err : errors)
-      fprintf(stderr, "%s: %s\n", args[0].c_str(), err.c_str());
+  node_api_init_once_per_process(argc,
+                                 argv,
+                                 node_api_platform_no_flags,
+                                 GetStringVector,
+                                 &errors,
+                                 &early_return,
+                                 &exit_code);
+  if (early_return) {
+    if (exit_code != 0) {
+      for (const std::string& err : errors)
+        fprintf(stderr, "%s: %s\n", args[0].c_str(), err.c_str());
+    } else {
+      for (const std::string& err : errors) printf("%s\n", err.c_str());
+    }
     return exit_code;
   }
 
-  std::vector<std::string> parsed_args, exec_args;
-  CHECK(node_api_get_platform_args(platform, GetStringVector, &parsed_args));
-  CHECK(node_api_get_platform_exec_args(platform, GetStringVector, &exec_args));
-  CHECK_EXIT_CODE(RunNodeInstance(platform, parsed_args, exec_args));
+  CHECK_EXIT_CODE(RunNodeInstance());
 
-  CHECK(node_api_destroy_platform(platform));
+  CHECK(node_api_uninit_once_per_process());
   return 0;
 }
 
-int RunNodeInstance(node_api_platform platform,
-                    const std::vector<std::string>& args,
-                    const std::vector<std::string>& exec_args) {
-
-
+int RunNodeInstance() {
   //   napi_env env;
   //   CHECK(node_api_create_environment(
   //       platform, NULL, main_script, NAPI_VERSION, &env));
 
-  
   //   int exit_code;
   //   CHECK(node_api_destroy_environment(env, &exit_code));
 
-  
   int exit_code = 0;
 
   // Format of the arguments of this binary:
@@ -65,6 +63,13 @@ int RunNodeInstance(node_api_platform platform,
   // embedtest arg1 arg2...
 
   // TODO: node::EmbedderSnapshotData::Pointer snapshot;
+
+  node_api_env_options options;
+  CHECK(node_api_create_env_options(&options));
+  std::vector<std::string> args, exec_args;
+  CHECK(node_api_env_options_get_args(options, GetStringVector, &args));
+  CHECK(
+      node_api_env_options_get_exec_args(options, GetStringVector, &exec_args));
 
   std::string binary_path = args[0];
   std::vector<std::string> filtered_args;

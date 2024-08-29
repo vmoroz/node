@@ -6,20 +6,23 @@
 #include <stdio.h>
 #include <string.h>
 
-int node_api_modules_test_main(int argc, char** argv) {
+int node_api_modules_test_main(size_t argc, const char* argv[]) {
   if (argc < 3) {
     fprintf(stderr, "node_api_modules <cjs.cjs> <es6.mjs>\n");
     return 2;
   }
 
-  node_api_platform platform;
-  CHECK(node_api_create_platform(0, NULL, NULL, NULL, NULL, &platform));
+  CHECK(node_api_init_once_per_process(
+      argc, argv, node_api_platform_no_flags, NULL, NULL, NULL, NULL));
 
+  node_api_env_options options;
+  CHECK(node_api_create_env_options(&options));
   napi_env env;
-  CHECK(node_api_create_environment(
-      platform, NULL, NULL, NULL, NAPI_VERSION, &env));
+  CHECK(node_api_create_env(
+      options, NULL, NULL, NULL, NAPI_VERSION, &env));
+  CHECK(node_api_delete_env_options(options));
 
-  CHECK(node_api_open_environment_scope(env));
+  CHECK(node_api_open_env_scope(env));
 
   napi_value global, import_name, require_name, import, require, cjs, es6,
       value;
@@ -56,8 +59,8 @@ int node_api_modules_test_main(int argc, char** argv) {
     FAIL("Unexpected value: %s\n", buffer);
   }
 
-  CHECK(node_api_close_environment_scope(env));
-  CHECK(node_api_destroy_environment(env, NULL));
-  CHECK(node_api_destroy_platform(platform));
+  CHECK(node_api_close_env_scope(env));
+  CHECK(node_api_delete_env(env, NULL));
+  CHECK(node_api_uninit_once_per_process());
   return 0;
 }

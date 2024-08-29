@@ -32,7 +32,6 @@ typedef void(NAPI_CDECL* node_api_get_strings_callback)(
 
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
-// TODO(vmoroz): Add passing flags for InitializeOncePerProcess
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_init_once_per_process(size_t argc,
                                const char* argv[],
@@ -66,11 +65,9 @@ node_api_env_options_get_exec_args(node_api_env_options options,
 NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_exec_args(
     node_api_env_options options, size_t argc, const char* argv[]);
 
-// TODO(vmoroz): Consider creating opaque environment options type.
 // TODO(vmoroz): Remove the main_script parameter.
 // TODO(vmoroz): Add ABI-safe way to access internal module functionality.
 // TODO(vmoroz): Add ability to create snapshots and to load them.
-// TODO(vmoroz): Pass the parsed arguments.
 // TODO(vmoroz): Pass EnvironmentFlags
 // TODO(vmoroz): Allow setting the global inspector for a specific environment.
 NAPI_EXTERN napi_status NAPI_CDECL

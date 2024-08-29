@@ -10,37 +10,41 @@
 // Note: This file is being referred to from doc/api/embedding.md, and excerpts
 // from it are included in the documentation. Try to keep these in sync.
 
-static int RunNodeInstance(node_api_platform platform);
+static int RunNodeInstance();
 
 const char* main_script =
     "globalThis.require = require('module').createRequire(process.execPath);\n"
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
-const char* errors[30];
-int error_count = 0;
+const char* exe_name;
 
-static void NAPI_CDECL get_errors(void* data, size_t count, const char** strs) {
-  error_count = (int)count;
+static void NAPI_CDECL get_errors(void* data,
+                                  size_t count,
+                                  const char* errors[]) {
   for (size_t i = 0; i < count && i < 30; ++i) {
-    errors[i] = strs[i];
+    fprintf(stderr, "%s: %s\n", exe_name, errors[i]);
   }
 }
 
-int node_api_test_main(int argc, char** argv) {
+int node_api_test_main(size_t argc, const char* argv[]) {
+  exe_name = argv[0];
+  bool early_return = false;
   int exit_code = 0;
-  node_api_platform platform;
-  napi_status status = node_api_create_platform(
-      argc, argv, &exit_code, get_errors, NULL, &platform);
-  if (status != napi_ok) {
-    for (size_t i = 0; i < error_count; ++i)
-      fprintf(stderr, "%s: %s\n", argv[0], errors[i]);
+  node_api_init_once_per_process(argc,
+                                 argv,
+                                 node_api_platform_no_flags,
+                                 get_errors,
+                                 NULL,
+                                 &early_return,
+                                 &exit_code);
+  if (early_return) {
     return exit_code;
   }
 
-  CHECK_EXIT_CODE(RunNodeInstance(platform));
+  CHECK_EXIT_CODE(RunNodeInstance());
 
-  CHECK(node_api_destroy_platform(platform));
+  CHECK(node_api_uninit_once_per_process());
   return 0;
 }
 
@@ -49,7 +53,7 @@ int callMe(napi_env env) {
   napi_value cb;
   napi_value key;
 
-  CHECK(node_api_open_environment_scope(env));
+  CHECK(node_api_open_env_scope(env));
 
   CHECK(napi_get_global(env, &global));
   CHECK(napi_create_string_utf8(env, "callMe", NAPI_AUTO_LENGTH, &key));
@@ -78,7 +82,7 @@ int callMe(napi_env env) {
     FAIL("Invalid callMe value\n");
   }
 
-  CHECK(node_api_close_environment_scope(env));
+  CHECK(node_api_close_env_scope(env));
   return 0;
 }
 
@@ -98,7 +102,7 @@ int waitMe(napi_env env) {
   napi_value cb;
   napi_value key;
 
-  CHECK(node_api_open_environment_scope(env));
+  CHECK(node_api_open_env_scope(env));
 
   CHECK(napi_get_global(env, &global));
   CHECK(napi_create_string_utf8(env, "waitMe", NAPI_AUTO_LENGTH, &key));
@@ -123,7 +127,7 @@ int waitMe(napi_env env) {
       FAIL("Anachronism detected: %s\n", callback_buf);
     }
 
-    CHECK(node_api_run_environment(env));
+    CHECK(node_api_run_env(env));
 
     if (strcmp(callback_buf, "waited you") != 0) {
       FAIL("Invalid value received: %s\n", callback_buf);
@@ -133,7 +137,7 @@ int waitMe(napi_env env) {
     FAIL("Invalid waitMe value\n");
   }
 
-  CHECK(node_api_close_environment_scope(env));
+  CHECK(node_api_close_env_scope(env));
   return 0;
 }
 
@@ -142,7 +146,7 @@ int waitMeWithCheese(napi_env env) {
   napi_value cb;
   napi_value key;
 
-  CHECK(node_api_open_environment_scope(env));
+  CHECK(node_api_open_env_scope(env));
 
   CHECK(napi_get_global(env, &global));
   CHECK(napi_create_string_utf8(env, "waitPromise", NAPI_AUTO_LENGTH, &key));
@@ -196,21 +200,24 @@ int waitMeWithCheese(napi_env env) {
     FAIL("Invalid waitPromise value\n");
   }
 
-  CHECK(node_api_close_environment_scope(env));
+  CHECK(node_api_close_env_scope(env));
   return 0;
 }
 
-int RunNodeInstance(node_api_platform platform) {
+int RunNodeInstance() {
+  node_api_env_options options;
+  CHECK(node_api_create_env_options(&options));
   napi_env env;
-  CHECK(node_api_create_environment(
-      platform, NULL, NULL, main_script, NAPI_VERSION, &env));
+  CHECK(node_api_create_env(
+      options, NULL, NULL, main_script, NAPI_VERSION, &env));
+  CHECK(node_api_delete_env_options(options));
 
   CHECK_EXIT_CODE(callMe(env));
   CHECK_EXIT_CODE(waitMe(env));
   CHECK_EXIT_CODE(waitMeWithCheese(env));
 
   int exit_code;
-  CHECK(node_api_destroy_environment(env, &exit_code));
+  CHECK(node_api_delete_env(env, &exit_code));
 
   return exit_code;
 }

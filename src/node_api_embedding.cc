@@ -218,7 +218,6 @@ node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
   // Do not register Node.js-specific signal handlers
   // and reset other signal handlers to default state.
   result |= node::ProcessInitializationFlags::kNoDefaultSignalHandling;
-
   // Do not perform V8 initialization.
   result |= node::ProcessInitializationFlags::kNoInitializeV8;
   // Do not initialize a default Node.js-provided V8 platform instance.
