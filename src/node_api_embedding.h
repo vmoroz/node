@@ -37,7 +37,7 @@ typedef enum {
 } node_api_snapshot_flags;
 
 typedef void(NAPI_CDECL* node_api_get_strings_callback)(
-    void* data, size_t str_count, const char* str_array[]);
+    void* cb_data, const char* str_array[], size_t arr_size);
 
 typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
                                                        const char* str,

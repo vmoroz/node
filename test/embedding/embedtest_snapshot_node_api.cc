@@ -65,8 +65,8 @@ extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]) {
 static const char* exe_name;
 
 static void NAPI_CDECL get_errors(void* data,
-                                  size_t count,
-                                  const char* errors[]) {
+                                  const char* errors[],
+                                  size_t count) {
   for (size_t i = 0; i < count && i < 30; ++i) {
     fprintf(stderr, "%s: %s\n", exe_name, errors[i]);
   }
