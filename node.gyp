@@ -1287,12 +1287,12 @@
       'sources': [
         'src/node_snapshot_stub.cc',
         'test/embedding/embedtest.cc',
+        'test/embedding/embedtest_concurrent_node_api.cc',
+        'test/embedding/embedtest_main.cc',
+        'test/embedding/embedtest_modules_node_api.c',
+        'test/embedding/embedtest_node_api.c',
+        'test/embedding/embedtest_node_api.h',
         'test/embedding/embedtest_snapshot_node_api.cc',
-        'test/embedding/node_api_concurrent_embedtest.cc',
-        'test/embedding/node_api_embedtest.c',
-        'test/embedding/node_api_embedtest.h',
-        'test/embedding/node_api_modules_embedtest.c',
-        'test/embedding/test_main.cc',
       ],
 
       'conditions': [
