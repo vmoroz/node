@@ -36,12 +36,16 @@ typedef enum {
   node_api_snapshot_no_code_cache = 1 << 0,
 } node_api_snapshot_flags;
 
-typedef void(NAPI_CDECL* node_api_get_strings_callback)(void* cb_data,
-                                                        const char* str_array[],
-                                                        size_t arr_size);
+typedef void(NAPI_CDECL* node_api_error_message_handler)(void* handler_data,
+                                                         const char* messages[],
+                                                         size_t size);
 
-typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
-                                                       const char* str,
+typedef void(NAPI_CDECL* node_api_get_args_callback)(void* cb_data,
+                                                     int32_t argc,
+                                                     const char* size[]);
+
+typedef void(NAPI_CDECL* node_api_store_blob_callback)(void* cb_data,
+                                                       const uint8_t* blob,
                                                        size_t size);
 
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
@@ -50,8 +54,8 @@ NAPI_EXTERN napi_status NAPI_CDECL
 node_api_initialize_platform(int32_t argc,
                              char* argv[],
                              node_api_platform_flags flags,
-                             node_api_get_strings_callback get_errors_cb,
-                             void* errors_data,
+                             node_api_error_message_handler error_handler,
+                             void* error_handler_data,
                              bool* early_return,
                              int32_t* exit_code);
 
@@ -62,16 +66,16 @@ node_api_create_env_options(node_api_env_options* result);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_env_options_get_args(node_api_env_options options,
-                              node_api_get_strings_callback get_strings_cb,
-                              void* strings_data);
+                              node_api_get_args_callback get_args_cb,
+                              void* cb_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_args(
     node_api_env_options options, size_t argc, const char* argv[]);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_env_options_get_exec_args(node_api_env_options options,
-                                   node_api_get_strings_callback get_strings_cb,
-                                   void* strings_data);
+                                   node_api_get_args_callback get_args_cb,
+                                   void* cb_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_exec_args(
     node_api_env_options options, size_t argc, const char* argv[]);
@@ -83,14 +87,14 @@ node_api_env_options_use_snapshot(node_api_env_options options,
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_env_options_create_snapshot(node_api_env_options options,
-                                     node_api_get_string_callback get_blob_cb,
-                                     void* blob_cb_data,
+                                     node_api_store_blob_callback store_blob_cb,
+                                     void* cb_data,
                                      node_api_snapshot_flags snapshot_flags);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_env(node_api_env_options options,
-                    node_api_get_strings_callback get_errors_cb,
-                    void* errors_data,
+                    node_api_error_message_handler error_handler,
+                    void* error_handler_data,
                     const char* main_script,
                     int32_t api_version,
                     napi_env* result);
@@ -127,11 +131,10 @@ EXTERN_C_END
 // TODO: (vmoroz) Start workers from C++.
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
-// TODO: (vmoroz) Rename platform functions to InitializePlatform /
-// DisposePlatform.
-// TODO: (vmoroz) Rename Error handler to as before error_message_handler.
 // TODO: (vmoroz) await_promise -> add has_more_work parameter.
 // TODO: (vmoroz) Can we init plat again if it retuns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.
 // TODO: (vmoroz) Add a way to add embedded modules.
+// TODO: (vmoroz) Check how to pass the V8 thread pool size.
+// TODO: (vmoroz) Provide better error handling for args.
