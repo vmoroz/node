@@ -271,13 +271,13 @@ node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
 }  // end of namespace v8impl
 
 napi_status NAPI_CDECL
-node_api_init_once_per_process(int32_t argc,
-                               char* argv[],
-                               node_api_platform_flags flags,
-                               node_api_get_strings_callback get_errors_cb,
-                               void* errors_data,
-                               bool* early_return,
-                               int32_t* exit_code) {
+node_api_initialize_platform(int32_t argc,
+                             char* argv[],
+                             node_api_platform_flags flags,
+                             node_api_get_strings_callback get_errors_cb,
+                             void* errors_data,
+                             bool* early_return,
+                             int32_t* exit_code) {
   if (argc == 0) return napi_invalid_arg;
   if (argv == nullptr) return napi_invalid_arg;
   if (!v8impl::EmbeddedPlatform::InitOncePerProcess())
@@ -320,7 +320,7 @@ node_api_init_once_per_process(int32_t argc,
   return napi_ok;
 }
 
-napi_status NAPI_CDECL node_api_uninit_once_per_process() {
+napi_status NAPI_CDECL node_api_dispose_platform() {
   if (!v8impl::EmbeddedPlatform::UninitOncePerProcess())
     return napi_generic_failure;
   v8::V8::Dispose();

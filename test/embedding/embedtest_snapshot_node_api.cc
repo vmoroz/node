@@ -39,13 +39,13 @@ extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]) {
   int32_t exit_code = 0;
 
   std::vector<std::string> errors;
-  node_api_init_once_per_process(argc,
-                                 argv,
-                                 node_api_platform_no_flags,
-                                 GetStringVector,
-                                 &errors,
-                                 &early_return,
-                                 &exit_code);
+  node_api_initialize_platform(argc,
+                               argv,
+                               node_api_platform_no_flags,
+                               GetStringVector,
+                               &errors,
+                               &early_return,
+                               &exit_code);
   if (early_return) {
     if (exit_code != 0) {
       for (const std::string& err : errors)
@@ -58,7 +58,7 @@ extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]) {
 
   CHECK_EXIT_CODE(RunNodeInstance());
 
-  CHECK(node_api_uninit_once_per_process());
+  CHECK(node_api_dispose_platform());
   return 0;
 }
 

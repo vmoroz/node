@@ -36,8 +36,9 @@ typedef enum {
   node_api_snapshot_no_code_cache = 1 << 0,
 } node_api_snapshot_flags;
 
-typedef void(NAPI_CDECL* node_api_get_strings_callback)(
-    void* cb_data, const char* str_array[], size_t arr_size);
+typedef void(NAPI_CDECL* node_api_get_strings_callback)(void* cb_data,
+                                                        const char* str_array[],
+                                                        size_t arr_size);
 
 typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
                                                        const char* str,
@@ -46,15 +47,15 @@ typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_init_once_per_process(int32_t argc,
-                               char* argv[],
-                               node_api_platform_flags flags,
-                               node_api_get_strings_callback get_errors_cb,
-                               void* errors_data,
-                               bool* early_return,
-                               int32_t* exit_code);
+node_api_initialize_platform(int32_t argc,
+                             char* argv[],
+                             node_api_platform_flags flags,
+                             node_api_get_strings_callback get_errors_cb,
+                             void* errors_data,
+                             bool* early_return,
+                             int32_t* exit_code);
 
-NAPI_EXTERN napi_status NAPI_CDECL node_api_uninit_once_per_process();
+NAPI_EXTERN napi_status NAPI_CDECL node_api_dispose_platform();
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_env_options(node_api_env_options* result);
@@ -126,7 +127,8 @@ EXTERN_C_END
 // TODO: (vmoroz) Start workers from C++.
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
-// TODO: (vmoroz) Rename platform functions to InitializePlatform / DisposePlatform.
+// TODO: (vmoroz) Rename platform functions to InitializePlatform /
+// DisposePlatform.
 // TODO: (vmoroz) Rename Error handler to as before error_message_handler.
 // TODO: (vmoroz) await_promise -> add has_more_work parameter.
 // TODO: (vmoroz) Can we init plat again if it retuns early?
