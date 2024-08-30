@@ -86,10 +86,6 @@ node_api_env_options_create_snapshot(node_api_env_options options,
                                      void* blob_cb_data,
                                      node_api_snapshot_flags snapshot_flags);
 
-// TODO(vmoroz): Remove the main_script parameter.
-// TODO(vmoroz): Add ABI-safe way to access internal module functionality.
-// TODO(vmoroz): Pass EnvironmentFlags
-// TODO(vmoroz): Allow setting the global inspector for a specific environment.
 NAPI_EXTERN napi_status NAPI_CDECL
 node_api_create_env(node_api_env_options options,
                     node_api_get_strings_callback get_errors_cb,
@@ -120,3 +116,19 @@ NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
 EXTERN_C_END
 
 #endif  // SRC_NODE_API_EMBEDDING_H_
+
+// TODO: (vmoroz) Remove the main_script parameter.
+// TODO: (vmoroz) Add startup callback with process and require parameters.
+// TODO: (vmoroz) Add ABI-safe way to access internal module functionality.
+// TODO: (vmoroz) Add EnvironmentFlags to env_options.
+// TODO: (vmoroz) Allow setting the global inspector for a specific environment.
+// TODO: (vmoroz) Start workers from C++.
+// TODO: (vmoroz) Worker to inherit parent inspector.
+// TODO: (vmoroz) Cancel pending tasks on delete env.
+// TODO: (vmoroz) Rename platform functions to InitializePlatform / DisposePlatform.
+// TODO: (vmoroz) Rename Error handler to as before error_message_handler.
+// TODO: (vmoroz) await_promise -> add has_more_work parameter.
+// TODO: (vmoroz) Can we init plat again if it retuns early?
+// TODO: (vmoroz) Add simpler threading model - without open/close scope.
+// TODO: (vmoroz) Simplify API use for simple default cases.
+// TODO: (vmoroz) Add a way to add embedded modules.
