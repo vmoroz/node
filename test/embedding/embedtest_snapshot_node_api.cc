@@ -22,10 +22,6 @@ class CStringArray {
     }
   }
 
-  CStringArray() = delete;
-  CStringArray(const CStringArray&) = delete;
-  CStringArray& operator=(const CStringArray&) = delete;
-
   const char** cstrings() const { return cstrings_; }
   size_t size() const { return size_; }
 
@@ -78,30 +74,19 @@ static void NAPI_CDECL get_errors(void* data,
 }
 
 int RunNodeInstance() {
-  //   napi_env env;
-  //   CHECK(node_api_create_environment(
-  //       platform, NULL, main_script, NAPI_VERSION, &env));
-
-  //   int exit_code;
-  //   CHECK(node_api_destroy_environment(env, &exit_code));
-
-  int exit_code = 0;
-
   // Format of the arguments of this binary:
   // Building snapshot:
   // embedtest js_code_to_eval arg1 arg2...
   //           --embedder-snapshot-blob blob-path
   //           --embedder-snapshot-create
-  //           [--embedder-snapshot-as-file]
   //           [--without-code-cache]
   // Running snapshot:
   // embedtest --embedder-snapshot-blob blob-path
-  //           [--embedder-snapshot-as-file]
   //           arg1 arg2...
   // No snapshot:
   // embedtest arg1 arg2...
 
-  // TODO: node::EmbedderSnapshotData::Pointer snapshot;
+  int exit_code = 0;
 
   node_api_env_options options;
   CHECK(node_api_create_env_options(&options));
@@ -110,10 +95,9 @@ int RunNodeInstance() {
   CHECK(
       node_api_env_options_get_exec_args(options, GetStringVector, &exec_args));
 
-  std::string binary_path = args[0];
+  exe_name = args[0].c_str();
   std::vector<std::string> filtered_args;
   bool is_building_snapshot = false;
-  bool snapshot_as_file = false;
   node_api_snapshot_flags snapshot_flags = node_api_snapshot_no_flags;
   std::string snapshot_blob_path;
   for (size_t i = 0; i < args.size(); ++i) {
@@ -121,7 +105,8 @@ int RunNodeInstance() {
     if (arg == "--embedder-snapshot-create") {
       is_building_snapshot = true;
     } else if (arg == "--embedder-snapshot-as-file") {
-      snapshot_as_file = true;
+      // This parameter is not implement by the Node-API, and we must not
+      // include it in the filtered_args.
     } else if (arg == "--without-code-cache") {
       snapshot_flags = static_cast<node_api_snapshot_flags>(
           snapshot_flags | node_api_snapshot_no_code_cache);
@@ -188,71 +173,6 @@ int RunNodeInstance() {
         snapshot_flags));
   }
 
-  // std::vector<std::string> errors;
-  // std::unique_ptr<CommonEnvironmentSetup> setup;
-
-  // if (snapshot) {
-  //   setup = CommonEnvironmentSetup::CreateFromSnapshot(
-  //       platform, &errors, snapshot.get(), filtered_args, exec_args);
-  // } else if (is_building_snapshot) {
-  //   if (snapshot_config.has_value()) {
-  //     setup = CommonEnvironmentSetup::CreateForSnapshotting(
-  //         platform, &errors, filtered_args, exec_args,
-  //         snapshot_config.value());
-  //   } else {
-  //     setup = CommonEnvironmentSetup::CreateForSnapshotting(
-  //         platform, &errors, filtered_args, exec_args);
-  //   }
-  // } else {
-  //   setup = CommonEnvironmentSetup::Create(
-  //       platform, &errors, filtered_args, exec_args);
-  // }
-  // if (!setup) {
-  //   for (const std::string& err : errors)
-  //     fprintf(stderr, "%s: %s\n", binary_path.c_str(), err.c_str());
-  //   return 1;
-  // }
-
-  // Isolate* isolate = setup->isolate();
-  // Environment* env = setup->env();
-
-  // {
-  //   Locker locker(isolate);
-  //   Isolate::Scope isolate_scope(isolate);
-  //   HandleScope handle_scope(isolate);
-  //   Context::Scope context_scope(setup->context());
-
-  //   MaybeLocal<Value> loadenv_ret;
-  //   if (snapshot) {  // Deserializing snapshot
-  //     loadenv_ret = node::LoadEnvironment(env,
-  //     node::StartExecutionCallback{});
-  //   } else if (is_building_snapshot) {
-  //     // Environment created for snapshotting must set process.argv[1] to
-  //     // the name of the main script, which was inserted above.
-  //     loadenv_ret = node::LoadEnvironment(
-  //         env,
-  //         "const assert = require('assert');"
-  //         "assert(require('v8').startupSnapshot.isBuildingSnapshot());"
-  //         "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
-  //         "globalThis.require = require;"
-  //         "require('vm').runInThisContext(process.argv[2]);");
-  //   } else {
-  //     loadenv_ret = node::LoadEnvironment(
-  //         env,
-  //         "const publicRequire =
-  //         require('module').createRequire(process.cwd() "
-  //         "+ '/');"
-  //         "globalThis.require = publicRequire;"
-  //         "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
-  //         "require('vm').runInThisContext(process.argv[1]);");
-  //   }
-
-  //   if (loadenv_ret.IsEmpty())  // There has been a JS exception.
-  //     return 1;
-
-  //   exit_code = node::SpinEventLoop(env).FromMaybe(1);
-  // }
-
   napi_env env;
   if (use_snapshot) {
     CHECK(node_api_create_env(
@@ -276,7 +196,8 @@ int RunNodeInstance() {
         options,
         get_errors,
         nullptr,
-        "const publicRequire = require('module').createRequire(process.cwd() + '/');"
+        "const publicRequire = require('module').createRequire(process.cwd() + "
+        "'/');"
         "globalThis.require = publicRequire;"
         "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };"
         "require('vm').runInThisContext(process.argv[1]);",

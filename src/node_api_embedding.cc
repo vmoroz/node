@@ -478,7 +478,7 @@ node_api_create_env(node_api_env_options options,
     }
   } else {
     env_setup = node::CommonEnvironmentSetup::Create(
-        platform, &errors, env_options->args_, env_options->exec_args_);
+        platform, &errors, env_options->args_, env_options->exec_args_, flags);
   }
 
   if (get_errors_cb != nullptr && !errors.empty()) {
