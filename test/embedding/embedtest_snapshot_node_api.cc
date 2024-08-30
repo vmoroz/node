@@ -32,12 +32,12 @@ class CStringArray {
   std::unique_ptr<const char*[]> allocated_buffer_;
 };
 
-static int RunNodeInstance();
+static int32_t RunNodeInstance();
 
-extern "C" int test_main_snapshot_node_api(size_t argc, const char* argv[]) {
+extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]) {
   std::vector<std::string> args(argv, argv + argc);
   bool early_return = false;
-  int exit_code = 0;
+  int32_t exit_code = 0;
 
   std::vector<std::string> errors;
   node_api_init_once_per_process(argc,
@@ -73,20 +73,22 @@ static void NAPI_CDECL get_errors(void* data,
   }
 }
 
-int RunNodeInstance() {
+int32_t RunNodeInstance() {
   // Format of the arguments of this binary:
   // Building snapshot:
   // embedtest js_code_to_eval arg1 arg2...
   //           --embedder-snapshot-blob blob-path
   //           --embedder-snapshot-create
+  //           [--embedder-snapshot-as-file]
   //           [--without-code-cache]
   // Running snapshot:
   // embedtest --embedder-snapshot-blob blob-path
+  //           [--embedder-snapshot-as-file]
   //           arg1 arg2...
   // No snapshot:
   // embedtest arg1 arg2...
 
-  int exit_code = 0;
+  int32_t exit_code = 0;
 
   node_api_env_options options;
   CHECK(node_api_create_env_options(&options));
@@ -105,7 +107,7 @@ int RunNodeInstance() {
     if (arg == "--embedder-snapshot-create") {
       is_building_snapshot = true;
     } else if (arg == "--embedder-snapshot-as-file") {
-      // This parameter is not implement by the Node-API, and we must not
+      // This parameter is not implemented by the Node-API, and we must not
       // include it in the filtered_args.
     } else if (arg == "--without-code-cache") {
       snapshot_flags = static_cast<node_api_snapshot_flags>(
@@ -126,7 +128,7 @@ int RunNodeInstance() {
     assert(fp != nullptr);
     // Node-API only supports loading snapshots from blobs.
     uv_fs_t req = uv_fs_t();
-    int statret =
+    int32_t statret =
         uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
     assert(statret == 0);
     size_t filesize = req.statbuf.st_size;
@@ -136,7 +138,7 @@ int RunNodeInstance() {
     size_t read = fread(vec.data(), filesize, 1, fp);
     assert(read == 1);
     assert(snapshot);
-    int ret = fclose(fp);
+    int32_t ret = fclose(fp);
     assert(ret == 0);
 
     CHECK(node_api_env_options_set_snapshot(options, vec.data(), vec.size()));
@@ -166,7 +168,7 @@ int RunNodeInstance() {
           size_t written = fwrite(snapshot_data, snapshot_size, 1, fp);
           assert(written == 1);
 
-          int ret = fclose(fp);
+          int32_t ret = fclose(fp);
           assert(ret == 0);
         },
         const_cast<char*>(snapshot_blob_path.c_str()),

@@ -2,25 +2,25 @@
 #include "executable_wrapper.h"
 #include "node.h"
 
-extern "C" int cpp_api_test_main(size_t argc, const char* argv[]);
-extern "C" int node_api_test_main(size_t argc, const char* argv[]);
-extern "C" int node_api_modules_test_main(size_t argc, const char* argv[]);
-extern "C" int node_api_concurrent_test_main(size_t argc, const char* argv[]);
-extern "C" int node_api_multi_env_test_main(size_t argc, const char* argv[]);
-extern "C" int node_api_multi_thread_test_main(size_t argc, const char* argv[]);
-extern "C" int test_main_snapshot_node_api(size_t argc, const char* argv[]);
+extern "C" int32_t cpp_api_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t node_api_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t node_api_modules_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t node_api_concurrent_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t node_api_multi_env_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t node_api_multi_thread_test_main(int32_t argc, char* argv[]);
+extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]);
 
-typedef int (*main_callback)(size_t argc, const char* argv[]);
+typedef int32_t (*main_callback)(int32_t argc, char* argv[]);
 
-int CallWithoutArg1(main_callback main, int argc, char** argv) {
-  for (int i = 2; i < argc; i++) {
+int32_t CallWithoutArg1(main_callback main, int32_t argc, char** argv) {
+  for (int32_t i = 2; i < argc; i++) {
     argv[i - 1] = argv[i];
   }
   argv[--argc] = nullptr;
-  return main(static_cast<size_t>(argc), const_cast<const char**>(argv));
+  return main(argc, argv);
 }
 
-NODE_MAIN(int argc, node::argv_type raw_argv[]) {
+NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
   char** argv = nullptr;
   node::FixupMain(argc, raw_argv, &argv);
 
@@ -42,6 +42,5 @@ NODE_MAIN(int argc, node::argv_type raw_argv[]) {
       return CallWithoutArg1(test_main_snapshot_node_api, argc, argv);
     }
   }
-  return cpp_api_test_main(static_cast<size_t>(argc),
-                           const_cast<const char**>(argv));
+  return cpp_api_test_main(argc, argv);
 }

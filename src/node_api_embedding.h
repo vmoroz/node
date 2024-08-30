@@ -46,8 +46,8 @@ typedef void(NAPI_CDECL* node_api_get_string_callback)(void* cb_data,
 typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_init_once_per_process(size_t argc,
-                               const char* argv[],
+node_api_init_once_per_process(int32_t argc,
+                               char* argv[],
                                node_api_platform_flags flags,
                                node_api_get_strings_callback get_errors_cb,
                                void* errors_data,

@@ -10,7 +10,7 @@
 // Note: This file is being referred to from doc/api/embedding.md, and excerpts
 // from it are included in the documentation. Try to keep these in sync.
 
-static int RunNodeInstance();
+static int32_t RunNodeInstance();
 
 const char* main_script =
     "globalThis.require = require('module').createRequire(process.execPath);\n"
@@ -27,10 +27,10 @@ static void NAPI_CDECL get_errors(void* data,
   }
 }
 
-int node_api_test_main(size_t argc, const char* argv[]) {
+int32_t node_api_test_main(int32_t argc, char* argv[]) {
   exe_name = argv[0];
   bool early_return = false;
-  int exit_code = 0;
+  int32_t exit_code = 0;
   node_api_init_once_per_process(argc,
                                  argv,
                                  node_api_platform_no_flags,
@@ -48,7 +48,7 @@ int node_api_test_main(size_t argc, const char* argv[]) {
   return 0;
 }
 
-int callMe(napi_env env) {
+int32_t callMe(napi_env env) {
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -97,7 +97,7 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-int waitMe(napi_env env) {
+int32_t waitMe(napi_env env) {
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -141,7 +141,7 @@ int waitMe(napi_env env) {
   return 0;
 }
 
-int waitMeWithCheese(napi_env env) {
+int32_t waitMeWithCheese(napi_env env) {
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -204,7 +204,7 @@ int waitMeWithCheese(napi_env env) {
   return 0;
 }
 
-int RunNodeInstance() {
+int32_t RunNodeInstance() {
   node_api_env_options options;
   CHECK(node_api_create_env_options(&options));
   napi_env env;
@@ -216,7 +216,7 @@ int RunNodeInstance() {
   CHECK_EXIT_CODE(waitMe(env));
   CHECK_EXIT_CODE(waitMeWithCheese(env));
 
-  int exit_code;
+  int32_t exit_code;
   CHECK(node_api_delete_env(env, &exit_code));
 
   return exit_code;

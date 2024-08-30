@@ -258,8 +258,8 @@ node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
 }  // end of namespace v8impl
 
 napi_status NAPI_CDECL
-node_api_init_once_per_process(size_t argc,
-                               const char* argv[],
+node_api_init_once_per_process(int32_t argc,
+                               char* argv[],
                                node_api_platform_flags flags,
                                node_api_get_strings_callback get_errors_cb,
                                void* errors_data,

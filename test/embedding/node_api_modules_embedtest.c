@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int node_api_modules_test_main(size_t argc, const char* argv[]) {
+int32_t node_api_modules_test_main(int32_t argc, char* argv[]) {
   if (argc < 3) {
     fprintf(stderr, "node_api_modules <cjs.cjs> <es6.mjs>\n");
     return 2;
@@ -18,8 +18,7 @@ int node_api_modules_test_main(size_t argc, const char* argv[]) {
   node_api_env_options options;
   CHECK(node_api_create_env_options(&options));
   napi_env env;
-  CHECK(node_api_create_env(
-      options, NULL, NULL, NULL, NAPI_VERSION, &env));
+  CHECK(node_api_create_env(options, NULL, NULL, NULL, NAPI_VERSION, &env));
   CHECK(node_api_delete_env_options(options));
 
   CHECK(node_api_open_env_scope(env));
