@@ -12,7 +12,7 @@
 
 static int32_t RunNodeInstance();
 
-const char* main_script =
+static const char* main_script =
     "globalThis.require = require('module').createRequire(process.execPath);\n"
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
@@ -27,7 +27,7 @@ static void NAPI_CDECL get_errors(void* data,
   }
 }
 
-int32_t test_main_node_api(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
   exe_name = argv[0];
   bool early_return = false;
   int32_t exit_code = 0;

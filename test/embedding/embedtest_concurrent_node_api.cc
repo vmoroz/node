@@ -6,7 +6,7 @@
 #include <mutex>
 #include <thread>
 
-const char* main_script =
+static const char* main_script =
     "globalThis.require = require('module').createRequire(process.execPath);\n"
     "require('vm').runInThisContext(process.argv[1]);";
 

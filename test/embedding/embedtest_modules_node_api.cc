@@ -6,7 +6,7 @@
 #include <stdio.h>
 #include <string.h>
 
-int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
   if (argc < 3) {
     fprintf(stderr, "node_api_modules <cjs.cjs> <es6.mjs>\n");
     return 2;
