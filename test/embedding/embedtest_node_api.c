@@ -27,7 +27,7 @@ static void NAPI_CDECL get_errors(void* data,
   }
 }
 
-int32_t node_api_test_main(int32_t argc, char* argv[]) {
+int32_t test_main_node_api(int32_t argc, char* argv[]) {
   exe_name = argv[0];
   bool early_return = false;
   int32_t exit_code = 0;

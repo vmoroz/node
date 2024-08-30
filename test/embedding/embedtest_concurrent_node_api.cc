@@ -11,7 +11,7 @@ const char* main_script =
     "require('vm').runInThisContext(process.argv[1]);";
 
 // We can use multiple environments at the same time on their own threads.
-extern "C" int32_t node_api_concurrent_test_main(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
   std::atomic<int32_t> global_count{0};
   std::atomic<int32_t> global_exit_code{0};
   CHECK(node_api_init_once_per_process(argc,
@@ -69,7 +69,7 @@ extern "C" int32_t node_api_concurrent_test_main(int32_t argc, char* argv[]) {
 
 // We can use multiple environments at the same thread.
 // For each use we must open and close the environment scope.
-extern "C" int32_t node_api_multi_env_test_main(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
   CHECK(node_api_init_once_per_process(argc,
                                        argv,
                                        node_api_platform_no_flags,
@@ -161,7 +161,7 @@ extern "C" int32_t node_api_multi_env_test_main(int32_t argc, char* argv[]) {
 
 // We can use the environment from different threads as long as only one thread
 // at a time is using it.
-extern "C" int32_t node_api_multi_thread_test_main(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   CHECK(node_api_init_once_per_process(argc,
                                        argv,
                                        node_api_platform_no_flags,
