@@ -183,6 +183,9 @@ class EnvironmentOptions : public Options {
   uint64_t test_runner_timeout = 0;
   bool test_runner_coverage = false;
   bool test_runner_force_exit = false;
+  uint64_t test_coverage_branches = 0;
+  uint64_t test_coverage_functions = 0;
+  uint64_t test_coverage_lines = 0;
   bool test_runner_module_mocks = false;
   bool test_runner_snapshots = false;
   bool test_runner_update_snapshots = false;
@@ -191,6 +194,7 @@ class EnvironmentOptions : public Options {
   std::vector<std::string> test_reporter_destination;
   bool test_only = false;
   bool test_udp_no_try_send = false;
+  std::string test_isolation = "process";
   std::string test_shard;
   std::vector<std::string> test_skip_pattern;
   std::vector<std::string> coverage_include_pattern;

@@ -57,6 +57,7 @@
   V(resource_symbol, "resource_symbol")                                        \
   V(trigger_async_id_symbol, "trigger_async_id_symbol")                        \
   V(source_text_module_default_hdo, "source_text_module_default_hdo")          \
+  V(vm_context_no_contextify, "vm_context_no_contextify")                      \
   V(vm_dynamic_import_default_internal, "vm_dynamic_import_default_internal")  \
   V(vm_dynamic_import_main_context_default,                                    \
     "vm_dynamic_import_main_context_default")                                  \
@@ -143,6 +144,8 @@
   V(env_var_settings_string, "envVarSettings")                                 \
   V(errno_string, "errno")                                                     \
   V(error_string, "error")                                                     \
+  V(events, "events")                                                          \
+  V(events_waiting, "eventsWaiting")                                           \
   V(exchange_string, "exchange")                                               \
   V(expire_string, "expire")                                                   \
   V(exponent_string, "exponent")                                               \
@@ -212,6 +215,7 @@
   V(kind_string, "kind")                                                       \
   V(length_string, "length")                                                   \
   V(library_string, "library")                                                 \
+  V(loop_count, "loopCount")                                                   \
   V(mac_string, "mac")                                                         \
   V(max_buffer_string, "maxBuffer")                                            \
   V(max_concurrent_streams_string, "maxConcurrentStreams")                     \
