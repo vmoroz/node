@@ -132,99 +132,107 @@ function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
 }
 
-// Basic snapshot support
-for (const extraSnapshotArgs of [
-  [],
-  ['--embedder-snapshot-as-file'],
-  ['--without-code-cache'],
-]) {
-  // readSync + eval since snapshots don't support userland require() (yet)
-  const snapshotFixture = fixtures.path('snapshot', 'echo-args.js');
-  const blobPath = tmpdir.resolve('embedder-snapshot.blob');
-  const buildSnapshotExecArgs = [
-    `eval(${getReadFileCodeForPath(snapshotFixture)})`,
-    'arg1',
-    'arg2',
-  ];
-  const embedTestBuildArgs = [
-    '--embedder-snapshot-blob',
-    blobPath,
-    '--embedder-snapshot-create',
-    ...extraSnapshotArgs,
-  ];
-  const buildSnapshotArgs = [...buildSnapshotExecArgs, ...embedTestBuildArgs];
+function runSnapshotTests(apiType) {
+  // Basic snapshot support
+  for (const extraSnapshotArgs of [
+    [],
+    ['--embedder-snapshot-as-file'],
+    ['--without-code-cache'],
+  ]) {
+    // readSync + eval since snapshots don't support userland require() (yet)
+    const snapshotFixture = fixtures.path('snapshot', 'echo-args.js');
+    const blobPath = tmpdir.resolve('embedder-snapshot.blob');
+    const buildSnapshotExecArgs = [
+      `eval(${getReadFileCodeForPath(snapshotFixture)})`,
+      'arg1',
+      'arg2',
+    ];
+    const embedTestBuildArgs = [
+      '--embedder-snapshot-blob',
+      blobPath,
+      '--embedder-snapshot-create',
+      ...extraSnapshotArgs,
+    ];
+    const buildSnapshotArgs = [...buildSnapshotExecArgs, ...embedTestBuildArgs];
 
-  const runSnapshotExecArgs = ['arg3', 'arg4'];
-  const embedTestRunArgs = [
-    '--embedder-snapshot-blob',
-    blobPath,
-    ...extraSnapshotArgs,
-  ];
-  const runSnapshotArgs = [...runSnapshotExecArgs, ...embedTestRunArgs];
+    const runSnapshotExecArgs = ['arg3', 'arg4'];
+    const embedTestRunArgs = [
+      '--embedder-snapshot-blob',
+      blobPath,
+      ...extraSnapshotArgs,
+    ];
+    const runSnapshotArgs = [...runSnapshotExecArgs, ...embedTestRunArgs];
 
-  fs.rmSync(blobPath, { force: true });
-  runTest(
-    `cpp-api: build basic snapshot ${extraSnapshotArgs.join(' ')}`,
-    spawnSyncAndExitWithoutError,
-    ['--', ...buildSnapshotArgs],
-    {
-      cwd: tmpdir.path,
-    }
-  );
+    fs.rmSync(blobPath, { force: true });
+    runTest(
+      `${apiType}: build basic snapshot ${extraSnapshotArgs.join(' ')}`,
+      spawnSyncAndExitWithoutError,
+      [apiType, '--', ...buildSnapshotArgs],
+      {
+        cwd: tmpdir.path,
+      }
+    );
 
-  runTest(
-    `cpp-api: run basic snapshot ${extraSnapshotArgs.join(' ')}`,
-    spawnSyncAndAssert,
-    ['--', ...runSnapshotArgs],
-    { cwd: tmpdir.path },
-    {
-      stdout(output) {
-        assert.deepStrictEqual(JSON.parse(output), {
-          originalArgv: [
-            binary,
-            '__node_anonymous_main',
-            ...buildSnapshotExecArgs,
-          ],
-          currentArgv: [binary, ...runSnapshotExecArgs],
-        });
-        return true;
-      },
-    }
-  );
+    runTest(
+      `${apiType}: run basic snapshot ${extraSnapshotArgs.join(' ')}`,
+      spawnSyncAndAssert,
+      [apiType, '--', ...runSnapshotArgs],
+      { cwd: tmpdir.path },
+      {
+        stdout(output) {
+          assert.deepStrictEqual(JSON.parse(output), {
+            originalArgv: [
+              binary,
+              '__node_anonymous_main',
+              ...buildSnapshotExecArgs,
+            ],
+            currentArgv: [binary, ...runSnapshotExecArgs],
+          });
+          return true;
+        },
+      }
+    );
+  }
+
+  // Create workers and vm contexts after deserialization
+  {
+    const snapshotFixture = fixtures.path(
+      'snapshot',
+      'create-worker-and-vm.js'
+    );
+    const blobPath = tmpdir.resolve('embedder-snapshot.blob');
+    const buildSnapshotArgs = [
+      `eval(${getReadFileCodeForPath(snapshotFixture)})`,
+      '--embedder-snapshot-blob',
+      blobPath,
+      '--embedder-snapshot-create',
+    ];
+    const runEmbeddedArgs = ['--embedder-snapshot-blob', blobPath];
+
+    fs.rmSync(blobPath, { force: true });
+
+    runTest(
+      `${apiType}: build create-worker-and-vm snapshot`,
+      spawnSyncAndExitWithoutError,
+      [apiType, '--', ...buildSnapshotArgs],
+      {
+        cwd: tmpdir.path,
+      }
+    );
+
+    runTest(
+      `${apiType}: run create-worker-and-vm snapshot`,
+      spawnSyncAndExitWithoutError,
+      [apiType, '--', ...runEmbeddedArgs],
+      {
+        cwd: tmpdir.path,
+      }
+    );
+  }
 }
 
-// Create workers and vm contexts after deserialization
-{
-  const snapshotFixture = fixtures.path('snapshot', 'create-worker-and-vm.js');
-  const blobPath = tmpdir.resolve('embedder-snapshot.blob');
-  const buildSnapshotArgs = [
-    `eval(${getReadFileCodeForPath(snapshotFixture)})`,
-    '--embedder-snapshot-blob',
-    blobPath,
-    '--embedder-snapshot-create',
-  ];
-  const runEmbeddedArgs = ['--embedder-snapshot-blob', blobPath];
-
-  fs.rmSync(blobPath, { force: true });
-
-  runTest(
-    `cpp-api: build create-worker-and-vm snapshot`,
-    spawnSyncAndExitWithoutError,
-    ['--', ...buildSnapshotArgs],
-    {
-      cwd: tmpdir.path,
-    }
-  );
-
-  runTest(
-    `cpp-api: run create-worker-and-vm snapshot`,
-    spawnSyncAndExitWithoutError,
-    ['--', ...runEmbeddedArgs],
-    {
-      cwd: tmpdir.path,
-    }
-  );
-}
+runSnapshotTests('cpp-api');
+runSnapshotTests('snapshot-node-api');
 
 // Node-API specific tests
 {
