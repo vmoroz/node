@@ -210,7 +210,6 @@ int32_t RunNodeInstance() {
   napi_env env;
   CHECK(node_api_create_env(
       options, NULL, NULL, main_script, NAPI_VERSION, &env));
-  CHECK(node_api_delete_env_options(options));
 
   CHECK_EXIT_CODE(callMe(env));
   CHECK_EXIT_CODE(waitMe(env));

@@ -33,7 +33,6 @@ extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
         napi_env env;
         CHECK(node_api_create_env(
             options, nullptr, nullptr, main_script, NAPI_VERSION, &env));
-        CHECK(node_api_delete_env_options(options));
 
         CHECK(node_api_open_env_scope(env));
 
@@ -78,12 +77,12 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
                                        nullptr,
                                        nullptr));
 
-  node_api_env_options options;
-  CHECK(node_api_create_env_options(&options));
   const size_t env_count = 12;
   std::vector<napi_env> envs;
   envs.reserve(env_count);
   for (size_t i = 0; i < env_count; i++) {
+    node_api_env_options options;
+    CHECK(node_api_create_env_options(&options));
     napi_env env;
     CHECK(node_api_create_env(
         options, nullptr, nullptr, main_script, NAPI_VERSION, &env));
@@ -103,7 +102,6 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
 
     CHECK(node_api_close_env_scope(env));
   }
-  CHECK(node_api_delete_env_options(options));
 
   bool more_work = false;
   do {
@@ -175,7 +173,6 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   napi_env env;
   CHECK(node_api_create_env(
       options, nullptr, nullptr, main_script, NAPI_VERSION, &env));
-  CHECK(node_api_delete_env_options(options));
 
   std::mutex mutex;
   std::atomic<int32_t> result_count{0};
