@@ -76,7 +76,7 @@ NAPI_EXTERN napi_status NAPI_CDECL node_api_env_options_set_exec_args(
     node_api_env_options options, size_t argc, const char* argv[]);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_api_env_options_set_snapshot(node_api_env_options options,
+node_api_env_options_use_snapshot(node_api_env_options options,
                                   const char* snapshot_data,
                                   size_t snapshot_size);
 

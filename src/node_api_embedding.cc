@@ -397,7 +397,7 @@ napi_status NAPI_CDECL node_api_env_options_set_exec_args(
 }
 
 napi_status NAPI_CDECL
-node_api_env_options_set_snapshot(node_api_env_options options,
+node_api_env_options_use_snapshot(node_api_env_options options,
                                   const char* snapshot_data,
                                   size_t snapshot_size) {
   if (options == nullptr) return napi_invalid_arg;

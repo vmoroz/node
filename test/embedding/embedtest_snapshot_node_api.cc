@@ -140,7 +140,7 @@ int32_t RunNodeInstance() {
     int32_t ret = fclose(fp);
     assert(ret == 0);
 
-    CHECK(node_api_env_options_set_snapshot(options, vec.data(), vec.size()));
+    CHECK(node_api_env_options_use_snapshot(options, vec.data(), vec.size()));
   }
 
   if (is_building_snapshot) {
