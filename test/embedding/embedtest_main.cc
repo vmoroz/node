@@ -30,13 +30,13 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
       return CallWithoutArg1(cpp_api_test_main, argc, argv);
     } else if (strcmp(arg1, "node-api") == 0) {
       return CallWithoutArg1(node_api_test_main, argc, argv);
-    } else if (strcmp(arg1, "node-api-modules") == 0) {
+    } else if (strcmp(arg1, "modules-node-api") == 0) {
       return CallWithoutArg1(node_api_modules_test_main, argc, argv);
-    } else if (strcmp(arg1, "node-api-concurrent") == 0) {
+    } else if (strcmp(arg1, "concurrent-node-api") == 0) {
       return CallWithoutArg1(node_api_concurrent_test_main, argc, argv);
-    } else if (strcmp(arg1, "node-api-multi-env") == 0) {
+    } else if (strcmp(arg1, "multi-env-node-api") == 0) {
       return CallWithoutArg1(node_api_multi_env_test_main, argc, argv);
-    } else if (strcmp(arg1, "node-api-multi-thread") == 0) {
+    } else if (strcmp(arg1, "multi-thread-node-api") == 0) {
       return CallWithoutArg1(node_api_multi_thread_test_main, argc, argv);
     } else if (strcmp(arg1, "snapshot-node-api") == 0) {
       return CallWithoutArg1(test_main_snapshot_node_api, argc, argv);

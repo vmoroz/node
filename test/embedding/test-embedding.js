@@ -276,9 +276,9 @@ runSnapshotTests('snapshot-node-api');
   );
 
   runTest(
-    `node-api-concurrent: run 12 environments concurrently`,
+    `concurrent-node-api: run 12 environments concurrently`,
     spawnSyncAndAssert,
-    ['node-api-concurrent', 'myCount = 1'],
+    ['concurrent-node-api', 'myCount = 1'],
     {
       trim: true,
       stdout: '12',
@@ -286,10 +286,10 @@ runSnapshotTests('snapshot-node-api');
   );
 
   runTest(
-    'node-api-multi-env: run 12 environments in the same thread',
+    'multi-env-node-api: run 12 environments in the same thread',
     spawnSyncAndAssert,
     [
-      'node-api-multi-env',
+      'multi-env-node-api',
       'myCount = 0; function incMyCount() { ++myCount; if (myCount < 5) { setTimeout(incMyCount, 1); } }',
     ],
     {
@@ -299,10 +299,10 @@ runSnapshotTests('snapshot-node-api');
   );
 
   runTest(
-    'node-api-multi-thread: run and environment from multiple threads',
+    'multi-thread-node-api: run and environment from multiple threads',
     spawnSyncAndAssert,
     [
-      'node-api-multi-thread',
+      'multi-thread-node-api',
       'myCount = 0; function incMyCount() { ++myCount; if (myCount < 5) { setTimeout(incMyCount, 1); } }',
     ],
     {
@@ -314,9 +314,9 @@ runSnapshotTests('snapshot-node-api');
 
 /*
 runTest(
-  `node-api-modules: load modules`,
+  `modules-node-api: load modules`,
   spawnSyncAndExitWithoutError,
-  ['node-api-modules', 'cjs.cjs', 'es6.mjs', ],
+  ['modules-node-api', 'cjs.cjs', 'es6.mjs', ],
   {
     cwd: __dirname,
   }
