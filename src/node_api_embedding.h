@@ -180,7 +180,8 @@ node_api_run_env_while(napi_env env,
 
 NAPI_EXTERN napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                                           napi_value promise,
-                                                          napi_value* result);
+                                                          napi_value* result,
+                                                          bool* has_more_work);
 
 EXTERN_C_END
 
@@ -215,7 +216,6 @@ inline node_api_snapshot_flags operator|(node_api_snapshot_flags lhs,
 // TODO: (vmoroz) Start workers from C++.
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
-// TODO: (vmoroz) await_promise -> add has_more_work parameter.
 // TODO: (vmoroz) Can we init plat again if it retuns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.

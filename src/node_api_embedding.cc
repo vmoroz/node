@@ -657,7 +657,8 @@ napi_status NAPI_CDECL node_api_run_env_while(napi_env env,
 
 napi_status NAPI_CDECL node_api_await_promise(napi_env env,
                                               napi_value promise,
-                                              napi_value* result) {
+                                              napi_value* result,
+                                              bool* has_more_work) {
   NAPI_PREAMBLE(env);
   CHECK_ARG(env, result);
 
@@ -693,6 +694,11 @@ napi_status NAPI_CDECL node_api_await_promise(napi_env env,
 
   *result =
       v8impl::JsValueFromV8LocalValue(scope.Escape(promise_object->Result()));
+
+  if (has_more_work != nullptr) {
+    *has_more_work = uv_loop_alive(embedded_env->node_env()->event_loop());
+  }
+
   if (promise_object->State() == v8::Promise::PromiseState::kRejected)
     return napi_pending_exception;
 
