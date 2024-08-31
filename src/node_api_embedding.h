@@ -132,7 +132,6 @@ EXTERN_C_END
 
 #endif  // SRC_NODE_API_EMBEDDING_H_
 
-// TODO: (vmoroz) Match node_api_platform_flags to the existing Node.js flags.
 // TODO: (vmoroz) Remove the main_script parameter.
 // TODO: (vmoroz) Add startup callback with process and require parameters.
 // TODO: (vmoroz) Add ABI-safe way to access internal module functionality.
