@@ -213,15 +213,6 @@ class EmbeddedEnvironment final : public node_napi_env__ {
   std::optional<IsolateLocker> isolate_locker_;
 };
 
-std::vector<const char*> ToCStringVector(const std::vector<std::string>& vec) {
-  std::vector<const char*> result;
-  result.reserve(vec.size());
-  for (const std::string& str : vec) {
-    result.push_back(str.c_str());
-  }
-  return result;
-}
-
 node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
     node_api_platform_flags flags) {
   uint32_t result = node::ProcessInitializationFlags::kNoFlags;
