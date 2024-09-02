@@ -24,33 +24,43 @@ namespace {
 
 class EmbeddedEnvironment;
 
+// A helper class to convert std::vector<std::string> to an array of C strings.
+// If the number of strings is less than kInplaceBufferSize, the strings are
+// stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
+// allocated_buffer_ array.
+// Ideally the class must be allocated on the stack.
+// In any case it must not outlive the passed vector since it keeps only the
+// string pointers returned by std::stirng::c_str() method.
 class CStringArray {
+  static constexpr size_t kInplaceBufferSize = 32;
+
  public:
   explicit CStringArray(const std::vector<std::string>& strings) noexcept
       : size_(strings.size()) {
-    if (size_ < inplace_buffer_.size()) {
-      cstrings_ = inplace_buffer_.data();
+    if (size_ <= inplace_buffer_.size()) {
+      c_strs_ = inplace_buffer_.data();
     } else {
       allocated_buffer_ = std::make_unique<const char*[]>(size_);
-      cstrings_ = allocated_buffer_.get();
+      c_strs_ = allocated_buffer_.get();
     }
     for (size_t i = 0; i < size_; ++i) {
-      cstrings_[i] = strings[i].c_str();
+      c_strs_[i] = strings[i].c_str();
     }
   }
 
-  CStringArray() = delete;
   CStringArray(const CStringArray&) = delete;
   CStringArray& operator=(const CStringArray&) = delete;
 
+  const char** c_strs() const { return c_strs_; }
   size_t size() const { return size_; }
+
+  const char** argv() const { return c_strs_; }
   int32_t argc() const { return static_cast<int>(size_); }
-  const char** argv() const { return cstrings_; }
 
  private:
-  const char** cstrings_;
-  size_t size_;
-  std::array<const char*, 32> inplace_buffer_;
+  const char** c_strs_{};
+  size_t size_{};
+  std::array<const char*, kInplaceBufferSize> inplace_buffer_;
   std::unique_ptr<const char*[]> allocated_buffer_;
 };
 
@@ -329,7 +339,7 @@ node_api_initialize_platform(int32_t argc,
 
   if (error_handler != nullptr && !platform_init_result->errors().empty()) {
     v8impl::CStringArray errors(platform_init_result->errors());
-    error_handler(error_handler_data, errors.argv(), errors.size());
+    error_handler(error_handler_data, errors.c_strs(), errors.size());
   }
 
   if (early_return != nullptr) {
@@ -558,8 +568,8 @@ node_api_create_env(node_api_env_options options,
   }
 
   if (error_handler != nullptr && !errors.empty()) {
-    v8impl::CStringArray cerrors(errors);
-    error_handler(error_handler_data, cerrors.argv(), cerrors.size());
+    v8impl::CStringArray error_arr(errors);
+    error_handler(error_handler_data, error_arr.c_strs(), error_arr.size());
   }
 
   if (env_setup == nullptr) {
