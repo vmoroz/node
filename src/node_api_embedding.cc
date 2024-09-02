@@ -22,6 +22,8 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
 namespace v8impl {
 namespace {
 
+class EmbeddedEnvironment;
+
 class CStringArray {
  public:
   explicit CStringArray(const std::vector<std::string>& strings) noexcept
@@ -124,9 +126,11 @@ struct EmbeddedEnvironmentOptions {
   node_api_env_flags flags_{node_api_env_default_flags};
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
+  node::EmbedderPreloadCallback preload_cb_{};
   node::EmbedderSnapshotData::Pointer snapshot_;
   std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
   node::SnapshotConfig snapshot_config_{};
+  EmbeddedEnvironment* env_;
 };
 
 struct IsolateLocker {
@@ -167,6 +171,7 @@ class EmbeddedEnvironment final : public node_napi_env__ {
         env_options_(std::move(env_options)),
         env_setup_(std::move(env_setup)) {
     env_options_->is_frozen_ = true;
+    env_options_->env_ = this;
   }
 
   static EmbeddedEnvironment* FromNapiEnv(napi_env env) {
@@ -197,6 +202,8 @@ class EmbeddedEnvironment final : public node_napi_env__ {
   }
 
   bool IsScopeOpened() const { return isolate_locker_.has_value(); }
+
+  const EmbeddedEnvironmentOptions& options() const { return *env_options_; }
 
   const node::EmbedderSnapshotData::Pointer& snapshot() const {
     return env_options_->snapshot_;
@@ -440,6 +447,32 @@ napi_status NAPI_CDECL node_api_env_options_set_exec_args(
 }
 
 napi_status NAPI_CDECL
+node_api_env_options_set_preload_callback(node_api_env_options options,
+                                          node_api_preload_callback preload_cb,
+                                          void* cb_data) {
+  if (options == nullptr) return napi_invalid_arg;
+
+  v8impl::EmbeddedEnvironmentOptions* env_options =
+      reinterpret_cast<v8impl::EmbeddedEnvironmentOptions*>(options);
+  if (env_options->is_frozen_) return napi_generic_failure;
+
+  if (preload_cb != nullptr) {
+    env_options->preload_cb_ = node::EmbedderPreloadCallback(
+        [env_options, preload_cb, cb_data](node::Environment* env,
+                                           v8::Local<v8::Value> process,
+                                           v8::Local<v8::Value> require) {
+          napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
+          napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
+          preload_cb(env_options->env_, process_value, require_value, cb_data);
+        });
+  } else {
+    env_options->preload_cb_ = {};
+  }
+
+  return napi_ok;
+}
+
+napi_status NAPI_CDECL
 node_api_env_options_use_snapshot(node_api_env_options options,
                                   const char* snapshot_data,
                                   size_t snapshot_size) {
@@ -556,7 +589,9 @@ node_api_create_env(node_api_env_options options,
   v8::MaybeLocal<v8::Value> ret =
       embedded_env->snapshot()
           ? node::LoadEnvironment(node_env, node::StartExecutionCallback{})
-          : node::LoadEnvironment(node_env, std::string_view(main_script));
+          : node::LoadEnvironment(node_env,
+                                  std::string_view(main_script),
+                                  embedded_env->options().preload_cb_);
 
   embedded_env.release();
 
