@@ -1,14 +1,15 @@
+#define NAPI_EXPERIMENTAL
+#include "node_api_embedding.h"
+
+#include "env-inl.h"
+#include "js_native_api_v8.h"
+#include "node_api_internals.h"
+#include "util-inl.h"
+
 #include <algorithm>
 #include <climits>  // INT_MAX
 #include <cmath>
-#define NAPI_EXPERIMENTAL
-#include "env-inl.h"
-#include "js_native_api.h"
-#include "js_native_api_v8.h"
-#include "node_api_embedding.h"
-#include "node_api_internals.h"
-#include "simdutf.h"
-#include "util-inl.h"
+#include <mutex>
 
 namespace node {
 
@@ -21,9 +22,6 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
 
 namespace v8impl {
 namespace {
-
-// Forward declarations
-class EmbeddedEnvironment;
 
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
@@ -141,7 +139,6 @@ struct EmbeddedEnvironmentOptions {
   node::EmbedderSnapshotData::Pointer snapshot_;
   std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
   node::SnapshotConfig snapshot_config_{};
-  EmbeddedEnvironment* env_;
 };
 
 struct IsolateLocker {
@@ -182,7 +179,20 @@ class EmbeddedEnvironment final : public node_napi_env__ {
         env_options_(std::move(env_options)),
         env_setup_(std::move(env_setup)) {
     env_options_->is_frozen_ = true;
-    env_options_->env_ = this;
+
+    std::scoped_lock<std::mutex> lock(shared_mutex_);
+    node_env_to_node_api_env_.emplace(env_setup_->env(), this);
+  }
+
+  static node_napi_env GetOrCreateNodeApiEnv(node::Environment* node_env) {
+    std::scoped_lock<std::mutex> lock(shared_mutex_);
+    auto it = node_env_to_node_api_env_.find(node_env);
+    if (it != node_env_to_node_api_env_.end()) return it->second;
+    // TODO: (vmoroz) propagate API version from the root environment.
+    node_napi_env env = new node_napi_env__(
+        node_env->context(), "<worker_thread>", NAPI_VERSION_EXPERIMENTAL);
+    node_env_to_node_api_env_.try_emplace(node_env, env);
+    return env;
   }
 
   static EmbeddedEnvironment* FromNapiEnv(napi_env env) {
@@ -229,7 +239,15 @@ class EmbeddedEnvironment final : public node_napi_env__ {
   std::unique_ptr<EmbeddedEnvironmentOptions> env_options_;
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<IsolateLocker> isolate_locker_;
+
+  static std::mutex shared_mutex_;
+  static std::unordered_map<node::Environment*, node_napi_env>
+      node_env_to_node_api_env_;
 };
+
+std::mutex EmbeddedEnvironment::shared_mutex_{};
+std::unordered_map<node::Environment*, node_napi_env>
+    EmbeddedEnvironment::node_env_to_node_api_env_{};
 
 node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
     node_api_platform_flags flags) {
@@ -469,12 +487,14 @@ node_api_env_options_set_preload_callback(node_api_env_options options,
 
   if (preload_cb != nullptr) {
     env_options->preload_cb_ = node::EmbedderPreloadCallback(
-        [env_options, preload_cb, cb_data](node::Environment* env,
-                                           v8::Local<v8::Value> process,
-                                           v8::Local<v8::Value> require) {
+        [preload_cb, cb_data](node::Environment* node_env,
+                              v8::Local<v8::Value> process,
+                              v8::Local<v8::Value> require) {
+          node_napi_env env =
+              v8impl::EmbeddedEnvironment::GetOrCreateNodeApiEnv(node_env);
           napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
           napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-          preload_cb(env_options->env_, process_value, require_value, cb_data);
+          preload_cb(env, process_value, require_value, cb_data);
         });
   } else {
     env_options->preload_cb_ = {};

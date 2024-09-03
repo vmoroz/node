@@ -1,6 +1,6 @@
 // Print the globalThis.preloadValue set by the preload script.
-console.log(`preloadValue=${globalThis.preloadValue}`);
-/*
+const mainPreloadValue = globalThis.preloadValue;
+
 // Test that the preload script is executed in the worker thread.
 const { Worker } = require('worker_threads');
 const worker = new Worker(
@@ -12,6 +12,7 @@ const messages = [];
 worker.on('message', (message) => messages.push(message));
 
 process.on('beforeExit', () => {
-  console.log(`worker preloadValue=${messages[0].value}`);
+  console.log(
+    `preloadValue=${mainPreloadValue}; worker preloadValue=${messages[0].value}`
+  );
 });
-*/
