@@ -191,6 +191,8 @@ class EmbeddedEnvironment final : public node_napi_env__ {
     // TODO: (vmoroz) propagate API version from the root environment.
     node_napi_env env = new node_napi_env__(
         node_env->context(), "<worker_thread>", NAPI_VERSION_EXPERIMENTAL);
+    node_env->AddCleanupHook(
+        [](void* arg) { static_cast<node_napi_env>(arg)->Unref(); }, env);
     node_env_to_node_api_env_.try_emplace(node_env, env);
     return env;
   }
