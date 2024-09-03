@@ -22,6 +22,7 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
 namespace v8impl {
 namespace {
 
+// Forward declarations
 class EmbeddedEnvironment;
 
 // A helper class to convert std::vector<std::string> to an array of C strings.

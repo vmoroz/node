@@ -310,6 +310,19 @@ runSnapshotTests('snapshot-node-api');
       stdout: '5',
     }
   );
+
+  const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
+
+  runTest(
+    'preload-node-api: run preload callback',
+    spawnSyncAndAssert,
+    ['preload-node-api', `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
+    {
+      cwd: __dirname,
+      trim: true,
+      stdout: 'preloadValue=42',
+    }
+  );
 }
 
 /*
