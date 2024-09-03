@@ -1,9 +1,10 @@
 #include "embedtest_node_api.h"
 
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
-
+#include <array>
+#include <cassert>
+#include <cstdio>
+#include <cstring>
+#include <memory>
 #include <optional>
 
 class CStringArray {
@@ -125,12 +126,9 @@ int32_t RunNodeInstance() {
     FILE* fp = fopen(snapshot_blob_path.c_str(), "rb");
     assert(fp != nullptr);
     // Node-API only supports loading snapshots from blobs.
-    uv_fs_t req = uv_fs_t();
-    int32_t statret =
-        uv_fs_stat(nullptr, &req, snapshot_blob_path.c_str(), nullptr);
-    assert(statret == 0);
-    size_t filesize = req.statbuf.st_size;
-    uv_fs_req_cleanup(&req);
+    fseek(fp, 0, SEEK_END);
+    size_t filesize = static_cast<size_t>(ftell(fp));
+    fseek(fp, 0, SEEK_SET);
 
     std::vector<char> vec(filesize);
     size_t read = fread(vec.data(), filesize, 1, fp);
