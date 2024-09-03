@@ -197,20 +197,20 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
-inline node_api_platform_flags operator|(node_api_platform_flags lhs,
-                                         node_api_platform_flags rhs) {
+inline constexpr node_api_platform_flags operator|(
+    node_api_platform_flags lhs, node_api_platform_flags rhs) {
   return static_cast<node_api_platform_flags>(static_cast<int32_t>(lhs) |
                                               static_cast<int32_t>(rhs));
 }
 
-inline node_api_env_flags operator|(node_api_env_flags lhs,
-                                    node_api_env_flags rhs) {
+inline constexpr node_api_env_flags operator|(node_api_env_flags lhs,
+                                              node_api_env_flags rhs) {
   return static_cast<node_api_env_flags>(static_cast<uint64_t>(lhs) |
                                          static_cast<uint64_t>(rhs));
 }
 
-inline node_api_snapshot_flags operator|(node_api_snapshot_flags lhs,
-                                         node_api_snapshot_flags rhs) {
+inline constexpr node_api_snapshot_flags operator|(
+    node_api_snapshot_flags lhs, node_api_snapshot_flags rhs) {
   return static_cast<node_api_snapshot_flags>(static_cast<int32_t>(lhs) |
                                               static_cast<int32_t>(rhs));
 }
