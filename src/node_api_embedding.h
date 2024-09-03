@@ -39,7 +39,7 @@ typedef enum {
 
 typedef enum : uint64_t {
   node_api_env_no_flags = 0,
-  // Use the default behaviour for Node.js instances.
+  // Use the default behavior for Node.js instances.
   node_api_env_default_flags = 1 << 0,
   // Controls whether this Environment is allowed to affect per-process state
   // (e.g. cwd, process title, uid, etc.).
@@ -226,7 +226,7 @@ inline constexpr node_api_snapshot_flags operator|(
 // TODO: (vmoroz) Start workers from C++.
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
-// TODO: (vmoroz) Can we init plat again if it retuns early?
+// TODO: (vmoroz) Can we init plat again if it returns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.
 // TODO: (vmoroz) Add a way to add embedded modules.

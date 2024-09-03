@@ -29,7 +29,7 @@ namespace {
 // allocated_buffer_ array.
 // Ideally the class must be allocated on the stack.
 // In any case it must not outlive the passed vector since it keeps only the
-// string pointers returned by std::stirng::c_str() method.
+// string pointers returned by std::string::c_str() method.
 class CStringArray {
   static constexpr size_t kInplaceBufferSize = 32;
 
@@ -487,6 +487,7 @@ node_api_env_options_set_preload_callback(node_api_env_options options,
       reinterpret_cast<v8impl::EmbeddedEnvironmentOptions*>(options);
   if (env_options->is_frozen_) return napi_generic_failure;
 
+  // TODO: (vmoroz) use CallIntoModule to handle errors.
   if (preload_cb != nullptr) {
     env_options->preload_cb_ = node::EmbedderPreloadCallback(
         [preload_cb, cb_data](node::Environment* node_env,
