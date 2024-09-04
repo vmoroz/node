@@ -103,7 +103,7 @@ typedef void(NAPI_CDECL* node_api_error_message_handler)(void* handler_data,
 
 typedef void(NAPI_CDECL* node_api_get_args_callback)(void* cb_data,
                                                      int32_t argc,
-                                                     const char* size[]);
+                                                     const char* argv[]);
 
 typedef void(NAPI_CDECL* node_api_store_blob_callback)(void* cb_data,
                                                        const uint8_t* blob,

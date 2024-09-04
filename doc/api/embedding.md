@@ -219,9 +219,9 @@ The C embedder API is split up by the four major groups.
 
 ### Global platform APIs
 
-#### Functions
+#### Data types
 
-##### `node_api_initialize_platform`
+##### `node_platform_options`
 
 <!-- YAML
 added: REPLACEME
@@ -229,79 +229,198 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
+This is an opaque pointer that represents a set of Node.js platform options.
+
+##### `node_platform`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+This is an opaque pointer that represents a Node.js platform.
+
+> Stability: 1 - Experimental
+
+##### `node_platform_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Flags used to initialize a Node.js platform.
+
 ```c
-napi_status
-node_api_initialize_platform(int32_t argc,
-                             char* argv[],
-                             node_api_platform_flags flags,
-                             node_api_error_message_handler error_handler,
-                             void* error_handler_data,
-                             bool* early_return,
-                             int32_t* exit_code);
+typedef enum {
+  node_platform_no_flags = 0,
+  node_platform_enable_stdio_inheritance = 1 << 0,
+  node_platform_disable_node_options_env = 1 << 1,
+  node_platform_disable_cli_options = 1 << 2,
+  node_platform_no_icu = 1 << 3,
+  node_platform_no_stdio_initialization = 1 << 4,
+  node_platform_no_default_signal_handling = 1 << 5,
+  node_platform_no_init_openssl = 1 << 8,
+  node_platform_no_parse_global_debug_variables = 1 << 9,
+  node_platform_no_adjust_resource_limits = 1 << 10,
+  node_platform_no_use_large_pages = 1 << 11,
+  node_platform_no_print_help_or_version_output = 1 << 12,
+  node_platform_generate_predictable_snapshot = 1 << 14,
+} node_platform_flags;
 ```
 
-* `[in] argc`: The number of Node.js CLI arguments. (TODO: autofill if 0)
-* `[in] argv`: The Node.js CLI arguments. (TODO: autofill if NULL)
-* `[in] flags`: A union of platform flags. (TODO: replace with platform options)
-* `[in] error_handler`: Optional. A error handler callback to receive a list of
-  error messages.
-* `[in] error_handler_data`: Optional. The error handler callback data. It is
-  not used and can be released after the function call.
-* `[out] early_return`: Optional. Returns true if there was an error or Node.js
-  completed the request and the process must return. For example, Node.js asks
-  to complete after printing the version number or the help text.
-* `[out] exit_code`: Optional. The process exit code. It is 0 if success.
+These flags match to the C++ `node::ProcessInitializationFlags` and control the
+Node.js global platform initialization.
 
-Returns `napi_ok` if the API succeeded.
+- `node_platform_no_flags` - The default flags.
+- `node_platform_enable_stdio_inheritance` - Enable stdio inheritance, which is
+  disabled by default. This flag is also implied by
+  node_platform_no_stdio_initialization.
+- `node_platform_disable_node_options_env` - Disable reading the `NODE_OPTIONS`
+  environment variable.
+- `node_platform_disable_cli_options` - Do not parse CLI options.
+- `node_platform_no_icu` - Do not initialize ICU.
+- `node_platform_no_stdio_initialization` - Do not modify stdio file descriptor
+  or TTY state.
+- `node_platform_no_default_signal_handling` - Do not register Node.js-specific
+  signal handlers and reset other signal handlers to default state.
+- `node_platform_no_init_openssl` - Do not initialize OpenSSL config.
+- `node_platform_no_parse_global_debug_variables` - Do not initialize Node.js
+  debugging based on environment variables.
+- `node_platform_no_adjust_resource_limits` - Do not adjust OS resource limits
+  for this process.
+- `node_platform_no_use_large_pages` - Do not map code segments into large pages
+  for this process.
+- `node_platform_no_print_help_or_version_output` - Skip printing output for
+  --help, --version, --v8-options.
+- `node_platform_generate_predictable_snapshot` - Initialize the process for
+  predictable snapshot generation.
 
-This API parses the CLI parameters, and then initializes the global Node state,
-V8 platform, and V8 API based on the CLI arguments.
+#### Callback types
 
-##### `node_api_dispose_platform`
+##### `node_error_handler`
 
-### Runtime instance APIs
+```c
+typedef void(*node_error_handler)(void* handler_data,
+                                  const char* messages[],
+                                  size_t size,
+                                  int32_t exit_code);
+```
+
+Function pointer type for user-provided native functions that handles the list
+of error messages and the exit code.
+
+The callback parameters:
+
+- `[in] handler_data`: The user data associated with this callback.
+- `[in] messages`: Pointer to an array of zero terminating C-strings.
+- `[in] size`: Size of the messages string array.
+- `[in] exit_code`: The process exit code in case of error. It is not 0 if error
+  happened. The callback can be used to report non-error output if the
+  `exit_code` is 0.
+
+##### `node_platform_get_args_callback`
+
+```c
+typedef void(*node_platform_get_args_callback)(void* cb_data,
+                                               int32_t argc,
+                                               const char* argv[]);
+```
+
+Function pointer type for user-provided native functions that receives list of
+CLI arguments from the `node_platform`.
+
+The callback parameters:
+
+- `[in] cb_data`: The user data associated with this callback.
+- `[in] argc`: Number of items in the `argv` array.
+- `[in] argv`: CLI arguments as an array of zero terminating C-strings.
 
 #### Functions
 
-##### `node_api_create_env_options`
+##### `node_create_platform_options`
 
-##### `node_api_env_options_get_args`
+##### `node_delete_platform_options`
 
-##### `node_api_env_options_get_exec_args`
+##### `node_platform_options_frozen`
 
-##### `node_api_env_options_set_flags`
+##### `node_platform_options_args`
 
-##### `node_api_env_options_set_args`
+##### `node_platform_options_flags`
 
-##### `node_api_env_options_set_exec_args`
+##### `node_platform_options_on_error`
 
-##### `node_api_env_options_set_preload_callback`
+##### `node_create_platform`
 
-##### `node_api_env_options_use_snapshot`
+##### `node_delete_platform`
 
-##### `node_api_env_options_create_snapshot`
+##### `node_platform_get_args`
 
-##### `node_api_create_env`
+##### `node_platform_get_exec_args`
 
-##### `node_api_delete_env`
+### Runtime instance APIs
+
+#### Data types
+
+##### `node_runtime_options`
+
+##### `node_runtime`
+
+##### `node_runtime_flags`
+
+#### Callback types
+
+##### `node_runtime_error_handler`
+
+##### `node_runtime_store_blob_callback`
+
+##### `node_runtime_preload_callback`
+
+#### Functions
+
+##### `node_create_runtime_options`
+
+##### `node_delete_runtime_options`
+
+##### `node_runtime_options_frozen`
+
+##### `node_runtime_options_on_error`
+
+##### `node_runtime_options_flags`
+
+##### `node_runtime_options_args`
+
+##### `node_runtime_options_exec_args`
+
+##### `node_runtime_options_on_preload`
+
+##### `node_runtime_options_snapshot`
+
+##### `node_runtime_options_on_store_snapshot`
+
+##### `node_create_runtime`
+
+##### `node_delete_runtime`
 
 ### Event loop APIs
 
 #### Functions
 
-##### `node_api_run_env`
+##### `node_runtime_run_event_loop`
 
-##### `node_api_run_env_while`
+##### `node_runtime_run_event_loop_while`
 
-##### `node_api_await_promise`
+##### `node_runtime_await_promise`
 
 ### JavaScript/Native interop APIs
 
 #### Functions
 
-##### `node_api_open_env_scope`
+##### `node_runtime_run_task`
 
-##### `node_api_close_env_scope`
+##### `node_runtime_open_scope`
+
+##### `node_runtime_close_scope`
 
 ## Examples
 
