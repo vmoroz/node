@@ -27,8 +27,8 @@ The full code can be found [in the Node.js source tree][embedtest.cc].
 
 Node.js requires some per-process state management in order to run:
 
-* Arguments parsing for Node.js [CLI options][],
-* V8 per-process requirements, such as a `v8::Platform` instance.
+- Arguments parsing for Node.js [CLI options][],
+- V8 per-process requirements, such as a `v8::Platform` instance.
 
 The following example shows how these can be set up. Some class names are from
 the `node` and `v8` C++ namespaces, respectively.
@@ -85,10 +85,10 @@ changes:
 Node.js has a concept of a “Node.js instance”, that is commonly being referred
 to as `node::Environment`. Each `node::Environment` is associated with:
 
-* Exactly one `v8::Isolate`, i.e. one JS Engine instance,
-* Exactly one `uv_loop_t`, i.e. one event loop, and
-* A number of `v8::Context`s, but exactly one main `v8::Context`.
-* One `node::IsolateData` instance that contains information that could be
+- Exactly one `v8::Isolate`, i.e. one JS Engine instance,
+- Exactly one `uv_loop_t`, i.e. one event loop, and
+- A number of `v8::Context`s, but exactly one main `v8::Context`.
+- One `node::IsolateData` instance that contains information that could be
   shared by multiple `node::Environment`s that use the same `v8::Isolate`.
   Currently, no testing is performed for this scenario.
 
@@ -166,7 +166,66 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
 }
 ```
 
-## Node-API Embedding
+# C embedder API
+
+<!--introduced_in=REPLACEME-->
+
+While Node.js provides an extensive C++ embedding API that can be used from C++
+applications, the C-based API is useful when Node.js is embedded as a shared
+libnode library into non-C++ applications.
+
+The C embedding API is defined in [src/node_api_embedding.h][] in the Node.js
+source tree.
+
+## API design overview
+
+One of the goals for the C based embedder API is to be ABI stable. It means that
+applications must be able to use newer libnode versions without recompilation.
+The following design principles are targeting to achieve that goal.
+
+- Follow the best practices for the [node-api][] design and build on top of
+  the [node-api][].
+- Use the [Builder pattern][] as the way to configure the global platform and
+  the instance environments. It enables us incrementally add new flags,
+  settings, callbacks, and behavior without changing the existing
+  functions.
+- Use the API version as a way to add new or change existing behavior.
+- Make the common scenarios simple and the complex scenarios possible. In some
+  cases we provide some "shortcut" APIs that combine calls to multiple other
+  APIs to simplify common scenarios.
+
+The C embedder API has the four major API function groups:
+
+- **Global platform APIs.** These are the global settings and initializations
+  that are done once per process. They include parsing CLI arguments, setting
+  the V8 platform, V8 thread pool, and initializing V8.
+- **Runtime instance APIs.** This is the main Node.js working environment that
+  combines V8 `Isolate`, `Context`, and a UV loop. It is used run the Node.js
+  JavaScript code and modules. In a process we may have one or more runtime
+  environments. Its behavior is based on the global platform API.
+- **Event loop APIs.** The event loop is one of the key concepts of Node.js. It
+  handles IO callbacks, timer jobs, and Promise continuations. These APIs are
+  related to a specific Node.js runtime instance and control handling of the
+  loop tasks. The loop tasks can be executed in the chosen thread. The API
+  controls how many tasks executed at one: all, one-by-one, or until a predicate
+  becomes false.
+- **JavaScript/Native interop APIs.** Here we rely on the existing [node-api][]
+  set of functions. The embedding APIs just provide access to functions that
+  retrieve or create `napi_env` instances related to a runtime instance.
+
+## API reference
+
+The C embedder API is split up by the four major groups.
+
+### Global platform APIs
+
+### Runtime instance APIs
+
+### Event loop APIs
+
+### JavaScript/Native interop APIs
+
+## Examples
 
 <!--introduced_in=REPLACEME-->
 
@@ -205,10 +264,12 @@ An example can be found [in the Node.js source tree][napi_embedding.c].
   }
 ```
 
+[Builder pattern]: https://en.wikipedia.org/wiki/Builder_pattern
 [CLI options]: cli.md
 [`process.memoryUsage()`]: process.md#processmemoryusage
 [deprecation policy]: deprecations.md
 [embedtest.cc]: https://github.com/nodejs/node/blob/HEAD/test/embedding/embedtest.cc
 [napi_embedding.c]: https://github.com/nodejs/node/blob/HEAD/test/embedding/napi_embedding.c
 [node-addon-api]: https://github.com/nodejs/node-addon-api
+[node-api]: n-api.md
 [src/node.h]: https://github.com/nodejs/node/blob/HEAD/src/node.h
