@@ -300,6 +300,12 @@ Node.js global platform initialization.
 
 ##### `node_error_handler`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
 ```c
 typedef void(*node_error_handler)(void* handler_data,
                                   const char* messages[],
@@ -321,6 +327,12 @@ The callback parameters:
 
 ##### `node_platform_get_args_callback`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
 ```c
 typedef void(*node_platform_get_args_callback)(void* cb_data,
                                                int32_t argc,
@@ -340,17 +352,135 @@ The callback parameters:
 
 ##### `node_create_platform_options`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Creates new platform options.
+
+```c
+napi_status
+node_create_platform_options(node_platform_options *result);
+```
+
+- `[out] result`: A pointer to the new platform options.
+
+Returns `napi_ok` if there were no issues.
+
 ##### `node_delete_platform_options`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Deletes platform options.
+
+```c
+napi_status
+node_delete_platform_options(node_platform_options options);
+```
+
+- `[in] options`: The platform options to delete.
+
+Returns `napi_ok` if there were no issues.
 
 ##### `node_platform_options_frozen`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Checks if the platform options are frozen.
+
+```c
+napi_status
+node_platform_options_frozen(node_platform_options options, bool* result);
+```
+
+- `[in] options`: The platform options to check.
+- `[out] result`: `true` if the platform options are frozen.
+
+Returns `napi_ok` if there were no issues.
+
+The platform options can be changed until they are frozen.
+They are frozen after they are passed to the `node_create_platform` function
+to create a new platform. After that all changes to the platform options are
+prohibited since they are frozen.
+
 ##### `node_platform_options_args`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the CLI args for the Node.js platform.
+
+```c
+napi_status
+node_platform_options_args(node_platform_options options,
+                           int32_t argc,
+                           const char* argv[]);
+```
+
+- `[in] options`: The platform options to configure.
+- `[in] argc`: Number of items in the `argv` array.
+- `[in] argv`: CLI arguments as an array of zero terminating C-strings.
+
+Returns `napi_ok` if there were no issues.
 
 ##### `node_platform_options_flags`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the CLI args for the Node.js platform.
+
+```c
+napi_status
+node_platform_options_flags(node_platform_options options,
+                            node_platform_flags flags);
+```
+
+- `[in] options`: The platform options to configure.
+- `[in] flags`: The platform flags that control the platform behavior.
+
+Returns `napi_ok` if there were no issues.
+
 ##### `node_platform_options_on_error`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the custom Node.js platform error handler.
+
+```c
+napi_status
+node_platform_options_flags(node_platform_options options,
+                            node_platform_flags flags);
+```
+
+- `[in] options`: The platform options to configure.
+- `[in] flags`: The platform flags that control the platform behavior.
+
+Returns `napi_ok` if there were no issues.
+
 ##### `node_create_platform`
+
+##### `node_initialize_platform`
 
 ##### `node_delete_platform`
 
