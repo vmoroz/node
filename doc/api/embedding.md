@@ -219,49 +219,96 @@ The C embedder API is split up by the four major groups.
 
 ### Global platform APIs
 
+#### Functions
+
+##### `node_api_initialize_platform`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+napi_status
+node_api_initialize_platform(int32_t argc,
+                             char* argv[],
+                             node_api_platform_flags flags,
+                             node_api_error_message_handler error_handler,
+                             void* error_handler_data,
+                             bool* early_return,
+                             int32_t* exit_code);
+```
+
+* `[in] argc`: The number of Node.js CLI arguments. (TODO: autofill if 0)
+* `[in] argv`: The Node.js CLI arguments. (TODO: autofill if NULL)
+* `[in] flags`: A union of platform flags. (TODO: replace with platform options)
+* `[in] error_handler`: Optional. A error handler callback to receive a list of
+  error messages.
+* `[in] error_handler_data`: Optional. The error handler callback data. It is
+  not used and can be released after the function call.
+* `[out] early_return`: Optional. Returns true if there was an error or Node.js
+  completed the request and the process must return. For example, Node.js asks
+  to complete after printing the version number or the help text.
+* `[out] exit_code`: Optional. The process exit code. It is 0 if success.
+
+Returns `napi_ok` if the API succeeded.
+
+This API parses the CLI parameters, and then initializes the global Node state,
+V8 platform, and V8 API based on the CLI arguments.
+
+##### `node_api_dispose_platform`
+
 ### Runtime instance APIs
+
+#### Functions
+
+##### `node_api_create_env_options`
+
+##### `node_api_env_options_get_args`
+
+##### `node_api_env_options_get_exec_args`
+
+##### `node_api_env_options_set_flags`
+
+##### `node_api_env_options_set_args`
+
+##### `node_api_env_options_set_exec_args`
+
+##### `node_api_env_options_set_preload_callback`
+
+##### `node_api_env_options_use_snapshot`
+
+##### `node_api_env_options_create_snapshot`
+
+##### `node_api_create_env`
+
+##### `node_api_delete_env`
 
 ### Event loop APIs
 
+#### Functions
+
+##### `node_api_run_env`
+
+##### `node_api_run_env_while`
+
+##### `node_api_await_promise`
+
 ### JavaScript/Native interop APIs
+
+#### Functions
+
+##### `node_api_open_env_scope`
+
+##### `node_api_close_env_scope`
 
 ## Examples
 
-<!--introduced_in=REPLACEME-->
-
-As an alternative, an embedded Node.js can also be fully controlled through
-Node-API. This API supports both C and C++ through [node-addon-api][]. Although
-the embedding API is not promised to be ABI stable at this time, it uses node-api types
-and implementation so that it might be a some time in the future.
-
-An example can be found [in the Node.js source tree][napi_embedding.c].
+The examples listed here are part of the Node.js [embedding unit tests][test_embedding].
 
 ```c
-  napi_platform platform;
-  napi_env env;
-  const char *main_script = "console.log('hello world')";
-
-  if (napi_create_platform(0, NULL, NULL, &platform) != napi_ok) {
-    fprintf(stderr, "Failed creating the platform\n");
-    return -1;
-  }
-
-  if (napi_create_environment(platform, NULL, main_script,
-        (napi_stdio){NULL, NULL, NULL}, NAPI_VERSION, &env) != napi_ok) {
-    fprintf(stderr, "Failed running JS\n");
-    return -1;
-  }
-
-  // Here you can interact with the environment through Node-API env
-
-  if (napi_destroy_environment(env, NULL) != napi_ok) {
-    return -1;
-  }
-
-  if (napi_destroy_platform(platform) != napi_ok) {
-    fprintf(stderr, "Failed destroying the platform\n");
-    return -1;
-  }
+  // TODO: add example here.
 ```
 
 [Builder pattern]: https://en.wikipedia.org/wiki/Builder_pattern
@@ -269,7 +316,6 @@ An example can be found [in the Node.js source tree][napi_embedding.c].
 [`process.memoryUsage()`]: process.md#processmemoryusage
 [deprecation policy]: deprecations.md
 [embedtest.cc]: https://github.com/nodejs/node/blob/HEAD/test/embedding/embedtest.cc
-[napi_embedding.c]: https://github.com/nodejs/node/blob/HEAD/test/embedding/napi_embedding.c
-[node-addon-api]: https://github.com/nodejs/node-addon-api
+[test_embedding]: https://github.com/nodejs/node/blob/HEAD/test/embedding
 [node-api]: n-api.md
 [src/node.h]: https://github.com/nodejs/node/blob/HEAD/src/node.h
