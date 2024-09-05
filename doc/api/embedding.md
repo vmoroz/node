@@ -227,9 +227,9 @@ The C embedder API is split up by the four major groups.
 added: REPLACEME
 -->
 
-This is an opaque pointer that represents a Node.js platform.
-
 > Stability: 1 - Experimental
+
+This is an opaque pointer that represents a Node.js platform.
 
 ##### `node_platform_flags`
 
@@ -288,7 +288,7 @@ Node.js global platform initialization.
 
 #### Callback types
 
-##### `node_platform_get_message_callback`
+##### `node_platform_get_messages_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -347,7 +347,7 @@ added: REPLACEME
 Creates new Node.js platform instance.
 
 ```c
-napi_status node_create_platform(node_platform *result);
+napi_status node_create_platform(node_platform* result);
 ```
 
 - `[out] result`: Upon return has a new Node.js platform.
@@ -355,7 +355,7 @@ napi_status node_create_platform(node_platform *result);
 Returns `napi_ok` if there were no issues.
 
 It is a simple object allocation. It does not do any initialization or any
-other complex work that may fail.
+other complex work that may fail besides checking the argument.
 
 Note that Node.js typically allows only a single platform instance per process.
 
@@ -565,21 +565,221 @@ be Node.js help text returned in response to the `--help` CLI argument.
 
 ##### `node_runtime`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+This is an opaque pointer that represents a Node.js runtime.
+It wraps up the C++ `node::Environment`.
+
 ##### `node_runtime_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Flags used to initialize a Node.js runtime.
+
+```c
+typedef enum : uint64_t {
+  node_runtime_no_flags = 0,
+  node_runtime_default_flags = 1 << 0,
+  node_runtime_owns_process_state = 1 << 1,
+  node_runtime_owns_inspector = 1 << 2,
+  node_runtime_no_register_esm_loader = 1 << 3,
+  node_runtime_track_unmanaged_fds = 1 << 4,
+  node_runtime_hide_console_windows = 1 << 5,
+  node_runtime_no_native_addons = 1 << 6,
+  node_runtime_no_global_search_paths = 1 << 7,
+  node_runtime_no_browser_globals = 1 << 8,
+  node_runtime_no_create_inspector = 1 << 9,
+  node_runtime_no_start_debug_signal_handler = 1 << 10,
+  node_runtime_no_wait_for_inspector_frontend = 1 << 11
+} node_runtime_flags;
+```
+
+These flags match to the C++ `node::EnvironmentFlags` and control the
+Node.js runtime initialization.
+
+- `node_runtime_no_flags` - No flags set.
+- `node_runtime_default_flags` - Use the default behavior for Node.js instances.
+- `node_runtime_owns_process_state` - Controls whether this runtime is allowed
+  to affect per-process state (e.g. cwd, process title, uid, etc.).
+  This is set when using `node_runtime_default_flags`.
+- `node_runtime_owns_inspector` - Set if this runtime instance is associated
+  with the global inspector handling code (i.e. listening on SIGUSR1).
+  This is set when using `node_runtime_default_flags`.
+- `node_runtime_no_register_esm_loader` - Set if Node.js should not run its own
+  esm loader. This is needed by some embedders, because it's possible for the
+  Node.js esm loader to conflict with another one in an embedder environment,
+  e.g. Blink's in Chromium.
+- `node_runtime_track_unmanaged_fds` - Set this flag to make Node.js track "raw"
+  file descriptors, i.e. managed by fs.open() and fs.close(), and close them
+  during `node_delete_runtime`.
+- `node_runtime_hide_console_windows` - Set this flag to force hiding console
+  windows when spawning child processes. This is usually used when embedding
+  Node.js in GUI programs on Windows.
+- `node_runtime_no_native_addons` - Set this flag to disable loading native
+  addons via `process.dlopen`. This runtime flag is especially important for
+  worker threads so that a worker thread can't load a native addon even if
+  `execArgv` is overwritten and `--no-addons` is not specified but was specified
+  for this runtime instance.
+- `node_runtime_no_global_search_paths` - Set this flag to disable searching
+  modules from global paths like `$HOME/.node_modules` and `$NODE_PATH`. This is
+  used by standalone apps that do not expect to have their behaviors changed
+  because of globally installed modules.
+- `node_runtime_no_browser_globals` - Do not export browser globals like
+  setTimeout, console, etc.
+- `node_runtime_no_create_inspector` - Controls whether or not the runtime
+  should call `V8Inspector::create()`. This control is needed by embedders who
+  may not want to initialize the V8 inspector in situations where one has
+  already been created, e.g. Blink's in Chromium.
+- `node_runtime_no_start_debug_signal_handler` - Controls whether or not the
+  `InspectorAgent` for this runtime should call `StartDebugSignalHandler`.
+  This control is needed by embedders who may not want to allow other processes
+  to start the V8 inspector.
+- `node_runtime_no_wait_for_inspector_frontend` - Controls whether the
+  `InspectorAgent` created for this runtime waits for Inspector frontend events
+  during the runtime creation. It's used to call `node::Stop(env)` on a Worker
+  thread that is waiting for the events.
 
 #### Callback types
 
 ##### `node_runtime_store_blob_callback`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+typedef void(*node_runtime_store_blob_callback)(void* cb_data,
+                                                const uint8_t* blob,
+                                                size_t size);
+```
+
+Function pointer type for user-provided native function that is called when the
+runtime needs to store the snapshot blob.
+
+The callback parameters:
+
+- `[in] cb_data`: The user data associated with this callback.
+- `[in] blob`: Start of the blob memory span.
+- `[in] size`: Size of the blob memory span.
+
+
 ##### `node_runtime_preload_callback`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+typedef void(*node_runtime_preload_callback)(void* cb_data,
+                                             napi_env env,
+                                             napi_value process,
+                                             napi_value require);
+```
+
+Function pointer type for user-provided native function that is called when the
+runtime initially loads the JavaScript code.
+
+The callback parameters:
+
+- `[in] cb_data`: The user data associated with this callback.
+- `[in] env`: Node-API environmentStart of the blob memory span.
+- `[in] process`: The Node.js `process` object.
+- `[in] require`: The internal `require` function.
 
 #### Functions
 
 ##### `node_create_runtime`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Creates new Node.js runtime instance.
+
+```c
+napi_status node_create_runtime(node_platform platform, node_runtime* result);
+```
+
+- `[in] platform`: Optional. An initialized Node.js platform instance.
+- `[out] result`: Upon return has a new Node.js runtime instance.
+
+Returns `napi_ok` if there were no issues.
+
+Creates new Node.js runtime instance based on the provided platform instance.
+
+It is a simple object allocation. It does not do any initialization or any
+other complex work that may fail besides checking the arguments.
+
+If the platform instance is `NULL` then a default platform instance will be
+created internally when the `node_platform_initialize` is called. Since there
+can be only one platform instance per process, only one runtime instance can be
+created this way per process.
+
+If it is planned to create more than one runtime or non-default platform
+configuration required, then it is recommended to create the Node.js platform
+explicitly.
+
 ##### `node_delete_runtime`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Deletes Node.js runtime instance.
+
+```c
+napi_status node_delete_runtime(node_runtime runtime);
+```
+
+- `[in] runtime`: The Node.js runtime instance to delete.
+
+Returns `napi_ok` if there were no issues.
+
+If the runtime was initialized before the deletion, then the method
+un-initializes the runtime before deletion.
+
+As a part of the un-initialization it can store created snapshot blob if the
+`node_runtime_on_store_snapshot` set the callback to save the snapshot blob.
+
 ##### `node_runtime_is_initialized`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Checks if the Node.js runtime is initialized.
+
+```c
+napi_status
+node_runtime_is_initialized(node_runtime runtime, bool* result);
+```
+
+- `[in] runtime`: The Node.js runtime instance to check.
+- `[out] result`: `true` if the runtime is already initialized.
+
+Returns `napi_ok` if there were no issues.
+
+The runtime settings can be changed until the runtime is initialized.
+After the `node_runtime_initialize` function is called any attempt to change
+runtime settings will fail.
 
 ##### `node_runtime_on_error`
 
@@ -591,7 +791,7 @@ be Node.js help text returned in response to the `--help` CLI argument.
 
 ##### `node_runtime_on_preload`
 
-##### `node_runtime_set_snapshot`
+##### `node_runtime_use_snapshot`
 
 ##### `node_runtime_on_store_snapshot`
 

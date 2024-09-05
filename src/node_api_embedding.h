@@ -37,7 +37,7 @@ typedef enum {
   node_api_platform_generate_predictable_snapshot = 1 << 14,
 } node_api_platform_flags;
 
-typedef enum : uint64_t {
+typedef enum {
   node_api_env_no_flags = 0,
   // Use the default behavior for Node.js instances.
   node_api_env_default_flags = 1 << 0,
