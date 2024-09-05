@@ -356,10 +356,11 @@ added: REPLACEME
 Creates new Node.js platform instance.
 
 ```c
-napi_status node_create_platform(node_platform* result);
+napi_status node_create_platform(int32_t api_version, node_platform* result);
 ```
 
-- `[out] result`: new Node.js platform instance.
+- `[in] api_version`: The version of the C embedder API.
+- `[out] result`: New Node.js platform instance.
 
 Returns `napi_ok` if there were no issues.
 
