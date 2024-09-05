@@ -221,16 +221,6 @@ The C embedder API is split up by the four major groups.
 
 #### Data types
 
-##### `node_platform_options`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-This is an opaque pointer that represents a set of Node.js platform options.
-
 ##### `node_platform`
 
 <!-- YAML
@@ -298,7 +288,7 @@ Node.js global platform initialization.
 
 #### Callback types
 
-##### `node_error_handler`
+##### `node_platform_get_message_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -307,23 +297,19 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_error_handler)(void* handler_data,
-                                  const char* messages[],
-                                  size_t size,
-                                  int32_t exit_code);
+typedef void(*node_platform_get_messages_callback)(void* cb_data,
+                                                   const char* messages[],
+                                                   size_t size);
 ```
 
-Function pointer type for user-provided native functions that handles the list
-of error messages and the exit code.
+Function pointer type for user-provided native functions that receives
+a list of messages.
 
 The callback parameters:
 
-- `[in] handler_data`: The user data associated with this callback.
-- `[in] messages`: Pointer to an array of zero terminating C-strings.
-- `[in] size`: Size of the messages string array.
-- `[in] exit_code`: The process exit code in case of error. It is not 0 if error
-  happened. The callback can be used to report non-error output if the
-  `exit_code` is 0.
+- `[in] cb_data`: The user data associated with this callback.
+- `[in] messages`: An array of zero terminating C-strings.
+- `[in] size`: Size of the `messages` array.
 
 ##### `node_platform_get_args_callback`
 
@@ -350,7 +336,7 @@ The callback parameters:
 
 #### Functions
 
-##### `node_create_platform_options`
+##### `node_create_platform`
 
 <!-- YAML
 added: REPLACEME
@@ -358,18 +344,22 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Creates new platform options.
+Creates new Node.js platform instance.
 
 ```c
-napi_status
-node_create_platform_options(node_platform_options *result);
+napi_status node_create_platform(node_platform *result);
 ```
 
-- `[out] result`: A pointer to the new platform options.
+- `[out] result`: Upon return has a new Node.js platform.
 
 Returns `napi_ok` if there were no issues.
 
-##### `node_delete_platform_options`
+It is a simple object allocation. It does not do any initialization or any
+other complex work that may fail.
+
+Note that Node.js typically allows only a single platform instance per process.
+
+##### `node_delete_platform`
 
 <!-- YAML
 added: REPLACEME
@@ -377,18 +367,20 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Deletes platform options.
+Deletes Node.js platform instance.
 
 ```c
-napi_status
-node_delete_platform_options(node_platform_options options);
+napi_status node_delete_platform(node_platform platform);
 ```
 
-- `[in] options`: The platform options to delete.
+- `[in] platform`: The Node.js platform instance to delete.
 
 Returns `napi_ok` if there were no issues.
 
-##### `node_platform_options_frozen`
+If the platform was initialized before the deletion, then the method
+un-initializes the platform before deletion.
+
+##### `node_platform_is_initialized`
 
 <!-- YAML
 added: REPLACEME
@@ -396,24 +388,23 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Checks if the platform options are frozen.
+Checks if the platform is initialized.
 
 ```c
 napi_status
-node_platform_options_frozen(node_platform_options options, bool* result);
+node_platform_is_initialized(node_platform platform, bool* result);
 ```
 
-- `[in] options`: The platform options to check.
-- `[out] result`: `true` if the platform options are frozen.
+- `[in] platform`: The Node.js platform instance to check.
+- `[out] result`: `true` if the platform is already initialized.
 
 Returns `napi_ok` if there were no issues.
 
-The platform options can be changed until they are frozen.
-They are frozen after they are passed to the `node_create_platform` function
-to create a new platform. After that all changes to the platform options are
-prohibited since they are frozen.
+The platform settings can be changed until the platform is initialized.
+After the `node_platform_initialize` function is called any attempt to change
+platform settings will fail.
 
-##### `node_platform_options_args`
+##### `node_platform_set_args`
 
 <!-- YAML
 added: REPLACEME
@@ -421,22 +412,22 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Sets the CLI args for the Node.js platform.
+Sets the CLI args for the Node.js platform instance.
 
 ```c
 napi_status
-node_platform_options_args(node_platform_options options,
-                           int32_t argc,
-                           const char* argv[]);
+node_platform_set_args(node_platform platform,
+                       int32_t argc,
+                       const char* argv[]);
 ```
 
-- `[in] options`: The platform options to configure.
+- `[in] platform`: The Node.js platform instance to configure.
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: CLI arguments as an array of zero terminating C-strings.
 
 Returns `napi_ok` if there were no issues.
 
-##### `node_platform_options_flags`
+##### `node_platform_set_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -444,55 +435,133 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Sets the CLI args for the Node.js platform.
+Sets the Node.js platform flags.
 
 ```c
 napi_status
-node_platform_options_flags(node_platform_options options,
-                            node_platform_flags flags);
+node_platform_set_flags(node_platform platform, node_platform_flags flags);
 ```
 
-- `[in] options`: The platform options to configure.
+- `[in] platform`: The Node.js platform instance to configure.
 - `[in] flags`: The platform flags that control the platform behavior.
 
 Returns `napi_ok` if there were no issues.
-
-##### `node_platform_options_on_error`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Sets the custom Node.js platform error handler.
-
-```c
-napi_status
-node_platform_options_flags(node_platform_options options,
-                            node_platform_flags flags);
-```
-
-- `[in] options`: The platform options to configure.
-- `[in] flags`: The platform flags that control the platform behavior.
-
-Returns `napi_ok` if there were no issues.
-
-##### `node_create_platform`
 
 ##### `node_initialize_platform`
 
-##### `node_delete_platform`
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Initializes the Node.js platform instance.
+
+```c
+napi_status
+node_initialize_platform(node_platform platform, bool* early_return);
+```
+
+- `[in] platform`: The Node.js platform instance to initialize.
+- `[out] early_return`: Optional. `true` if the initialization result requires
+  early return either because of an error, or if the Node.js completed the work
+  based on the provided CLI args. For example, it had printed Node.js version
+  or the help text.
+
+Returns `napi_ok` if there were no issues.
+
+The Node.js initialization parses CLI args, and initializes Node.js internals
+and the V8 runtime. If the initial work such as printing the Node.js version
+number is completed, then the `early_return` is set to `true`. The printed
+message text can be accessed by calling the `node_platform_get_error_info`
+function.
+
+After the initialization is completed the Node.js platform settings cannot be
+changed anymore. The parsed arguments can be accessed by calling the
+`node_platform_get_args` and `node_platform_get_exec_args` functions.
 
 ##### `node_platform_get_args`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Gets the parsed list of non-Node.js arguments.
+
+```c
+napi_status node_platform_get_args(node_platform platform,
+                                   node_platform_get_args_callback get_args,
+                                   void* get_args_data);
+```
+
+- `[in] platform`: The Node.js platform instance to check.
+- `[in] get_args`: The callback to receive non-Node.js arguments.
+- `[in] get_args_data`: Optional. The callback data that will be passed to the
+  callback. It can be deleted right after the function call.
+
+Returns `napi_ok` if there were no issues.
+
 ##### `node_platform_get_exec_args`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Gets the parsed list of Node.js arguments.
+
+```c
+napi_status
+node_platform_get_exec_args(node_platform platform,
+                            node_platform_get_args_callback get_args,
+                            void* get_args_data);
+```
+
+- `[in] platform`: The Node.js platform instance to check.
+- `[in] get_args`: The callback to receive Node.js arguments.
+- `[in] get_args_data`: Optional. The callback data that will be passed to the
+  `get_args` callback. It can be deleted right after the function call.
+
+Returns `napi_ok` if there were no issues.
+
+##### `node_platform_get_error_info`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Gets error info for the last platform function call.
+
+```c
+napi_status node_platform_get_error_info(
+    node_platform platform,
+    node_platform_get_messages_callback get_messages,
+    void* get_messages_data,
+    int32_t* exit_code);
+```
+
+- `[in] platform`: The Node.js platform instance to check.
+- `[in] get_messages`: The callback to receive messages.
+- `[in] get_messages_data`: Optional. The callback data that will be passed
+  to the `get_messages`, callback. It can be deleted right after the
+  function call.
+- `[out] exit_code`: Optional. A non-zero recommended process exit code if there
+  was an error. Otherwise, it is zero.
+
+Returns `napi_ok` if there were no issues.
+
+In case if the `exit_code` is zero and we get some messages, then these are not
+error messages, but rather some Node.js output or warnings. For example, it can
+be Node.js help text returned in response to the `--help` CLI argument.
 
 ### Runtime instance APIs
 
 #### Data types
-
-##### `node_runtime_options`
 
 ##### `node_runtime`
 
@@ -500,37 +569,33 @@ Returns `napi_ok` if there were no issues.
 
 #### Callback types
 
-##### `node_runtime_error_handler`
-
 ##### `node_runtime_store_blob_callback`
 
 ##### `node_runtime_preload_callback`
 
 #### Functions
 
-##### `node_create_runtime_options`
-
-##### `node_delete_runtime_options`
-
-##### `node_runtime_options_frozen`
-
-##### `node_runtime_options_on_error`
-
-##### `node_runtime_options_flags`
-
-##### `node_runtime_options_args`
-
-##### `node_runtime_options_exec_args`
-
-##### `node_runtime_options_on_preload`
-
-##### `node_runtime_options_snapshot`
-
-##### `node_runtime_options_on_store_snapshot`
-
 ##### `node_create_runtime`
 
 ##### `node_delete_runtime`
+
+##### `node_runtime_is_initialized`
+
+##### `node_runtime_on_error`
+
+##### `node_runtime_set_flags`
+
+##### `node_runtime_set_args`
+
+##### `node_runtime_set_exec_args`
+
+##### `node_runtime_on_preload`
+
+##### `node_runtime_set_snapshot`
+
+##### `node_runtime_on_store_snapshot`
+
+##### `node_runtime_initialize`
 
 ### Event loop APIs
 
@@ -546,7 +611,7 @@ Returns `napi_ok` if there were no issues.
 
 #### Functions
 
-##### `node_runtime_run_task`
+##### `node_runtime_run_in_scope`
 
 ##### `node_runtime_open_scope`
 
