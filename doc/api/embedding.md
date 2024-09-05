@@ -174,7 +174,7 @@ While Node.js provides an extensive C++ embedding API that can be used from C++
 applications, the C-based API is useful when Node.js is embedded as a shared
 libnode library into C++ or non-C++ applications.
 
-The C embedding API is defined in [src/node_api_embedding.h][] in the Node.js
+The C embedding API is defined in [src/node_embedding_api.h][] in the Node.js
 source tree.
 
 ## API design overview
@@ -329,9 +329,9 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_platform_get_args_callback)(int32_t argc,
-                                               const char* argv[],
-                                               void* cb_data);
+typedef void(NAPI_CDECL* node_platform_get_args_callback)(int32_t argc,
+                                                          const char* argv[],
+                                                          void* cb_data);
 ```
 
 Function pointer type for user-provided native function that receives list of
@@ -356,7 +356,9 @@ added: REPLACEME
 Creates new Node.js platform instance.
 
 ```c
-napi_status node_create_platform(int32_t api_version, node_platform* result);
+napi_status NAPI_CDECL
+node_create_platform(int32_t api_version,
+                     node_platform* result);
 ```
 
 - `[in] api_version`: The version of the C embedder API.
@@ -381,7 +383,8 @@ added: REPLACEME
 Deletes Node.js platform instance.
 
 ```c
-napi_status node_delete_platform(node_platform platform);
+napi_status NAPI_CDECL
+node_delete_platform(node_platform platform);
 ```
 
 - `[in] platform`: The Node.js platform instance to delete.
@@ -403,7 +406,9 @@ added: REPLACEME
 Checks if the Node.js platform instance is initialized.
 
 ```c
-napi_status node_platform_is_initialized(node_platform platform, bool* result);
+napi_status NAPI_CDECL
+node_platform_is_initialized(node_platform platform,
+                             bool* result);
 ```
 
 - `[in] platform`: The Node.js platform instance to check.
@@ -427,9 +432,10 @@ added: REPLACEME
 Sets custom error handler for the Node.js platform instance.
 
 ```c
-napi_status node_platform_on_error(node_platform platform,
-                                   node_platform_error_handler error_handler,
-                                   void* error_handler_data);
+napi_status NAPI_CDECL
+node_platform_on_error(node_platform platform,
+                       node_platform_error_handler error_handler,
+                       void* error_handler_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
@@ -460,8 +466,9 @@ added: REPLACEME
 Sets the Node.js platform instance flags.
 
 ```c
-napi_status
-node_platform_set_flags(node_platform platform, node_platform_flags flags);
+napi_status NAPI_CDECL
+node_platform_set_flags(node_platform platform,
+                        node_platform_flags flags);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
@@ -481,9 +488,10 @@ added: REPLACEME
 Sets the CLI args for the Node.js platform instance.
 
 ```c
-napi_status node_platform_set_args(node_platform platform,
-                                   int32_t argc,
-                                   const char* argv[]);
+napi_status NAPI_CDECL
+node_platform_set_args(node_platform platform,
+                       int32_t argc,
+                       const char* argv[]);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
@@ -493,7 +501,7 @@ napi_status node_platform_set_args(node_platform platform,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_initialize_platform`
+##### `node_platform_initialize`
 
 <!-- YAML
 added: REPLACEME
@@ -504,8 +512,9 @@ added: REPLACEME
 Initializes the Node.js platform instance.
 
 ```c
-napi_status
-node_initialize_platform(node_platform platform, bool* early_return);
+napi_status NAPI_CDECL
+node_platform_initialize(node_platform platform,
+                         bool* early_return);
 ```
 
 - `[in] platform`: The Node.js platform instance to initialize.
@@ -535,9 +544,10 @@ added: REPLACEME
 Gets the parsed list of non-Node.js arguments.
 
 ```c
-napi_status node_platform_get_args(node_platform platform,
-                                   node_platform_get_args_callback get_args,
-                                   void* get_args_data);
+napi_status NAPI_CDECL
+node_platform_get_args(node_platform platform,
+                       node_platform_get_args_callback get_args,
+                       void* get_args_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
@@ -559,7 +569,7 @@ added: REPLACEME
 Gets the parsed list of Node.js arguments.
 
 ```c
-napi_status
+napi_status NAPI_CDECL
 node_platform_get_exec_args(node_platform platform,
                             node_platform_get_args_callback get_args,
                             void* get_args_data);
@@ -663,6 +673,33 @@ Node.js runtime initialization.
   thread that is waiting for the events.
 
 
+##### `node_runtime_snapshot_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Flags are used to create a Node.js runtime JavaScript snapshot.
+
+```c
+typedef enum {
+  node_runtime_snapshot_no_flags = 0,
+  node_runtime_snapshot_no_code_cache = 1 << 0,
+} node_runtime_snapshot_flags;
+```
+
+These flags match to the C++ `node::SnapshotFlags` and control the
+Node.js runtime snapshot creation.
+
+- `node_runtime_snapshot_no_flags` - No flags set.
+- `node_runtime_snapshot_no_code_cache` - Whether code cache should be generated
+  as part of the snapshot. Code cache reduces the time spent on compiling
+  functions included in the snapshot at the expense of a bigger snapshot size
+  and potentially breaking portability of the snapshot.
+
+
 #### Callback types
 
 ##### `node_runtime_error_handler`
@@ -691,10 +728,10 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_runtime_preload_callback)(napi_env env,
-                                             napi_value process,
-                                             napi_value require,
-                                             void* cb_data,);
+typedef void(NAPI_CDECL* node_runtime_preload_callback)(napi_env env,
+                                                        napi_value process,
+                                                        napi_value require,
+                                                        void* cb_data);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -717,9 +754,9 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_runtime_store_blob_callback)(const uint8_t* blob,
-                                                size_t size,
-                                                void* cb_data);
+typedef void(NAPI_CDECL* node_runtime_store_blob_callback)(const uint8_t* blob,
+                                                           size_t size,
+                                                           void* cb_data);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -744,7 +781,9 @@ added: REPLACEME
 Creates new Node.js runtime instance.
 
 ```c
-napi_status node_create_runtime(node_platform platform, node_runtime* result);
+napi_status NAPI_CDECL
+node_create_runtime(node_platform platform,
+                    node_runtime* result);
 ```
 
 - `[in] platform`: Optional. An initialized Node.js platform instance.
@@ -778,7 +817,8 @@ added: REPLACEME
 Deletes Node.js runtime instance.
 
 ```c
-napi_status node_delete_runtime(node_runtime runtime);
+napi_status NAPI_CDECL
+node_delete_runtime(node_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to delete.
@@ -789,7 +829,7 @@ If the runtime was initialized, then the method un-initializes the runtime
 before the deletion.
 
 As a part of the un-initialization it can store created snapshot blob if the
-`node_runtime_on_store_snapshot` set the callback to save the snapshot blob.
+`node_runtime_on_create_snapshot` set the callback to save the snapshot blob.
 
 
 ##### `node_runtime_is_initialized`
@@ -803,8 +843,9 @@ added: REPLACEME
 Checks if the Node.js runtime instance is initialized.
 
 ```c
-napi_status
-node_runtime_is_initialized(node_runtime runtime, bool* result);
+napi_status NAPI_CDECL
+node_runtime_is_initialized(node_runtime runtime,
+                            bool* result);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to check.
@@ -827,9 +868,10 @@ added: REPLACEME
 Sets custom error handler for the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_on_error(node_runtime runtime,
-                                  node_runtime_error_handler error_handler,
-                                  void* error_handler_data);
+napi_status NAPI_CDECL
+node_runtime_on_error(node_runtime runtime,
+                      node_runtime_error_handler error_handler,
+                      void* error_handler_data);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -856,8 +898,9 @@ added: REPLACEME
 Sets the Node.js runtime instance flags.
 
 ```c
-napi_status
-node_runtime_set_flags(node_runtime runtime, node_platform_flags flags);
+napi_status NAPI_CDECL
+node_runtime_set_flags(node_runtime runtime,
+                       node_platform_flags flags);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -871,9 +914,10 @@ Returns `napi_ok` if there were no issues.
 Sets the non-Node.js arguments for the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_set_args(node_runtime runtime,
-                                  int32_t argc,
-                                  const char* argv[]);
+napi_status NAPI_CDECL
+node_runtime_set_args(node_runtime runtime,
+                      int32_t argc,
+                      const char* argv[]);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -888,9 +932,10 @@ Returns `napi_ok` if there were no issues.
 Sets the Node.js arguments for the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_set_exec_args(node_runtime runtime,
-                                       int32_t argc,
-                                       const char* argv[]);
+napi_status NAPI_CDECL
+node_runtime_set_exec_args(node_runtime runtime,
+                           int32_t argc,
+                           const char* argv[]);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -911,9 +956,10 @@ added: REPLACEME
 Sets a preload callback to call before Node.js runtime instance is loaded.
 
 ```c
-napi_status node_runtime_on_preload(node_runtime runtime,
-                                    node_runtime_preload_callback preload_cb,
-                                    void* preload_cb_data);
+napi_status NAPI_CDECL
+node_runtime_on_preload(node_runtime runtime,
+                        node_runtime_preload_callback preload_cb,
+                        void* preload_cb_data);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -937,9 +983,10 @@ added: REPLACEME
 Use a snapshot blob to load this Node.js runtime instance.
 
 ```c
-napi_status node_runtime_use_snapshot(node_runtime runtime,
-                                      const uint8_t* snapshot,
-                                      size_t size);
+napi_status NAPI_CDECL
+node_runtime_use_snapshot(node_runtime runtime,
+                          const uint8_t* snapshot,
+                          size_t size);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -949,7 +996,7 @@ napi_status node_runtime_use_snapshot(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_on_store_snapshot`
+##### `node_runtime_on_create_snapshot`
 
 <!-- YAML
 added: REPLACEME
@@ -961,10 +1008,11 @@ Sets a callback to store created snapshot when Node.js runtime instance
 finished execution.
 
 ```c
-napi_status
-node_runtime_on_store_snapshot(node_runtime runtime,
-                               node_runtime_store_blob_callback store_blob_cb,
-                               void* store_blob_cb_data);
+napi_status NAPI_CDECL
+node_runtime_on_create_snapshot(node_runtime runtime,
+                                node_runtime_store_blob_callback store_blob_cb,
+                                void* store_blob_cb_data,
+                                node_runtime_snapshot_flags snapshot_flags);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -973,6 +1021,7 @@ node_runtime_on_store_snapshot(node_runtime runtime,
 - `[in] store_blob_cb_data`: Optional. The store blob callback data that will be
   passed to the `store_blob_cb` callback. It can be removed after the
   `node_runtime_delete` call.
+- `[in] snapshot_flags`: The flags controlling the snapshot creation.
 
 Returns `napi_ok` if there were no issues.
 
@@ -988,7 +1037,7 @@ added: REPLACEME
 Initializes the Node.js runtime instance.
 
 ```c
-napi_status
+napi_status NAPI_CDECL
 node_runtime_initialize(node_runtime runtime);
 ```
 
@@ -1007,7 +1056,7 @@ changed anymore.
 
 #### Callback types
 
-##### `node_api_run_predicate`
+##### `node_runtime_event_loop_predicate`
 
 <!-- YAML
 added: REPLACEME
@@ -1016,7 +1065,8 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
+typedef bool(NAPI_CDECL* node_runtime_event_loop_predicate)(
+    void* predicate_data);
 ```
 
 Function pointer type for user-provided predicate function that is checked
@@ -1042,7 +1092,7 @@ added: REPLACEME
 Runs Node.js runtime instance event loop.
 
 ```c
-napi_status
+napi_status NAPI_CDECL
 node_runtime_run_event_loop(node_runtime runtime);
 ```
 
@@ -1065,11 +1115,12 @@ Runs Node.js runtime instance event loop while there tasks to process and
 the provided predicate returns true.
 
 ```c
-napi_status node_api_run_env_while(node_runtime runtime,
-                                   node_runtime_loop_predicate predicate,
-                                   void* predicate_data,
-                                   bool is_thread_blocking,
-                                   bool* has_more_work);
+napi_status NAPI_CDECL
+node_runtime_run_event_loop_while(node_runtime runtime,
+                                  node_runtime_event_loop_predicate predicate,
+                                  void* predicate_data,
+                                  bool is_thread_blocking,
+                                  bool* has_more_work);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1101,10 +1152,11 @@ with a success of a failure. It blocks the thread if there are to tasks in the
 loop and the promise is not completed.
 
 ```c
-napi_status node_api_await_promise(node_runtime runtime,
-                                   napi_value promise,
-                                   napi_value* result,
-                                   bool* has_more_work);
+napi_status NAPI_CDECL
+node_runtime_await_promise(node_runtime runtime,
+                           napi_value promise,
+                           napi_value* result,
+                           bool* has_more_work);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1131,8 +1183,9 @@ added: REPLACEME
 Sets the Node-API version for the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_set_node_api_version(node_runtime runtime,
-                                              int32_t node_api_version);
+napi_status NAPI_CDECL
+node_runtime_set_node_api_version(node_runtime runtime,
+                                  int32_t node_api_version);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1154,7 +1207,9 @@ added: REPLACEME
 Gets `napi_env` associated with the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_get_node_api_env(node_runtime runtime, napi_env* env);
+napi_status NAPI_CDECL
+node_runtime_get_node_api_env(node_runtime runtime,
+                              napi_env* env);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1174,7 +1229,8 @@ added: REPLACEME
 Opens V8 Isolate and Context scope associated with the Node.js runtime instance.
 
 ```c
-napi_status node_runtime_open_scope(node_runtime runtime);
+napi_status NAPI_CDECL
+node_runtime_open_scope(node_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1202,7 +1258,8 @@ Closes V8 Isolate and Context scope associated with the Node.js
 runtime instance.
 
 ```c
-napi_status node_runtime_close_scope(node_runtime runtime);
+napi_status NAPI_CDECL
+node_runtime_close_scope(node_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
