@@ -172,7 +172,7 @@ int RunNodeInstance(MultiIsolatePlatform* platform,
 
 While Node.js provides an extensive C++ embedding API that can be used from C++
 applications, the C-based API is useful when Node.js is embedded as a shared
-libnode library into non-C++ applications.
+libnode library into C++ or non-C++ applications.
 
 The C embedding API is defined in [src/node_api_embedding.h][] in the Node.js
 source tree.
@@ -191,8 +191,8 @@ The following design principles are targeting to achieve that goal.
   functions.
 - Use the API version as a way to add new or change existing behavior.
 - Make the common scenarios simple and the complex scenarios possible. In some
-  cases we provide some "shortcut" APIs that combine calls to multiple other
-  APIs to simplify common scenarios.
+  cases we may provide some "shortcut" APIs that combine calls to multiple other
+  APIs to simplify some common scenarios.
 
 The C embedder API has the four major API function groups:
 
@@ -201,21 +201,23 @@ The C embedder API has the four major API function groups:
   the V8 platform, V8 thread pool, and initializing V8.
 - **Runtime instance APIs.** This is the main Node.js working environment that
   combines V8 `Isolate`, `Context`, and a UV loop. It is used run the Node.js
-  JavaScript code and modules. In a process we may have one or more runtime
+  JavaScript code and modules. Each process we may have one or more runtime
   environments. Its behavior is based on the global platform API.
 - **Event loop APIs.** The event loop is one of the key concepts of Node.js. It
   handles IO callbacks, timer jobs, and Promise continuations. These APIs are
   related to a specific Node.js runtime instance and control handling of the
-  loop tasks. The loop tasks can be executed in the chosen thread. The API
-  controls how many tasks executed at one: all, one-by-one, or until a predicate
-  becomes false.
-- **JavaScript/Native interop APIs.** Here we rely on the existing [node-api][]
-  set of functions. The embedding APIs just provide access to functions that
+  event loop tasks. The event loop tasks can be executed in the chosen thread.
+  The API controls how many tasks executed at one: all, one-by-one, or until a
+  predicate becomes false. We can also choose if the even loop must block the
+  current thread while waiting for a new task to arrive.
+- **JavaScript/Native interop APIs.** They rely on the existing [node-api][]
+  set of functions. The embedding APIs provide access to functions that
   retrieve or create `napi_env` instances related to a runtime instance.
+
 
 ## API reference
 
-The C embedder API is split up by the four major groups.
+The C embedder API is split up by the four major groups described above.
 
 ### Global platform APIs
 
@@ -229,7 +231,9 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-This is an opaque pointer that represents a Node.js platform.
+This is an opaque pointer that represents a Node.js platform instance.
+Node.js allows only a single platform instance per process.
+
 
 ##### `node_platform_flags`
 
@@ -239,7 +243,7 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Flags used to initialize a Node.js platform.
+Flags are used to initialize a Node.js platform instance.
 
 ```c
 typedef enum {
@@ -260,18 +264,18 @@ typedef enum {
 ```
 
 These flags match to the C++ `node::ProcessInitializationFlags` and control the
-Node.js global platform initialization.
+Node.js platform initialization.
 
 - `node_platform_no_flags` - The default flags.
-- `node_platform_enable_stdio_inheritance` - Enable stdio inheritance, which is
-  disabled by default. This flag is also implied by
-  node_platform_no_stdio_initialization.
+- `node_platform_enable_stdio_inheritance` - Enable `stdio` inheritance, which
+  is disabled by default. This flag is also implied by the
+  `node_platform_no_stdio_initialization`.
 - `node_platform_disable_node_options_env` - Disable reading the `NODE_OPTIONS`
   environment variable.
 - `node_platform_disable_cli_options` - Do not parse CLI options.
 - `node_platform_no_icu` - Do not initialize ICU.
-- `node_platform_no_stdio_initialization` - Do not modify stdio file descriptor
-  or TTY state.
+- `node_platform_no_stdio_initialization` - Do not modify `stdio` file
+  descriptor or TTY state.
 - `node_platform_no_default_signal_handling` - Do not register Node.js-specific
   signal handlers and reset other signal handlers to default state.
 - `node_platform_no_init_openssl` - Do not initialize OpenSSL config.
@@ -282,13 +286,14 @@ Node.js global platform initialization.
 - `node_platform_no_use_large_pages` - Do not map code segments into large pages
   for this process.
 - `node_platform_no_print_help_or_version_output` - Skip printing output for
-  --help, --version, --v8-options.
+  `--help`, `--version`, `--v8-options`.
 - `node_platform_generate_predictable_snapshot` - Initialize the process for
   predictable snapshot generation.
 
+
 #### Callback types
 
-##### `node_platform_get_messages_callback`
+##### `node_platform_error_handler`
 
 <!-- YAML
 added: REPLACEME
@@ -297,19 +302,23 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_platform_get_messages_callback)(void* cb_data,
-                                                   const char* messages[],
-                                                   size_t size);
+typedef void(NAPI_CDECL* node_platform_error_handler)(int32_t exit_code,
+                                                      const char* messages[],
+                                                      size_t size,
+                                                      void* handler_data);
 ```
 
-Function pointer type for user-provided native functions that receives
-a list of messages.
+Function pointer type for user-provided native function that handles the list
+of error messages and the exit code.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
-- `[in] messages`: An array of zero terminating C-strings.
-- `[in] size`: Size of the `messages` array.
+- `[in] exit_code`: The suggested process exit code in case of error. If the
+  `exit_code` is zero, then the callback is used to output non-error messages.
+- `[in] messages`: Pointer to an array of zero terminating strings.
+- `[in] size`: Size of the `messages` string array.
+- `[in] handler_data`: The user data associated with this callback.
+
 
 ##### `node_platform_get_args_callback`
 
@@ -320,19 +329,19 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_platform_get_args_callback)(void* cb_data,
-                                               int32_t argc,
-                                               const char* argv[]);
+typedef void(*node_platform_get_args_callback)(int32_t argc,
+                                               const char* argv[],
+                                               void* cb_data);
 ```
 
-Function pointer type for user-provided native functions that receives list of
+Function pointer type for user-provided native function that receives list of
 CLI arguments from the `node_platform`.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
 - `[in] argc`: Number of items in the `argv` array.
-- `[in] argv`: CLI arguments as an array of zero terminating C-strings.
+- `[in] argv`: CLI arguments as an array of zero terminating strings.
+- `[in] cb_data`: The user data associated with this callback.
 
 #### Functions
 
@@ -350,14 +359,15 @@ Creates new Node.js platform instance.
 napi_status node_create_platform(node_platform* result);
 ```
 
-- `[out] result`: Upon return has a new Node.js platform.
+- `[out] result`: new Node.js platform instance.
 
 Returns `napi_ok` if there were no issues.
 
 It is a simple object allocation. It does not do any initialization or any
-other complex work that may fail besides checking the argument.
+other complex work that may fail. It only checks the argument.
 
-Note that Node.js typically allows only a single platform instance per process.
+Node.js allows only a single platform instance per process.
+
 
 ##### `node_delete_platform`
 
@@ -378,7 +388,8 @@ napi_status node_delete_platform(node_platform platform);
 Returns `napi_ok` if there were no issues.
 
 If the platform was initialized before the deletion, then the method
-un-initializes the platform before deletion.
+uninitializes the platform before deletion.
+
 
 ##### `node_platform_is_initialized`
 
@@ -388,11 +399,10 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Checks if the platform is initialized.
+Checks if the Node.js platform instance is initialized.
 
 ```c
-napi_status
-node_platform_is_initialized(node_platform platform, bool* result);
+napi_status node_platform_is_initialized(node_platform platform, bool* result);
 ```
 
 - `[in] platform`: The Node.js platform instance to check.
@@ -400,9 +410,64 @@ node_platform_is_initialized(node_platform platform, bool* result);
 
 Returns `napi_ok` if there were no issues.
 
-The platform settings can be changed until the platform is initialized.
-After the `node_platform_initialize` function is called any attempt to change
-platform settings will fail.
+The platform instance settings can be changed until the platform is initialized.
+After the `node_platform_initialize` function call any attempt to change
+platform instance settings will fail.
+
+
+##### `node_platform_on_error`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets custom error handler for the Node.js platform instance.
+
+```c
+napi_status node_platform_on_error(node_platform platform,
+                                   node_platform_error_handler error_handler,
+                                   void* error_handler_data);
+```
+
+- `[in] platform`: The Node.js platform instance.
+- `[in] error_handler`: The error handler callback.
+- `[in] error_handler_data`: Optional. The error handler data that will be
+  passed to the `error_handler` callback. It can be removed after the
+  `node_platform_delete` call.
+
+Returns `napi_ok` if there were no issues.
+
+This function assigns a custom platform error handler. It replaces the default
+error handler that outputs error messages to the `stderr` and exits the current
+process with the `exit_code` if it is not zero.
+
+In case if the `exit_code` is zero and we get some messages, then these are not
+error messages, but rather some Node.js output or warnings. For example, it can
+be Node.js help text returned in response to the `--help` CLI argument.
+
+
+##### `node_platform_set_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the Node.js platform instance flags.
+
+```c
+napi_status
+node_platform_set_flags(node_platform platform, node_platform_flags flags);
+```
+
+- `[in] platform`: The Node.js platform instance to configure.
+- `[in] flags`: The platform flags that control the platform behavior.
+
+Returns `napi_ok` if there were no issues.
+
 
 ##### `node_platform_set_args`
 
@@ -415,37 +480,17 @@ added: REPLACEME
 Sets the CLI args for the Node.js platform instance.
 
 ```c
-napi_status
-node_platform_set_args(node_platform platform,
-                       int32_t argc,
-                       const char* argv[]);
+napi_status node_platform_set_args(node_platform platform,
+                                   int32_t argc,
+                                   const char* argv[]);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
 - `[in] argc`: Number of items in the `argv` array.
-- `[in] argv`: CLI arguments as an array of zero terminating C-strings.
+- `[in] argv`: CLI arguments as an array of zero terminating strings.
 
 Returns `napi_ok` if there were no issues.
 
-##### `node_platform_set_flags`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Sets the Node.js platform flags.
-
-```c
-napi_status
-node_platform_set_flags(node_platform platform, node_platform_flags flags);
-```
-
-- `[in] platform`: The Node.js platform instance to configure.
-- `[in] flags`: The platform flags that control the platform behavior.
-
-Returns `napi_ok` if there were no issues.
 
 ##### `node_initialize_platform`
 
@@ -464,21 +509,19 @@ node_initialize_platform(node_platform platform, bool* early_return);
 
 - `[in] platform`: The Node.js platform instance to initialize.
 - `[out] early_return`: Optional. `true` if the initialization result requires
-  early return either because of an error, or if the Node.js completed the work
-  based on the provided CLI args. For example, it had printed Node.js version
-  or the help text.
+  early return either because of an error or the Node.js completed the work.
+  For example, it had printed Node.js version or the help text.
 
 Returns `napi_ok` if there were no issues.
 
-The Node.js initialization parses CLI args, and initializes Node.js internals
-and the V8 runtime. If the initial work such as printing the Node.js version
-number is completed, then the `early_return` is set to `true`. The printed
-message text can be accessed by calling the `node_platform_get_error_info`
-function.
+The Node.js platform instance initialization parses CLI args, initializes
+Node.js internals and the V8 runtime. If the initial work such as printing the
+Node.js version number is completed, then the `early_return` is set to `true`.
 
 After the initialization is completed the Node.js platform settings cannot be
 changed anymore. The parsed arguments can be accessed by calling the
 `node_platform_get_args` and `node_platform_get_exec_args` functions.
+
 
 ##### `node_platform_get_args`
 
@@ -496,12 +539,13 @@ napi_status node_platform_get_args(node_platform platform,
                                    void* get_args_data);
 ```
 
-- `[in] platform`: The Node.js platform instance to check.
+- `[in] platform`: The Node.js platform instance.
 - `[in] get_args`: The callback to receive non-Node.js arguments.
 - `[in] get_args_data`: Optional. The callback data that will be passed to the
   callback. It can be deleted right after the function call.
 
 Returns `napi_ok` if there were no issues.
+
 
 ##### `node_platform_get_exec_args`
 
@@ -520,44 +564,13 @@ node_platform_get_exec_args(node_platform platform,
                             void* get_args_data);
 ```
 
-- `[in] platform`: The Node.js platform instance to check.
+- `[in] platform`: The Node.js platform instance.
 - `[in] get_args`: The callback to receive Node.js arguments.
 - `[in] get_args_data`: Optional. The callback data that will be passed to the
   `get_args` callback. It can be deleted right after the function call.
 
 Returns `napi_ok` if there were no issues.
 
-##### `node_platform_get_error_info`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Gets error info for the last platform function call.
-
-```c
-napi_status node_platform_get_error_info(
-    node_platform platform,
-    node_platform_get_messages_callback get_messages,
-    void* get_messages_data,
-    int32_t* exit_code);
-```
-
-- `[in] platform`: The Node.js platform instance to check.
-- `[in] get_messages`: The callback to receive messages.
-- `[in] get_messages_data`: Optional. The callback data that will be passed
-  to the `get_messages`, callback. It can be deleted right after the
-  function call.
-- `[out] exit_code`: Optional. A non-zero recommended process exit code if there
-  was an error. Otherwise, it is zero.
-
-Returns `napi_ok` if there were no issues.
-
-In case if the `exit_code` is zero and we get some messages, then these are not
-error messages, but rather some Node.js output or warnings. For example, it can
-be Node.js help text returned in response to the `--help` CLI argument.
 
 ### Runtime instance APIs
 
@@ -571,8 +584,9 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-This is an opaque pointer that represents a Node.js runtime.
+This is an opaque pointer that represents a Node.js runtime instance.
 It wraps up the C++ `node::Environment`.
+There can be one or more runtime instances in the process.
 
 ##### `node_runtime_flags`
 
@@ -582,10 +596,10 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Flags used to initialize a Node.js runtime.
+Flags are used to initialize a Node.js runtime instance.
 
 ```c
-typedef enum : uint64_t {
+typedef enum {
   node_runtime_no_flags = 0,
   node_runtime_default_flags = 1 << 0,
   node_runtime_owns_process_state = 1 << 1,
@@ -611,14 +625,14 @@ Node.js runtime initialization.
   to affect per-process state (e.g. cwd, process title, uid, etc.).
   This is set when using `node_runtime_default_flags`.
 - `node_runtime_owns_inspector` - Set if this runtime instance is associated
-  with the global inspector handling code (i.e. listening on SIGUSR1).
+  with the global inspector handling code (i.e. listening on `SIGUSR1`).
   This is set when using `node_runtime_default_flags`.
 - `node_runtime_no_register_esm_loader` - Set if Node.js should not run its own
   esm loader. This is needed by some embedders, because it's possible for the
   Node.js esm loader to conflict with another one in an embedder environment,
   e.g. Blink's in Chromium.
 - `node_runtime_track_unmanaged_fds` - Set this flag to make Node.js track "raw"
-  file descriptors, i.e. managed by fs.open() and fs.close(), and close them
+  file descriptors, i.e. managed by `fs.open()` and `fs.close()`, and close them
   during `node_delete_runtime`.
 - `node_runtime_hide_console_windows` - Set this flag to force hiding console
   windows when spawning child processes. This is usually used when embedding
@@ -647,9 +661,10 @@ Node.js runtime initialization.
   during the runtime creation. It's used to call `node::Stop(env)` on a Worker
   thread that is waiting for the events.
 
+
 #### Callback types
 
-##### `node_runtime_store_blob_callback`
+##### `node_runtime_error_handler`
 
 <!-- YAML
 added: REPLACEME
@@ -658,19 +673,12 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_runtime_store_blob_callback)(void* cb_data,
-                                                const uint8_t* blob,
-                                                size_t size);
+typedef node_platform_error_handler node_runtime_error_handler;
 ```
 
-Function pointer type for user-provided native function that is called when the
-runtime needs to store the snapshot blob.
-
-The callback parameters:
-
-- `[in] cb_data`: The user data associated with this callback.
-- `[in] blob`: Start of the blob memory span.
-- `[in] size`: Size of the blob memory span.
+Function pointer type for user-provided native function that handles the list
+of error messages and the exit code.
+It is an alias for the `node_platform_error_handler`.
 
 
 ##### `node_runtime_preload_callback`
@@ -682,10 +690,10 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(*node_runtime_preload_callback)(void* cb_data,
-                                             napi_env env,
+typedef void(*node_runtime_preload_callback)(napi_env env,
                                              napi_value process,
-                                             napi_value require);
+                                             napi_value require,
+                                             void* cb_data,);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -693,10 +701,34 @@ runtime initially loads the JavaScript code.
 
 The callback parameters:
 
-- `[in] cb_data`: The user data associated with this callback.
 - `[in] env`: Node-API environmentStart of the blob memory span.
 - `[in] process`: The Node.js `process` object.
 - `[in] require`: The internal `require` function.
+- `[in] cb_data`: The user data associated with this callback.
+
+
+##### `node_runtime_store_blob_callback`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+typedef void(*node_runtime_store_blob_callback)(const uint8_t* blob,
+                                                size_t size,
+                                                void* cb_data);
+```
+
+Function pointer type for user-provided native function that is called when the
+runtime needs to store the snapshot blob.
+
+The callback parameters:
+
+- `[in] blob`: Start of the blob memory span.
+- `[in] size`: Size of the blob memory span.
+- `[in] cb_data`: The user data associated with this callback.
 
 #### Functions
 
@@ -729,9 +761,10 @@ created internally when the `node_platform_initialize` is called. Since there
 can be only one platform instance per process, only one runtime instance can be
 created this way per process.
 
-If it is planned to create more than one runtime or non-default platform
-configuration required, then it is recommended to create the Node.js platform
-explicitly.
+If it is planned to create more than one runtime instance or a non-default
+platform configuration is required, then it is recommended to create the
+Node.js platform instance explicitly.
+
 
 ##### `node_delete_runtime`
 
@@ -751,11 +784,12 @@ napi_status node_delete_runtime(node_runtime runtime);
 
 Returns `napi_ok` if there were no issues.
 
-If the runtime was initialized before the deletion, then the method
-un-initializes the runtime before deletion.
+If the runtime was initialized, then the method un-initializes the runtime
+before the deletion.
 
 As a part of the un-initialization it can store created snapshot blob if the
 `node_runtime_on_store_snapshot` set the callback to save the snapshot blob.
+
 
 ##### `node_runtime_is_initialized`
 
@@ -765,7 +799,7 @@ added: REPLACEME
 
 > Stability: 1 - Experimental
 
-Checks if the Node.js runtime is initialized.
+Checks if the Node.js runtime instance is initialized.
 
 ```c
 napi_status
@@ -783,43 +817,408 @@ runtime settings will fail.
 
 ##### `node_runtime_on_error`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets custom error handler for the Node.js runtime instance.
+
+```c
+napi_status node_runtime_on_error(node_runtime runtime,
+                                  node_runtime_error_handler error_handler,
+                                  void* error_handler_data);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] error_handler`: The error handler callback.
+- `[in] error_handler_data`: Optional. The error handler data that will be
+  passed to the `error_handler` callback. It can be removed after the
+  `node_runtime_delete` call.
+
+Returns `napi_ok` if there were no issues.
+
+This function assigns a custom platform error handler. It replaces the default
+error handler that outputs error messages to the `stderr` and exits the current
+process with the `exit_code` if it is not zero.
+
+
 ##### `node_runtime_set_flags`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the Node.js runtime instance flags.
+
+```c
+napi_status
+node_runtime_set_flags(node_runtime runtime, node_platform_flags flags);
+```
+
+- `[in] runtime`: The Node.js runtime instance to configure.
+- `[in] flags`: The runtime flags that control the runtime behavior.
+
+Returns `napi_ok` if there were no issues.
+
 
 ##### `node_runtime_set_args`
 
+Sets the non-Node.js arguments for the Node.js runtime instance.
+
+```c
+napi_status node_runtime_set_args(node_runtime runtime,
+                                  int32_t argc,
+                                  const char* argv[]);
+```
+
+- `[in] runtime`: The Node.js runtime instance to configure.
+- `[in] argc`: Number of items in the `argv` array.
+- `[in] argv`: non-Node.js arguments as an array of zero terminating strings.
+
+Returns `napi_ok` if there were no issues.
+
+
 ##### `node_runtime_set_exec_args`
+
+Sets the Node.js arguments for the Node.js runtime instance.
+
+```c
+napi_status node_runtime_set_exec_args(node_runtime runtime,
+                                       int32_t argc,
+                                       const char* argv[]);
+```
+
+- `[in] runtime`: The Node.js runtime instance to configure.
+- `[in] argc`: Number of items in the `argv` array.
+- `[in] argv`: Node.js arguments as an array of zero terminating strings.
+
+Returns `napi_ok` if there were no issues.
+
 
 ##### `node_runtime_on_preload`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets a preload callback to call before Node.js runtime instance is loaded.
+
+```c
+napi_status node_runtime_on_preload(node_runtime runtime,
+                                    node_runtime_preload_callback preload_cb,
+                                    void* preload_cb_data);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] preload_cb`: The preload callback to be called before Node.js runtime
+  instance is loaded.
+- `[in] preload_cb_data`: Optional. The preload callback data that will be
+  passed to the `preload_cb` callback. It can be removed after the
+  `node_runtime_delete` call.
+
+Returns `napi_ok` if there were no issues.
+
+
 ##### `node_runtime_use_snapshot`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Use a snapshot blob to load this Node.js runtime instance.
+
+```c
+napi_status node_runtime_use_snapshot(node_runtime runtime,
+                                      const uint8_t* snapshot,
+                                      size_t size);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] snapshot`: Start of the snapshot memory span.
+- `[in] size`: Size of the snapshot memory span.
+
+Returns `napi_ok` if there were no issues.
+
 
 ##### `node_runtime_on_store_snapshot`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets a callback to store created snapshot when Node.js runtime instance
+finished execution.
+
+```c
+napi_status
+node_runtime_on_store_snapshot(node_runtime runtime,
+                               node_runtime_store_blob_callback store_blob_cb,
+                               void* store_blob_cb_data);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] store_blob_cb`: The store blob callback to be called before Node.js
+  runtime instance is deleted.
+- `[in] store_blob_cb_data`: Optional. The store blob callback data that will be
+  passed to the `store_blob_cb` callback. It can be removed after the
+  `node_runtime_delete` call.
+
+Returns `napi_ok` if there were no issues.
+
+
 ##### `node_runtime_initialize`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Initializes the Node.js runtime instance.
+
+```c
+napi_status
+node_runtime_initialize(node_runtime runtime);
+```
+
+- `[in] runtime`: The Node.js runtime instance to initialize.
+
+Returns `napi_ok` if there were no issues.
+
+The Node.js runtime initialization creates new Node.js environment associated
+with a V8 `Isolate` and V8 `Context`.
+
+After the initialization is completed the Node.js runtime settings cannot be
+changed anymore.
+
+
 ### Event loop APIs
+
+#### Callback types
+
+##### `node_api_run_predicate`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+```c
+typedef bool(NAPI_CDECL* node_api_run_predicate)(void* predicate_data);
+```
+
+Function pointer type for user-provided predicate function that is checked
+before each task execution in the Node.js runtime event loop.
+
+The callback parameters:
+
+- `[in] predicate_data`: The user data associated with this predicate callback.
+
+Returns `true` if the runtime loop must continue to run.
+
 
 #### Functions
 
 ##### `node_runtime_run_event_loop`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Runs Node.js runtime instance event loop.
+
+```c
+napi_status
+node_runtime_run_event_loop(node_runtime runtime);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+
+Returns `napi_ok` if there were no issues.
+
+The function exits when there are no more tasks to process in the loop.
+
+
 ##### `node_runtime_run_event_loop_while`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Runs Node.js runtime instance event loop while there tasks to process and
+the provided predicate returns true.
+
+```c
+napi_status node_api_run_env_while(node_runtime runtime,
+                                   node_runtime_loop_predicate predicate,
+                                   void* predicate_data,
+                                   bool is_thread_blocking,
+                                   bool* has_more_work);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] predicate`: The predicate to check before each runtime event loop
+  task invocation.
+- `[in] predicate_data`: Optional. The predicate data that will be
+  passed to the `predicate` callback. It can be removed right after this 
+  function call.
+- `[in] is_thread_blocking`: If `true` then the runtime loop will block the
+  thread if the predicate returned `true` and there are no more tasks to invoke
+  in the event loop. It unblocks after a new task is submitted to the
+  event loop.
+- `[out] has_more_work`: `true` if the runtime event loop has more tasks after
+  returning from the function.
+
+Returns `napi_ok` if there were no issues.
+
+
 ##### `node_runtime_await_promise`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Runs Node.js runtime instance event loop until the provided promise is completed
+with a success of a failure. It blocks the thread if there are to tasks in the
+loop and the promise is not completed.
+
+```c
+napi_status node_api_await_promise(node_runtime runtime,
+                                   napi_value promise,
+                                   napi_value* result,
+                                   bool* has_more_work);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] promise`: The promise to complete.
+- `[out] result`: Result of the `promise` completion.
+- `[out] has_more_work`: `true` if the runtime event loop has more tasks after
+  returning from the function.
+
+Returns `napi_ok` if there were no issues.
+
 
 ### JavaScript/Native interop APIs
 
 #### Functions
 
-##### `node_runtime_run_in_scope`
+##### `node_runtime_set_node_api_version`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets the Node-API version for the Node.js runtime instance.
+
+```c
+napi_status node_runtime_set_node_api_version(node_runtime runtime,
+                                              int32_t node_api_version);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[in] node_api_version`: The version of the Node-API.
+
+Returns `napi_ok` if there were no issues.
+
+By default it is using the Node-API version 8.
+
+
+##### `node_runtime_get_node_api_env`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Gets `napi_env` associated with the Node.js runtime instance.
+
+```c
+napi_status node_runtime_get_node_api_env(node_runtime runtime, napi_env* env);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+- `[out] env`: An instance of `napi_env`.
+
+Returns `napi_ok` if there were no issues.
+
 
 ##### `node_runtime_open_scope`
 
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Opens V8 Isolate and Context scope associated with the Node.js runtime instance.
+
+```c
+napi_status node_runtime_open_scope(node_runtime runtime);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+
+Returns `napi_ok` if there were no issues.
+
+Any Node-API function call requires the runtime scope to be opened for the
+current thread.
+
+This function lets the V8 Isolate enter the current thread and open the scope.
+Then, it opens the V8 Handle scope and the V8 Context scope.
+It enables use of V8 API and the Node APIs which is a C API on top of
+the V8 API.
+
+
 ##### `node_runtime_close_scope`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Closes V8 Isolate and Context scope associated with the Node.js
+runtime instance.
+
+```c
+napi_status node_runtime_close_scope(node_runtime runtime);
+```
+
+- `[in] runtime`: The Node.js runtime instance.
+
+Returns `napi_ok` if there were no issues.
+
+Any Node-API function call requires the runtime scope to be opened for the
+current thread. Each opened runtime scoped must be closed in the end.
+
+This function closes V8 Context scope, V8 Handle scope, V8 Isolate scope, and
+then makes the V8 Isolate leave the current thread.
+
 
 ## Examples
 
-The examples listed here are part of the Node.js [embedding unit tests][test_embedding].
+The examples listed here are part of the Node.js
+[embedding unit tests][test_embedding].
 
 ```c
   // TODO: add example here.
