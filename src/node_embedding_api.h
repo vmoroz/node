@@ -121,6 +121,9 @@ typedef void(NAPI_CDECL* node_runtime_store_blob_callback)(const uint8_t* blob,
 typedef bool(NAPI_CDECL* node_runtime_event_loop_predicate)(
     void* predicate_data);
 
+NAPI_EXTERN napi_status NAPI_CDECL node_platform_on_error(
+    node_platform_error_handler error_handler, void* error_handler_data);
+
 NAPI_EXTERN napi_status NAPI_CDECL node_create_platform(int32_t api_version,
                                                         node_platform* result);
 
@@ -128,11 +131,6 @@ NAPI_EXTERN napi_status NAPI_CDECL node_delete_platform(node_platform platform);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_platform_is_initialized(node_platform platform, bool* result);
-
-NAPI_EXTERN napi_status NAPI_CDECL
-node_platform_on_error(node_platform platform,
-                       node_platform_error_handler error_handler,
-                       void* error_handler_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_platform_set_flags(node_platform platform, node_platform_flags flags);
@@ -160,11 +158,6 @@ NAPI_EXTERN napi_status NAPI_CDECL node_delete_runtime(node_runtime runtime);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_runtime_is_initialized(node_runtime runtime, bool* result);
-
-NAPI_EXTERN napi_status NAPI_CDECL
-node_runtime_on_error(node_runtime runtime,
-                      node_runtime_error_handler error_handler,
-                      void* error_handler_data);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_runtime_set_flags(node_runtime runtime, node_platform_flags flags);

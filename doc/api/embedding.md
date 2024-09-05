@@ -345,6 +345,40 @@ The callback parameters:
 
 #### Functions
 
+##### `node_platform_on_error`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+Sets global custom error handler for the Node.js embedded code.
+
+```c
+napi_status NAPI_CDECL
+node_platform_on_error(node_platform_error_handler error_handler,
+                       void* error_handler_data);
+```
+
+- `[in] error_handler`: The error handler callback.
+- `[in] error_handler_data`: Optional. The error handler data that will be
+  passed to the `error_handler` callback. It can be removed after the
+  `node_platform_delete` call.
+
+Returns `napi_ok` if there were no issues.
+
+It is recommended to call this function before the creation of the
+`node_platform` instance to handle all error messages the same way.
+
+This function assigns a custom platform error handler. It replaces the default
+error handler that outputs error messages to the `stderr` and exits the current
+process with the `exit_code` when it is not zero.
+
+The zero `exit_code` indicates reported warnings or text messages. For example,
+it can be Node.js help text returned in response to the `--help` CLI argument.
+
+
 ##### `node_create_platform`
 
 <!-- YAML
@@ -419,40 +453,6 @@ Returns `napi_ok` if there were no issues.
 The platform instance settings can be changed until the platform is initialized.
 After the `node_platform_initialize` function call any attempt to change
 platform instance settings will fail.
-
-
-##### `node_platform_on_error`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Sets custom error handler for the Node.js platform instance.
-
-```c
-napi_status NAPI_CDECL
-node_platform_on_error(node_platform platform,
-                       node_platform_error_handler error_handler,
-                       void* error_handler_data);
-```
-
-- `[in] platform`: The Node.js platform instance.
-- `[in] error_handler`: The error handler callback.
-- `[in] error_handler_data`: Optional. The error handler data that will be
-  passed to the `error_handler` callback. It can be removed after the
-  `node_platform_delete` call.
-
-Returns `napi_ok` if there were no issues.
-
-This function assigns a custom platform error handler. It replaces the default
-error handler that outputs error messages to the `stderr` and exits the current
-process with the `exit_code` if it is not zero.
-
-In case if the `exit_code` is zero and we get some messages, then these are not
-error messages, but rather some Node.js output or warnings. For example, it can
-be Node.js help text returned in response to the `--help` CLI argument.
 
 
 ##### `node_platform_set_flags`
@@ -702,23 +702,6 @@ Node.js runtime snapshot creation.
 
 #### Callback types
 
-##### `node_runtime_error_handler`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-```c
-typedef node_platform_error_handler node_runtime_error_handler;
-```
-
-Function pointer type for user-provided native function that handles the list
-of error messages and the exit code.
-It is an alias for the `node_platform_error_handler`.
-
-
 ##### `node_runtime_preload_callback`
 
 <!-- YAML
@@ -856,35 +839,6 @@ Returns `napi_ok` if there were no issues.
 The runtime settings can be changed until the runtime is initialized.
 After the `node_runtime_initialize` function is called any attempt to change
 runtime settings will fail.
-
-##### `node_runtime_on_error`
-
-<!-- YAML
-added: REPLACEME
--->
-
-> Stability: 1 - Experimental
-
-Sets custom error handler for the Node.js runtime instance.
-
-```c
-napi_status NAPI_CDECL
-node_runtime_on_error(node_runtime runtime,
-                      node_runtime_error_handler error_handler,
-                      void* error_handler_data);
-```
-
-- `[in] runtime`: The Node.js runtime instance.
-- `[in] error_handler`: The error handler callback.
-- `[in] error_handler_data`: Optional. The error handler data that will be
-  passed to the `error_handler` callback. It can be removed after the
-  `node_runtime_delete` call.
-
-Returns `napi_ok` if there were no issues.
-
-This function assigns a custom platform error handler. It replaces the default
-error handler that outputs error messages to the `stderr` and exits the current
-process with the `exit_code` if it is not zero.
 
 
 ##### `node_runtime_set_flags`
