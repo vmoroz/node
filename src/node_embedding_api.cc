@@ -562,20 +562,17 @@ napi_status EmbeddedRuntime::DeleteMe() {
       return EmbeddedErrorHandling::HandleError(
           "Failed while closing the runtime", ret, napi_generic_failure);
     }
-    // TODO: (vmoroz) handle errors.
-    // if (exit_code != nullptr) *exit_code = ret;
   }
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
       std::move(env_setup_);
 
-  // TODO: (vmoroz) implement.
-  // if (embedded_env->create_snapshot()) {
-  //  node::EmbedderSnapshotData::Pointer snapshot =
-  //      env_setup->CreateSnapshot();
-  //  assert(snapshot);
-  //  embedded_env->create_snapshot()(snapshot.get());
-  //}
+  if (create_snapshot_) {
+    node::EmbedderSnapshotData::Pointer snapshot = env_setup->CreateSnapshot();
+    ASSERT(snapshot);
+    // TODO: (vmoroz) handle error conditions.
+    create_snapshot_(snapshot.get());
+  }
 
   node::Stop(env_setup->env());
 
