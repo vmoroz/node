@@ -150,7 +150,7 @@ class EmbeddedPlatform {
   node::MultiIsolatePlatform* get_v8_platform() { return v8_platform_.get(); }
 
  private:
-  node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
+  static node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
       node_embedding_platform_flags flags);
 
  private:
@@ -188,10 +188,7 @@ struct IsolateLocker {
 
   void IncrementLockCount() { ++lock_count_; }
 
-  bool DecrementLockCount() {
-    --lock_count_;
-    return lock_count_ == 0;
-  }
+  bool DecrementLockCount() { return --lock_count_ == 0; }
 
  private:
   int32_t lock_count_ = 1;
@@ -203,351 +200,58 @@ struct IsolateLocker {
 
 class EmbeddedRuntime {
  public:
-  explicit EmbeddedRuntime(EmbeddedPlatform* platform) : platform_(platform) {
-    //    std::unique_ptr<node::CommonEnvironmentSetup>&& env_setup,
-    //    v8::Local<v8::Context> context,
-    //    const std::string& module_filename,
-    //    int32_t module_api_version)
-    //    : node_napi_env__(context, module_filename, module_api_version),
-    //      env_setup_(std::move(env_setup)) {
+  explicit EmbeddedRuntime(EmbeddedPlatform* platform);
 
-    std::scoped_lock<std::mutex> lock(shared_mutex_);
-    // TODO: (vmoroz) implement this.
-    // node_env_to_node_api_env_.emplace(env_setup_->env(), this);
-  }
+  napi_status Delete();
 
-  napi_status Delete() {
-    ASSERT(!IsScopeOpened());
+  napi_status IsInitialized(bool* result);
 
-    {
-      v8impl::IsolateLocker isolate_locker(env_setup_.get());
+  napi_status SetFlags(node_embedding_runtime_flags flags);
 
-      int ret = node::SpinEventLoop(env_setup_->env()).FromMaybe(1);
-      // TODO: (vmoroz) handle errors.
-      // if (exit_code != nullptr) *exit_code = ret;
-    }
+  napi_status SetArgs(int32_t argc, const char* argv[]);
 
-    std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
-        std::move(env_setup_);
-
-    // TODO: (vmoroz) implement.
-    // if (embedded_env->create_snapshot()) {
-    //  node::EmbedderSnapshotData::Pointer snapshot =
-    //      env_setup->CreateSnapshot();
-    //  assert(snapshot);
-    //  embedded_env->create_snapshot()(snapshot.get());
-    //}
-
-    node::Stop(env_setup->env());
-
-    return napi_ok;
-  }
-
-  napi_status IsInitialized(bool* result) {
-    ARG_NOT_NULL(result);
-    *result = is_initialized_;
-    return napi_ok;
-  }
-
-  napi_status SetFlags(node_embedding_runtime_flags flags) {
-    ASSERT(!is_initialized_);
-    flags_ = flags;
-    optional_bits_.flags = true;
-    return napi_ok;
-  }
-
-  napi_status SetArgs(int32_t argc, const char* argv[]) {
-    ARG_NOT_NULL(argv);
-    ASSERT(!is_initialized_);
-    args_.assign(argv, argv + argc);
-    optional_bits_.args = true;
-    return napi_ok;
-  }
-
-  napi_status SetExecArgs(int32_t argc, const char* argv[]) {
-    ARG_NOT_NULL(argv);
-    ASSERT(!is_initialized_);
-    exec_args_.assign(argv, argv + argc);
-    optional_bits_.exec_args = true;
-    return napi_ok;
-  }
+  napi_status SetExecArgs(int32_t argc, const char* argv[]);
 
   napi_status SetPreloadCallback(
       node_embedding_runtime_preload_callback preload_cb,
-      void* preload_cb_data) {
-    ASSERT(!is_initialized_);
+      void* preload_cb_data);
 
-    // TODO: (vmoroz) use CallIntoModule to handle errors.
-    if (preload_cb != nullptr) {
-      preload_cb_ = node::EmbedderPreloadCallback(
-          [preload_cb, preload_cb_data](node::Environment* node_env,
-                                        v8::Local<v8::Value> process,
-                                        v8::Local<v8::Value> require) {
-            node_napi_env env = GetOrCreateNodeApiEnv(node_env);
-            napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
-            napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-            preload_cb(env, process_value, require_value, preload_cb_data);
-          });
-    } else {
-      preload_cb_ = {};
-    }
-
-    return napi_ok;
-  }
-
-  napi_status SetSnapshotBlob(const uint8_t* snapshot, size_t size) {
-    ARG_NOT_NULL(snapshot);
-    ASSERT(!is_initialized_);
-
-    snapshot_ = node::EmbedderSnapshotData::FromBlob(
-        std::string_view(reinterpret_cast<const char*>(snapshot), size));
-    return napi_ok;
-  }
+  napi_status SetSnapshotBlob(const uint8_t* snapshot, size_t size);
 
   napi_status OnCreateSnapshotBlob(
       node_embedding_runtime_store_blob_callback store_blob_cb,
       void* store_blob_cb_data,
-      node_embedding_snapshot_flags snapshot_flags) {
-    ARG_NOT_NULL(store_blob_cb);
-    ASSERT(!is_initialized_);
+      node_embedding_snapshot_flags snapshot_flags);
 
-    create_snapshot_ = [store_blob_cb, store_blob_cb_data](
-                           const node::EmbedderSnapshotData* snapshot) {
-      std::vector<char> blob = snapshot->ToBlob();
-      store_blob_cb(reinterpret_cast<const uint8_t*>(blob.data()),
-                    blob.size(),
-                    store_blob_cb_data);
-    };
+  napi_status Initialize();
 
-    if ((snapshot_flags & node_embedding_snapshot_no_code_cache) != 0) {
-      snapshot_config_.flags = static_cast<node::SnapshotFlags>(
-          static_cast<uint32_t>(snapshot_config_.flags) |
-          static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
-    }
+  napi_status RunEventLoop();
 
-    return napi_ok;
-  }
-
-  napi_status Initialize() {
-    ASSERT(!is_initialized_);
-    // TODO: (vmoroz) implement this.
-    // if (api_version_ == 0) api_version_ =
-    // NODE_API_DEFAULT_MODULE_API_VERSION;
-
-    std::vector<std::string> errors;
-    std::unique_ptr<node::CommonEnvironmentSetup> env_setup;
-    node::MultiIsolatePlatform* platform = platform_->get_v8_platform();
-    node::EnvironmentFlags::Flags flags = GetEnvironmentFlags(flags_);
-    if (snapshot_) {
-      env_setup = node::CommonEnvironmentSetup::CreateFromSnapshot(
-          platform, &errors, snapshot_.get(), args_, exec_args_, flags);
-    } else if (create_snapshot_) {
-      env_setup = node::CommonEnvironmentSetup::CreateForSnapshotting(
-          platform, &errors, args_, exec_args_, snapshot_config_);
-    } else {
-      env_setup = node::CommonEnvironmentSetup::Create(
-          platform, &errors, args_, exec_args_, flags);
-    }
-
-    if (!errors.empty()) {
-      EmbeddedErrorHandling::HandleError(1, errors);
-    }
-
-    if (env_setup == nullptr) {
-      return napi_generic_failure;
-    }
-
-    std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
-    node::CommonEnvironmentSetup* env_setup_ptr = env_setup.get();
-
-    v8impl::IsolateLocker isolate_locker(env_setup_ptr);
-    // TODO: (vmoroz) implement this.
-    // env_setup_ptr->env()->AddCleanupHook(
-    //    [](void* arg) { static_cast<napi_env>(arg)->Unref(); },
-    //    static_cast<void*>(embedded_env.get()));
-    //*result = embedded_env.get();
-
-    node::Environment* node_env = env_setup_ptr->env();
-
-    // TODO: (vmoroz) If we return an error here, then it is not clear if the
-    // environment must be deleted after that or not.
-
-    // TODO: (vmoroz) solve the main script issue.
-    std::string main_script;
-    v8::MaybeLocal<v8::Value> ret =
-        snapshot_
-            ? node::LoadEnvironment(node_env, node::StartExecutionCallback{})
-            : node::LoadEnvironment(
-                  node_env, std::string_view(main_script), preload_cb_);
-
-    if (ret.IsEmpty()) return napi_pending_exception;
-
-    return napi_ok;
-  }
-
-  napi_status RunEventLoop() {
-    if (node::SpinEventLoopWithoutCleanup(env_setup_->env()).IsNothing()) {
-      return napi_closing;
-    }
-
-    return napi_ok;
-  }
-
-  // TODO: (vmoroz) add support for is_thread_blocking.
   napi_status RunEventLoopWhile(
       node_embedding_runtime_event_loop_predicate predicate,
       void* predicate_data,
       bool /* is_thread_blocking*/,
-      bool* has_more_work) {
-    ARG_NOT_NULL(predicate);
-
-    if (predicate(predicate_data)) {
-      if (node::SpinEventLoopWithoutCleanup(env_setup_->env(),
-                                            [predicate, predicate_data]() {
-                                              return predicate(predicate_data);
-                                            })
-              .IsNothing()) {
-        return napi_closing;
-      }
-    }
-
-    if (has_more_work != nullptr) {
-      *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
-    }
-
-    return napi_ok;
-  }
+      bool* has_more_work);
 
   napi_status AwaitPromise(napi_value promise,
                            napi_value* result,
-                           bool* has_more_work) {
-    // TODO: (vmoroz) implement this.
-    // NAPI_PREAMBLE(env);
-    // CHECK_ARG(env, result);
+                           bool* has_more_work);
 
-    // v8::EscapableHandleScope scope(env->isolate);
+  napi_status SetNodeApiVersion(int32_t node_api_version);
 
-    // v8::Local<v8::Value> promise_value =
-    //     v8impl::V8LocalValueFromJsValue(promise);
-    // if (promise_value.IsEmpty() || !promise_value->IsPromise())
-    //   return napi_invalid_arg;
-    // v8::Local<v8::Promise> promise_object = promise_value.As<v8::Promise>();
+  napi_status GetNodeApiEnv(napi_env* env);
 
-    // v8::Local<v8::Value> rejected = v8::Boolean::New(env->isolate, false);
-    // v8::Local<v8::Function> err_handler =
-    //     v8::Function::New(
-    //         env->context(),
-    //         [](const v8::FunctionCallbackInfo<v8::Value>& info) { return; },
-    //         rejected)
-    //         .ToLocalChecked();
+  napi_status OpenScope();
 
-    // if (promise_object->Catch(env->context(), err_handler).IsEmpty())
-    //   return napi_pending_exception;
+  napi_status CloseScope();
 
-    // if (node::SpinEventLoopWithoutCleanup(
-    //         embedded_env->node_env(),
-    //         [&promise_object]() {
-    //           return promise_object->State() ==
-    //                  v8::Promise::PromiseState::kPending;
-    //         })
-    //         .IsNothing())
-    //   return napi_closing;
+  bool IsScopeOpened() const;
 
-    //*result =
-    //    v8impl::JsValueFromV8LocalValue(scope.Escape(promise_object->Result()));
+  static node_napi_env GetOrCreateNodeApiEnv(node::Environment* node_env);
 
-    // if (has_more_work != nullptr) {
-    //   *has_more_work = uv_loop_alive(embedded_env->node_env()->event_loop());
-    // }
-
-    // if (promise_object->State() == v8::Promise::PromiseState::kRejected)
-    //   return napi_pending_exception;
-
-    return napi_ok;
-  }
-
-  napi_status SetNodeApiVersion(int32_t node_api_version) { return napi_ok; }
-
-  napi_status GetNodeApiEnv(napi_env* env) { return napi_ok; }
-
-  napi_status OpenScope() {
-    if (isolate_locker_.has_value()) {
-      if (!isolate_locker_->IsLocked()) return napi_generic_failure;
-      isolate_locker_->IncrementLockCount();
-    } else {
-      isolate_locker_.emplace(env_setup_.get());
-    }
-    return napi_ok;
-  }
-
-  napi_status CloseScope() {
-    if (!isolate_locker_.has_value()) return napi_generic_failure;
-    if (!isolate_locker_->IsLocked()) return napi_generic_failure;
-    if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
-    return napi_ok;
-  }
-
-  bool IsScopeOpened() const { return isolate_locker_.has_value(); }
-
-  static node_napi_env GetOrCreateNodeApiEnv(node::Environment* node_env) {
-    std::scoped_lock<std::mutex> lock(shared_mutex_);
-    auto it = node_env_to_node_api_env_.find(node_env);
-    if (it != node_env_to_node_api_env_.end()) return it->second;
-    // TODO: (vmoroz) propagate API version from the root environment.
-    node_napi_env env = new node_napi_env__(
-        node_env->context(), "<worker_thread>", NAPI_VERSION_EXPERIMENTAL);
-    node_env->AddCleanupHook(
-        [](void* arg) { static_cast<node_napi_env>(arg)->Unref(); }, env);
-    node_env_to_node_api_env_.try_emplace(node_env, env);
-    return env;
-  }
-
-  // TODO: (vmoroz) implement this.
-  // static EmbeddedEnvironment* FromNapiEnv(napi_env env) {
-  //  return static_cast<EmbeddedEnvironment*>(env);
-  //}
-
-  node::EnvironmentFlags::Flags GetEnvironmentFlags(
-      node_embedding_runtime_flags flags) {
-    uint64_t result = node::EnvironmentFlags::kNoFlags;
-    if ((flags & node_embedding_runtime_default_flags) != 0) {
-      result |= node::EnvironmentFlags::kDefaultFlags;
-    }
-    if ((flags & node_embedding_runtime_owns_process_state) != 0) {
-      result |= node::EnvironmentFlags::kOwnsProcessState;
-    }
-    if ((flags & node_embedding_runtime_owns_inspector) != 0) {
-      result |= node::EnvironmentFlags::kOwnsInspector;
-    }
-    if ((flags & node_embedding_runtime_no_register_esm_loader) != 0) {
-      result |= node::EnvironmentFlags::kNoRegisterESMLoader;
-    }
-    if ((flags & node_embedding_runtime_track_unmanaged_fds) != 0) {
-      result |= node::EnvironmentFlags::kTrackUnmanagedFds;
-    }
-    if ((flags & node_embedding_runtime_hide_console_windows) != 0) {
-      result |= node::EnvironmentFlags::kHideConsoleWindows;
-    }
-    if ((flags & node_embedding_runtime_no_native_addons) != 0) {
-      result |= node::EnvironmentFlags::kNoNativeAddons;
-    }
-    if ((flags & node_embedding_runtime_no_global_search_paths) != 0) {
-      result |= node::EnvironmentFlags::kNoGlobalSearchPaths;
-    }
-    if ((flags & node_embedding_runtime_no_browser_globals) != 0) {
-      result |= node::EnvironmentFlags::kNoBrowserGlobals;
-    }
-    if ((flags & node_embedding_runtime_no_create_inspector) != 0) {
-      result |= node::EnvironmentFlags::kNoCreateInspector;
-    }
-    if ((flags & node_embedding_runtime_no_start_debug_signal_handler) != 0) {
-      result |= node::EnvironmentFlags::kNoStartDebugSignalHandler;
-    }
-    if ((flags & node_embedding_runtime_no_wait_for_inspector_frontend) != 0) {
-      result |= node::EnvironmentFlags::kNoWaitForInspectorFrontend;
-    }
-    return static_cast<node::EnvironmentFlags::Flags>(result);
-  }
+ private:
+  static node::EnvironmentFlags::Flags GetEnvironmentFlags(
+      node_embedding_runtime_flags flags);
 
  private:
   EmbeddedPlatform* platform_;
@@ -559,8 +263,6 @@ class EmbeddedRuntime {
   node::EmbedderSnapshotData::Pointer snapshot_;
   std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
   node::SnapshotConfig snapshot_config_{};
-  std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
-  std::optional<IsolateLocker> isolate_locker_;
 
   struct {
     bool flags : 1;
@@ -568,11 +270,15 @@ class EmbeddedRuntime {
     bool exec_args : 1;
   } optional_bits_{};
 
+  std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
+  std::optional<IsolateLocker> isolate_locker_;
+
   static std::mutex shared_mutex_;
   static std::unordered_map<node::Environment*, node_napi_env>
       node_env_to_node_api_env_;
 };
 
+// TODO: (vmoroz) remove from the static initialization on module load.
 std::mutex EmbeddedRuntime::shared_mutex_{};
 std::unordered_map<node::Environment*, node_napi_env>
     EmbeddedRuntime::node_env_to_node_api_env_{};
@@ -804,6 +510,358 @@ EmbeddedPlatform::GetProcessInitializationFlags(
     result |= node::ProcessInitializationFlags::kGeneratePredictableSnapshot;
   }
   return static_cast<node::ProcessInitializationFlags::Flags>(result);
+}
+
+//-----------------------------------------------------------------------------
+// EmbeddedRuntime implementation.
+//-----------------------------------------------------------------------------
+
+EmbeddedRuntime::EmbeddedRuntime(EmbeddedPlatform* platform)
+    : platform_(platform) {
+  //    std::unique_ptr<node::CommonEnvironmentSetup>&& env_setup,
+  //    v8::Local<v8::Context> context,
+  //    const std::string& module_filename,
+  //    int32_t module_api_version)
+  //    : node_napi_env__(context, module_filename, module_api_version),
+  //      env_setup_(std::move(env_setup)) {
+
+  std::scoped_lock<std::mutex> lock(shared_mutex_);
+  // TODO: (vmoroz) implement this.
+  // node_env_to_node_api_env_.emplace(env_setup_->env(), this);
+}
+
+napi_status EmbeddedRuntime::Delete() {
+  ASSERT(!IsScopeOpened());
+
+  {
+    v8impl::IsolateLocker isolate_locker(env_setup_.get());
+
+    int ret = node::SpinEventLoop(env_setup_->env()).FromMaybe(1);
+    // TODO: (vmoroz) handle errors.
+    // if (exit_code != nullptr) *exit_code = ret;
+  }
+
+  std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
+      std::move(env_setup_);
+
+  // TODO: (vmoroz) implement.
+  // if (embedded_env->create_snapshot()) {
+  //  node::EmbedderSnapshotData::Pointer snapshot =
+  //      env_setup->CreateSnapshot();
+  //  assert(snapshot);
+  //  embedded_env->create_snapshot()(snapshot.get());
+  //}
+
+  node::Stop(env_setup->env());
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::IsInitialized(bool* result) {
+  ARG_NOT_NULL(result);
+  *result = is_initialized_;
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetFlags(node_embedding_runtime_flags flags) {
+  ASSERT(!is_initialized_);
+  flags_ = flags;
+  optional_bits_.flags = true;
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetArgs(int32_t argc, const char* argv[]) {
+  ARG_NOT_NULL(argv);
+  ASSERT(!is_initialized_);
+  args_.assign(argv, argv + argc);
+  optional_bits_.args = true;
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetExecArgs(int32_t argc, const char* argv[]) {
+  ARG_NOT_NULL(argv);
+  ASSERT(!is_initialized_);
+  exec_args_.assign(argv, argv + argc);
+  optional_bits_.exec_args = true;
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetPreloadCallback(
+    node_embedding_runtime_preload_callback preload_cb, void* preload_cb_data) {
+  ASSERT(!is_initialized_);
+
+  // TODO: (vmoroz) use CallIntoModule to handle errors.
+  if (preload_cb != nullptr) {
+    preload_cb_ = node::EmbedderPreloadCallback(
+        [preload_cb, preload_cb_data](node::Environment* node_env,
+                                      v8::Local<v8::Value> process,
+                                      v8::Local<v8::Value> require) {
+          node_napi_env env = GetOrCreateNodeApiEnv(node_env);
+          napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
+          napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
+          preload_cb(env, process_value, require_value, preload_cb_data);
+        });
+  } else {
+    preload_cb_ = {};
+  }
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetSnapshotBlob(const uint8_t* snapshot,
+                                             size_t size) {
+  ARG_NOT_NULL(snapshot);
+  ASSERT(!is_initialized_);
+
+  snapshot_ = node::EmbedderSnapshotData::FromBlob(
+      std::string_view(reinterpret_cast<const char*>(snapshot), size));
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::OnCreateSnapshotBlob(
+    node_embedding_runtime_store_blob_callback store_blob_cb,
+    void* store_blob_cb_data,
+    node_embedding_snapshot_flags snapshot_flags) {
+  ARG_NOT_NULL(store_blob_cb);
+  ASSERT(!is_initialized_);
+
+  create_snapshot_ = [store_blob_cb, store_blob_cb_data](
+                         const node::EmbedderSnapshotData* snapshot) {
+    std::vector<char> blob = snapshot->ToBlob();
+    store_blob_cb(reinterpret_cast<const uint8_t*>(blob.data()),
+                  blob.size(),
+                  store_blob_cb_data);
+  };
+
+  if ((snapshot_flags & node_embedding_snapshot_no_code_cache) != 0) {
+    snapshot_config_.flags = static_cast<node::SnapshotFlags>(
+        static_cast<uint32_t>(snapshot_config_.flags) |
+        static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
+  }
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::Initialize() {
+  ASSERT(!is_initialized_);
+  // TODO: (vmoroz) implement this.
+  // if (api_version_ == 0) api_version_ =
+  // NODE_API_DEFAULT_MODULE_API_VERSION;
+
+  std::vector<std::string> errors;
+  std::unique_ptr<node::CommonEnvironmentSetup> env_setup;
+  node::MultiIsolatePlatform* platform = platform_->get_v8_platform();
+  node::EnvironmentFlags::Flags flags = GetEnvironmentFlags(flags_);
+  if (snapshot_) {
+    env_setup = node::CommonEnvironmentSetup::CreateFromSnapshot(
+        platform, &errors, snapshot_.get(), args_, exec_args_, flags);
+  } else if (create_snapshot_) {
+    env_setup = node::CommonEnvironmentSetup::CreateForSnapshotting(
+        platform, &errors, args_, exec_args_, snapshot_config_);
+  } else {
+    env_setup = node::CommonEnvironmentSetup::Create(
+        platform, &errors, args_, exec_args_, flags);
+  }
+
+  if (!errors.empty()) {
+    EmbeddedErrorHandling::HandleError(1, errors);
+  }
+
+  if (env_setup == nullptr) {
+    return napi_generic_failure;
+  }
+
+  std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
+  node::CommonEnvironmentSetup* env_setup_ptr = env_setup.get();
+
+  v8impl::IsolateLocker isolate_locker(env_setup_ptr);
+  // TODO: (vmoroz) implement this.
+  // env_setup_ptr->env()->AddCleanupHook(
+  //    [](void* arg) { static_cast<napi_env>(arg)->Unref(); },
+  //    static_cast<void*>(embedded_env.get()));
+  //*result = embedded_env.get();
+
+  node::Environment* node_env = env_setup_ptr->env();
+
+  // TODO: (vmoroz) If we return an error here, then it is not clear if the
+  // environment must be deleted after that or not.
+
+  // TODO: (vmoroz) solve the main script issue.
+  std::string main_script;
+  v8::MaybeLocal<v8::Value> ret =
+      snapshot_
+          ? node::LoadEnvironment(node_env, node::StartExecutionCallback{})
+          : node::LoadEnvironment(
+                node_env, std::string_view(main_script), preload_cb_);
+
+  if (ret.IsEmpty()) return napi_pending_exception;
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::RunEventLoop() {
+  if (node::SpinEventLoopWithoutCleanup(env_setup_->env()).IsNothing()) {
+    return napi_closing;
+  }
+
+  return napi_ok;
+}
+
+// TODO: (vmoroz) add support for is_thread_blocking.
+napi_status EmbeddedRuntime::RunEventLoopWhile(
+    node_embedding_runtime_event_loop_predicate predicate,
+    void* predicate_data,
+    bool /* is_thread_blocking*/,
+    bool* has_more_work) {
+  ARG_NOT_NULL(predicate);
+
+  if (predicate(predicate_data)) {
+    if (node::SpinEventLoopWithoutCleanup(
+            env_setup_->env(),
+            [predicate, predicate_data]() { return predicate(predicate_data); })
+            .IsNothing()) {
+      return napi_closing;
+    }
+  }
+
+  if (has_more_work != nullptr) {
+    *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
+  }
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::AwaitPromise(napi_value promise,
+                                          napi_value* result,
+                                          bool* has_more_work) {
+  // TODO: (vmoroz) implement this.
+  // NAPI_PREAMBLE(env);
+  // CHECK_ARG(env, result);
+
+  // v8::EscapableHandleScope scope(env->isolate);
+
+  // v8::Local<v8::Value> promise_value =
+  //     v8impl::V8LocalValueFromJsValue(promise);
+  // if (promise_value.IsEmpty() || !promise_value->IsPromise())
+  //   return napi_invalid_arg;
+  // v8::Local<v8::Promise> promise_object = promise_value.As<v8::Promise>();
+
+  // v8::Local<v8::Value> rejected = v8::Boolean::New(env->isolate, false);
+  // v8::Local<v8::Function> err_handler =
+  //     v8::Function::New(
+  //         env->context(),
+  //         [](const v8::FunctionCallbackInfo<v8::Value>& info) { return; },
+  //         rejected)
+  //         .ToLocalChecked();
+
+  // if (promise_object->Catch(env->context(), err_handler).IsEmpty())
+  //   return napi_pending_exception;
+
+  // if (node::SpinEventLoopWithoutCleanup(
+  //         embedded_env->node_env(),
+  //         [&promise_object]() {
+  //           return promise_object->State() ==
+  //                  v8::Promise::PromiseState::kPending;
+  //         })
+  //         .IsNothing())
+  //   return napi_closing;
+
+  //*result =
+  //    v8impl::JsValueFromV8LocalValue(scope.Escape(promise_object->Result()));
+
+  // if (has_more_work != nullptr) {
+  //   *has_more_work = uv_loop_alive(embedded_env->node_env()->event_loop());
+  // }
+
+  // if (promise_object->State() == v8::Promise::PromiseState::kRejected)
+  //   return napi_pending_exception;
+
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::SetNodeApiVersion(int32_t node_api_version) {
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::GetNodeApiEnv(napi_env* env) {
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::OpenScope() {
+  if (isolate_locker_.has_value()) {
+    if (!isolate_locker_->IsLocked()) return napi_generic_failure;
+    isolate_locker_->IncrementLockCount();
+  } else {
+    isolate_locker_.emplace(env_setup_.get());
+  }
+  return napi_ok;
+}
+
+napi_status EmbeddedRuntime::CloseScope() {
+  if (!isolate_locker_.has_value()) return napi_generic_failure;
+  if (!isolate_locker_->IsLocked()) return napi_generic_failure;
+  if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
+  return napi_ok;
+}
+
+bool EmbeddedRuntime::IsScopeOpened() const {
+  return isolate_locker_.has_value();
+}
+
+node_napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
+    node::Environment* node_env) {
+  std::scoped_lock<std::mutex> lock(shared_mutex_);
+  auto it = node_env_to_node_api_env_.find(node_env);
+  if (it != node_env_to_node_api_env_.end()) return it->second;
+  // TODO: (vmoroz) propagate API version from the root environment.
+  node_napi_env env = new node_napi_env__(
+      node_env->context(), "<worker_thread>", NAPI_VERSION_EXPERIMENTAL);
+  node_env->AddCleanupHook(
+      [](void* arg) { static_cast<node_napi_env>(arg)->Unref(); }, env);
+  node_env_to_node_api_env_.try_emplace(node_env, env);
+  return env;
+}
+
+node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
+    node_embedding_runtime_flags flags) {
+  uint64_t result = node::EnvironmentFlags::kNoFlags;
+  if ((flags & node_embedding_runtime_default_flags) != 0) {
+    result |= node::EnvironmentFlags::kDefaultFlags;
+  }
+  if ((flags & node_embedding_runtime_owns_process_state) != 0) {
+    result |= node::EnvironmentFlags::kOwnsProcessState;
+  }
+  if ((flags & node_embedding_runtime_owns_inspector) != 0) {
+    result |= node::EnvironmentFlags::kOwnsInspector;
+  }
+  if ((flags & node_embedding_runtime_no_register_esm_loader) != 0) {
+    result |= node::EnvironmentFlags::kNoRegisterESMLoader;
+  }
+  if ((flags & node_embedding_runtime_track_unmanaged_fds) != 0) {
+    result |= node::EnvironmentFlags::kTrackUnmanagedFds;
+  }
+  if ((flags & node_embedding_runtime_hide_console_windows) != 0) {
+    result |= node::EnvironmentFlags::kHideConsoleWindows;
+  }
+  if ((flags & node_embedding_runtime_no_native_addons) != 0) {
+    result |= node::EnvironmentFlags::kNoNativeAddons;
+  }
+  if ((flags & node_embedding_runtime_no_global_search_paths) != 0) {
+    result |= node::EnvironmentFlags::kNoGlobalSearchPaths;
+  }
+  if ((flags & node_embedding_runtime_no_browser_globals) != 0) {
+    result |= node::EnvironmentFlags::kNoBrowserGlobals;
+  }
+  if ((flags & node_embedding_runtime_no_create_inspector) != 0) {
+    result |= node::EnvironmentFlags::kNoCreateInspector;
+  }
+  if ((flags & node_embedding_runtime_no_start_debug_signal_handler) != 0) {
+    result |= node::EnvironmentFlags::kNoStartDebugSignalHandler;
+  }
+  if ((flags & node_embedding_runtime_no_wait_for_inspector_frontend) != 0) {
+    result |= node::EnvironmentFlags::kNoWaitForInspectorFrontend;
+  }
+  return static_cast<node::EnvironmentFlags::Flags>(result);
 }
 
 }  // end of anonymous namespace
