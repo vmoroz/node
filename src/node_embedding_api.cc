@@ -8,22 +8,25 @@
 
 #include <mutex>
 
+// Use macros to handle errors since they allow to record the failing expression
+// and its location.
+
 #define EMBEDDED_PLATFORM(platform)                                            \
   ((platform) == nullptr)                                                      \
-      ? v8impl::EmbeddedPlatform::ReportError(                                 \
+      ? v8impl::EmbeddedErrorHandling::HandleError(                            \
             #platform " is null", __FILE__, __LINE__, napi_invalid_arg)        \
       : reinterpret_cast<v8impl::EmbeddedPlatform*>(platform)
 
 #define EMBEDDED_RUNTIME(runtime)                                              \
   (runtime) == nullptr                                                         \
-      ? v8impl::EmbeddedPlatform::ReportError(                                 \
+      ? v8impl::EmbeddedErrorHandling::HandleError(                            \
             #runtime " is null", __FILE__, __LINE__, napi_invalid_arg)         \
       : reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
 
 #define ARG_NOT_NULL(arg)                                                      \
   do {                                                                         \
     if ((arg) == nullptr) {                                                    \
-      return v8impl::EmbeddedPlatform::ReportError(                            \
+      return v8impl::EmbeddedErrorHandling::HandleError(                       \
           #arg "is null", __FILE__, __LINE__, napi_invalid_arg);               \
     }                                                                          \
   } while (false)
@@ -31,7 +34,7 @@
 #define ASSERT(expr)                                                           \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      return v8impl::EmbeddedPlatform::ReportError(                            \
+      return v8impl::EmbeddedErrorHandling::HandleError(                       \
           #expr " is not true", __FILE__, __LINE__, napi_generic_failure);     \
     }                                                                          \
   } while (false)
@@ -87,75 +90,39 @@ class CStringArray {
   std::unique_ptr<const char*[]> allocated_buffer_;
 };
 
-class EmbeddedPlatform {
+class EmbeddedErrorHandling {
  public:
-  static std::string FormatError(const char* format, ...) {
-    va_list args1;
-    va_start(args1, format);
-    va_list args2;
-    va_copy(args2, args1);  // Required for some compilers like GCC.
-    std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
-    va_end(args1);
-    std::vsnprintf(&result[0], result.size() + 1, format, args2);
-    va_end(args2);
-    return result;
-  }
+  static napi_status SetErrorHandler(node_embedding_error_handler error_handler,
+                                     void* error_handler_data);
 
-  static napi_status ReportError(const char* message,
-                                 const char* filename,
-                                 int32_t line,
-                                 napi_status status = napi_generic_failure) {
-    HandleError(FormatError("Error: %s at %s:%d\n", message, filename, line));
-    return status;
-  }
-
-  static void HandleError(const std::string& message) {
-    const char* message_cstr = message.c_str();
-    if (custom_error_handler_ != nullptr) {
-      custom_error_handler_(1, &message_cstr, 1, custom_error_handler_data_);
-    } else {
-      DefaultErrorHandler(1, &message_cstr, 1, nullptr);
-    }
-  }
+  static void HandleError(const std::string& message);
 
   static void HandleError(int32_t exit_code,
-                          const std::vector<std::string>& messages) {
-    CStringArray message_arr(messages);
-    if (custom_error_handler_ != nullptr) {
-      custom_error_handler_(exit_code,
-                            message_arr.c_strs(),
-                            message_arr.size(),
-                            custom_error_handler_data_);
-    } else {
-      DefaultErrorHandler(
-          exit_code, message_arr.c_strs(), message_arr.size(), nullptr);
-    }
-  }
+                          const std::vector<std::string>& messages);
 
+  static napi_status HandleError(const char* message,
+                                 const char* filename,
+                                 int32_t line,
+                                 napi_status status = napi_generic_failure);
+
+ private:
   static void DefaultErrorHandler(int32_t exit_code,
                                   const char* messages[],
                                   size_t size,
-                                  void* /*handler_data*/) {
-    if (exit_code != 0) {
-      for (size_t i = 0; i < size; ++i) {
-        fprintf(stderr, "%s", messages[i]);
-      }
-      fflush(stderr);
-      exit(exit_code);
-    } else {
-      for (size_t i = 0; i < size; ++i) {
-        fprintf(stdout, "%s", messages[i]);
-      }
-      fflush(stdout);
-    }
-  }
+                                  void* /*handler_data*/);
 
-  // TODO: (vmoroz) implement this.
-  static napi_status SetErrorHandler(node_embedding_error_handler error_handler,
-                                     void* error_handler_data) {
-    return napi_ok;
-  }
+  static std::string FormatError(const char* format, ...);
 
+ private:
+  static node_embedding_error_handler error_handler_;
+  static void* error_handler_data_;
+};
+
+node_embedding_error_handler EmbeddedErrorHandling::error_handler_{};
+void* EmbeddedErrorHandling::error_handler_data_{};
+
+class EmbeddedPlatform {
+ public:
   explicit EmbeddedPlatform(int32_t api_version) noexcept
       : api_version_(api_version) {}
 
@@ -209,7 +176,8 @@ class EmbeddedPlatform {
         args_, GetProcessInitializationFlags(flags_));
 
     if (init_result_->exit_code() != 0 || !init_result_->errors().empty()) {
-      HandleError(init_result_->exit_code(), init_result_->errors());
+      EmbeddedErrorHandling::HandleError(init_result_->exit_code(),
+                                         init_result_->errors());
     }
 
     if (early_return != nullptr) {
@@ -520,7 +488,7 @@ class EmbeddedRuntime {
     }
 
     if (!errors.empty()) {
-      EmbeddedPlatform::HandleError(1, errors);
+      EmbeddedErrorHandling::HandleError(1, errors);
     }
 
     if (env_setup == nullptr) {
@@ -760,13 +728,85 @@ napi_status EmbeddedPlatform::CreateRuntime(node_embedding_runtime* result) {
   return napi_ok;
 }
 
+//-----------------------------------------------------------------------------
+// EmbeddedErrorHandling implementation.
+//-----------------------------------------------------------------------------
+
+napi_status EmbeddedErrorHandling::SetErrorHandler(
+    node_embedding_error_handler error_handler, void* error_handler_data) {
+  error_handler_ = error_handler;
+  error_handler_data_ = error_handler_data;
+  return napi_ok;
+}
+
+void EmbeddedErrorHandling::HandleError(const std::string& message) {
+  const char* message_cstr = message.c_str();
+  if (error_handler_ != nullptr) {
+    error_handler_(1, &message_cstr, 1, error_handler_data_);
+  } else {
+    DefaultErrorHandler(1, &message_cstr, 1, nullptr);
+  }
+}
+
+void EmbeddedErrorHandling::HandleError(
+    int32_t exit_code, const std::vector<std::string>& messages) {
+  CStringArray message_arr(messages);
+  if (error_handler_ != nullptr) {
+    error_handler_(exit_code,
+                   message_arr.c_strs(),
+                   message_arr.size(),
+                   error_handler_data_);
+  } else {
+    DefaultErrorHandler(
+        exit_code, message_arr.c_strs(), message_arr.size(), nullptr);
+  }
+}
+
+napi_status EmbeddedErrorHandling::HandleError(const char* message,
+                                               const char* filename,
+                                               int32_t line,
+                                               napi_status status) {
+  HandleError(FormatError("Error: %s at %s:%d\n", message, filename, line));
+  return status;
+}
+
+void EmbeddedErrorHandling::DefaultErrorHandler(int32_t exit_code,
+                                                const char* messages[],
+                                                size_t size,
+                                                void* /*handler_data*/) {
+  if (exit_code != 0) {
+    for (size_t i = 0; i < size; ++i) {
+      fprintf(stderr, "%s", messages[i]);
+    }
+    fflush(stderr);
+    exit(exit_code);
+  } else {
+    for (size_t i = 0; i < size; ++i) {
+      fprintf(stdout, "%s", messages[i]);
+    }
+    fflush(stdout);
+  }
+}
+
+std::string EmbeddedErrorHandling::FormatError(const char* format, ...) {
+  va_list args1;
+  va_start(args1, format);
+  va_list args2;
+  va_copy(args2, args1);  // Required for some compilers like GCC.
+  std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
+  va_end(args1);
+  std::vsnprintf(&result[0], result.size() + 1, format, args2);
+  va_end(args2);
+  return result;
+}
+
 }  // end of anonymous namespace
 }  // end of namespace v8impl
 
 napi_status NAPI_CDECL node_embedding_on_error(
     node_embedding_error_handler error_handler, void* error_handler_data) {
-  return v8impl::EmbeddedPlatform::SetErrorHandler(error_handler,
-                                                   error_handler_data);
+  return v8impl::EmbeddedErrorHandling::SetErrorHandler(error_handler,
+                                                        error_handler_data);
 }
 
 napi_status NAPI_CDECL node_embedding_create_platform(
@@ -822,7 +862,7 @@ napi_status NAPI_CDECL node_embedding_create_runtime(
 }
 
 napi_status NAPI_CDECL
-node_embdedding_delete_runtime(node_embedding_runtime runtime) {
+node_embedding_delete_runtime(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->Delete();
 }
 
