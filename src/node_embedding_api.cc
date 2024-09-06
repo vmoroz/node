@@ -14,19 +14,19 @@
 #define EMBEDDED_PLATFORM(platform)                                            \
   ((platform) == nullptr)                                                      \
       ? v8impl::EmbeddedErrorHandling::HandleError(                            \
-            1,                                                                 \
             "Argument must not be null: " #platform,                           \
             __FILE__,                                                          \
             __LINE__,                                                          \
+            1,                                                                 \
             napi_invalid_arg)                                                  \
       : reinterpret_cast<v8impl::EmbeddedPlatform*>(platform)
 
 #define EMBEDDED_RUNTIME(runtime)                                              \
   (runtime) == nullptr ? v8impl::EmbeddedErrorHandling::HandleError(           \
-                             1,                                                \
                              "Argument must not be null: " #runtime,           \
                              __FILE__,                                         \
                              __LINE__,                                         \
+                             1,                                                \
                              napi_invalid_arg)                                 \
                        : reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
 
@@ -34,10 +34,10 @@
   do {                                                                         \
     if ((arg) == nullptr) {                                                    \
       return v8impl::EmbeddedErrorHandling::HandleError(                       \
-          1,                                                                   \
           "Argument must not be null: " #arg,                                  \
           __FILE__,                                                            \
           __LINE__,                                                            \
+          1,                                                                   \
           napi_invalid_arg);                                                   \
     }                                                                          \
   } while (false)
@@ -46,10 +46,10 @@
   do {                                                                         \
     if (!(expr)) {                                                             \
       return v8impl::EmbeddedErrorHandling::HandleError(                       \
-          1,                                                                   \
           "Expression returned false: " #expr,                                 \
           __FILE__,                                                            \
           __LINE__,                                                            \
+          1,                                                                   \
           napi_generic_failure);                                               \
     }                                                                          \
   } while (false)
@@ -97,7 +97,7 @@ class CStringArray {
   size_t size() const { return size_; }
 
   const char** argv() const { return c_strs_; }
-  int32_t argc() const { return static_cast<int>(size_); }
+  int32_t argc() const { return static_cast<int32_t>(size_); }
 
  private:
   const char** c_strs_{};
@@ -111,24 +111,31 @@ class EmbeddedErrorHandling {
   static napi_status SetErrorHandler(node_embedding_error_handler error_handler,
                                      void* error_handler_data);
 
-  static void HandleError(int32_t exit_code, const std::string& message);
+  static napi_status HandleError(const std::string& message,
+                                 int32_t exit_code,
+                                 napi_status status);
 
-  static void HandleError(int32_t exit_code,
-                          const std::vector<std::string>& messages);
+  static napi_status HandleError(const std::vector<std::string>& messages,
+                                 int32_t exit_code,
+                                 napi_status status);
 
-  static napi_status HandleError(int32_t exit_code,
-                                 const char* message,
+  static napi_status HandleError(const char* message,
                                  const char* filename,
                                  int32_t line,
-                                 napi_status status = napi_generic_failure);
+                                 int32_t exit_code,
+                                 napi_status status);
 
- private:
-  static void DefaultErrorHandler(int32_t exit_code,
-                                  const char* messages[],
-                                  size_t size,
-                                  void* /*handler_data*/);
+  static std::string FormatString(const char* format, ...);
 
-  static std::string FormatError(const char* format, ...);
+  static napi_status DefaultErrorHandler(void* handler_data,
+                                         const char* messages[],
+                                         size_t messages_size,
+                                         int32_t exit_code,
+                                         napi_status status);
+
+  static node_embedding_error_handler error_handler() {
+    return error_handler_ ? error_handler_ : DefaultErrorHandler;
+  }
 
  private:
   static node_embedding_error_handler error_handler_;
@@ -173,7 +180,7 @@ class EmbeddedPlatform {
       node_embedding_platform_flags flags);
 
  private:
-  int32_t api_version_{0};
+  int32_t api_version_{1};
   bool is_initialized_{false};
   bool v8_is_initialized_{false};
   bool v8_is_uninitialized_{false};
@@ -231,14 +238,13 @@ class EmbeddedRuntime {
 
   napi_status SetExecArgs(int32_t argc, const char* argv[]);
 
-  napi_status SetPreloadCallback(
-      node_embedding_runtime_preload_callback preload_cb,
-      void* preload_cb_data);
+  napi_status SetPreloadCallback(node_embedding_preload_callback preload_cb,
+                                 void* preload_cb_data);
 
   napi_status SetSnapshotBlob(const uint8_t* snapshot, size_t size);
 
   napi_status OnCreateSnapshotBlob(
-      node_embedding_runtime_store_blob_callback store_blob_cb,
+      node_embedding_store_blob_callback store_blob_cb,
       void* store_blob_cb_data,
       node_embedding_snapshot_flags snapshot_flags);
 
@@ -246,11 +252,10 @@ class EmbeddedRuntime {
 
   napi_status RunEventLoop();
 
-  napi_status RunEventLoopWhile(
-      node_embedding_runtime_event_loop_predicate predicate,
-      void* predicate_data,
-      bool /* is_thread_blocking*/,
-      bool* has_more_work);
+  napi_status RunEventLoopWhile(node_embedding_event_loop_predicate predicate,
+                                void* predicate_data,
+                                bool /* is_thread_blocking*/,
+                                bool* has_more_work);
 
   napi_status AwaitPromise(napi_value promise,
                            napi_value* result,
@@ -318,59 +323,58 @@ napi_status EmbeddedErrorHandling::SetErrorHandler(
   return napi_ok;
 }
 
-void EmbeddedErrorHandling::HandleError(int32_t exit_code,
-                                        const std::string& message) {
-  const char* message_cstr = message.c_str();
-  if (error_handler_ != nullptr) {
-    error_handler_(exit_code, &message_cstr, 1, error_handler_data_);
-  } else {
-    DefaultErrorHandler(exit_code, &message_cstr, 1, nullptr);
-  }
+napi_status EmbeddedErrorHandling::HandleError(const std::string& message,
+                                               int32_t exit_code,
+                                               napi_status status) {
+  const char* message_c_str = message.c_str();
+  return error_handler()(
+      error_handler_data_, &message_c_str, 1, exit_code, status);
 }
 
-void EmbeddedErrorHandling::HandleError(
-    int32_t exit_code, const std::vector<std::string>& messages) {
+napi_status EmbeddedErrorHandling::HandleError(
+    const std::vector<std::string>& messages,
+    int32_t exit_code,
+    napi_status status) {
   CStringArray message_arr(messages);
-  if (error_handler_ != nullptr) {
-    error_handler_(exit_code,
-                   message_arr.c_strs(),
-                   message_arr.size(),
-                   error_handler_data_);
-  } else {
-    DefaultErrorHandler(
-        exit_code, message_arr.c_strs(), message_arr.size(), nullptr);
-  }
+  return error_handler()(error_handler_data_,
+                         message_arr.c_strs(),
+                         message_arr.size(),
+                         exit_code,
+                         status);
 }
 
-napi_status EmbeddedErrorHandling::HandleError(int32_t exit_code,
-                                               const char* message,
+napi_status EmbeddedErrorHandling::HandleError(const char* message,
                                                const char* filename,
                                                int32_t line,
+                                               int32_t exit_code,
                                                napi_status status) {
-  HandleError(exit_code,
-              FormatError("Error: %s at %s:%d\n", message, filename, line));
-  return status;
+  return HandleError(
+      FormatString("Error: %s at %s:%d", message, filename, line),
+      exit_code,
+      status);
 }
 
-void EmbeddedErrorHandling::DefaultErrorHandler(int32_t exit_code,
-                                                const char* messages[],
-                                                size_t size,
-                                                void* /*handler_data*/) {
+napi_status EmbeddedErrorHandling::DefaultErrorHandler(void* /*handler_data*/,
+                                                       const char* messages[],
+                                                       size_t messages_size,
+                                                       int32_t exit_code,
+                                                       napi_status status) {
   if (exit_code != 0) {
-    for (size_t i = 0; i < size; ++i) {
-      fprintf(stderr, "%s", messages[i]);
+    for (size_t i = 0; i < messages_size; ++i) {
+      fprintf(stderr, "%s\n", messages[i]);
     }
     fflush(stderr);
     exit(exit_code);
   } else {
-    for (size_t i = 0; i < size; ++i) {
-      fprintf(stdout, "%s", messages[i]);
+    for (size_t i = 0; i < messages_size; ++i) {
+      fprintf(stdout, "%s\n", messages[i]);
     }
     fflush(stdout);
   }
+  return status;
 }
 
-std::string EmbeddedErrorHandling::FormatError(const char* format, ...) {
+std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   va_list args1;
   va_start(args1, format);
   va_list args2;
@@ -434,8 +438,9 @@ napi_status EmbeddedPlatform::Initialize(bool* early_return) {
       args_, GetProcessInitializationFlags(flags_));
 
   if (init_result_->exit_code() != 0 || !init_result_->errors().empty()) {
-    EmbeddedErrorHandling::HandleError(init_result_->exit_code(),
-                                       init_result_->errors());
+    return EmbeddedErrorHandling::HandleError(init_result_->errors(),
+                                              init_result_->exit_code(),
+                                              napi_generic_failure);
   }
 
   if (early_return != nullptr) {
@@ -459,24 +464,24 @@ napi_status EmbeddedPlatform::Initialize(bool* early_return) {
   return napi_ok;
 }
 
-napi_status EmbeddedPlatform::GetArgs(node_embedding_get_args_callback get_args,
-                                      void* get_args_data) {
-  ARG_NOT_NULL(get_args);
+napi_status EmbeddedPlatform::GetArgs(
+    node_embedding_get_args_callback get_args_cb, void* get_args_cb_data) {
+  ARG_NOT_NULL(get_args_cb);
   ASSERT(is_initialized_);
 
   v8impl::CStringArray args(init_result_->args());
-  get_args(args.argc(), args.argv(), get_args_data);
+  get_args_cb(get_args_cb_data, args.argc(), args.argv());
 
   return napi_ok;
 }
 
 napi_status EmbeddedPlatform::GetExecArgs(
-    node_embedding_get_args_callback get_args, void* get_args_data) {
-  ARG_NOT_NULL(get_args);
+    node_embedding_get_args_callback get_args_cb, void* get_args_cb_data) {
+  ARG_NOT_NULL(get_args_cb);
   ASSERT(is_initialized_);
 
   v8impl::CStringArray args(init_result_->exec_args());
-  get_args(args.argc(), args.argv(), get_args_data);
+  get_args_cb(get_args_cb_data, args.argc(), args.argv());
 
   return napi_ok;
 }
@@ -552,10 +557,10 @@ napi_status EmbeddedRuntime::DeleteMe() {
   {
     v8impl::IsolateLocker isolate_locker(env_setup_.get());
 
-    int ret = node::SpinEventLoop(env_setup_->env()).FromMaybe(1);
+    int32_t ret = node::SpinEventLoop(env_setup_->env()).FromMaybe(1);
     if (ret != 0) {
-      EmbeddedErrorHandling::HandleError(ret,
-                                         "Failed while closing the runtime");
+      return EmbeddedErrorHandling::HandleError(
+          "Failed while closing the runtime", ret, napi_generic_failure);
     }
     // TODO: (vmoroz) handle errors.
     // if (exit_code != nullptr) *exit_code = ret;
@@ -607,7 +612,7 @@ napi_status EmbeddedRuntime::SetExecArgs(int32_t argc, const char* argv[]) {
 }
 
 napi_status EmbeddedRuntime::SetPreloadCallback(
-    node_embedding_runtime_preload_callback preload_cb, void* preload_cb_data) {
+    node_embedding_preload_callback preload_cb, void* preload_cb_data) {
   ASSERT(!is_initialized_);
 
   // TODO: (vmoroz) use CallIntoModule to handle errors.
@@ -620,7 +625,7 @@ napi_status EmbeddedRuntime::SetPreloadCallback(
           node_napi_env env = GetOrCreateNodeApiEnv(node_env);
           napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
           napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-          preload_cb(env, process_value, require_value, preload_cb_data);
+          preload_cb(preload_cb_data, env, process_value, require_value);
         });
   } else {
     preload_cb_ = {};
@@ -640,7 +645,7 @@ napi_status EmbeddedRuntime::SetSnapshotBlob(const uint8_t* snapshot,
 }
 
 napi_status EmbeddedRuntime::OnCreateSnapshotBlob(
-    node_embedding_runtime_store_blob_callback store_blob_cb,
+    node_embedding_store_blob_callback store_blob_cb,
     void* store_blob_cb_data,
     node_embedding_snapshot_flags snapshot_flags) {
   ARG_NOT_NULL(store_blob_cb);
@@ -649,9 +654,9 @@ napi_status EmbeddedRuntime::OnCreateSnapshotBlob(
   create_snapshot_ = [store_blob_cb, store_blob_cb_data](
                          const node::EmbedderSnapshotData* snapshot) {
     std::vector<char> blob = snapshot->ToBlob();
-    store_blob_cb(reinterpret_cast<const uint8_t*>(blob.data()),
-                  blob.size(),
-                  store_blob_cb_data);
+    store_blob_cb(store_blob_cb_data,
+                  reinterpret_cast<const uint8_t*>(blob.data()),
+                  blob.size());
   };
 
   if ((snapshot_flags & node_embedding_snapshot_no_code_cache) != 0) {
@@ -693,12 +698,8 @@ napi_status EmbeddedRuntime::Initialize(const char* main_script) {
         platform, &errors, args, exec_args, flags);
   }
 
-  if (!errors.empty()) {
-    EmbeddedErrorHandling::HandleError(1, errors);
-  }
-
-  if (env_setup_ == nullptr) {
-    return napi_generic_failure;
+  if (env_setup_ == nullptr || !errors.empty()) {
+    return EmbeddedErrorHandling::HandleError(errors, 1, napi_generic_failure);
   }
 
   v8impl::IsolateLocker isolate_locker(env_setup_.get());
@@ -730,7 +731,7 @@ napi_status EmbeddedRuntime::RunEventLoop() {
 
 // TODO: (vmoroz) add support for is_thread_blocking.
 napi_status EmbeddedRuntime::RunEventLoopWhile(
-    node_embedding_runtime_event_loop_predicate predicate,
+    node_embedding_event_loop_predicate predicate,
     void* predicate_data,
     bool /* is_thread_blocking*/,
     bool* has_more_work) {
@@ -971,10 +972,10 @@ napi_status NAPI_CDECL node_embedding_runtime_set_exec_args(
   return EMBEDDED_RUNTIME(runtime)->SetExecArgs(argc, argv);
 }
 
-napi_status NAPI_CDECL node_embedding_runtime_on_preload(
-    node_embedding_runtime runtime,
-    node_embedding_runtime_preload_callback preload_cb,
-    void* preload_cb_data) {
+napi_status NAPI_CDECL
+node_embedding_runtime_on_preload(node_embedding_runtime runtime,
+                                  node_embedding_preload_callback preload_cb,
+                                  void* preload_cb_data) {
   return EMBEDDED_RUNTIME(runtime)->SetPreloadCallback(preload_cb,
                                                        preload_cb_data);
 }
@@ -986,7 +987,7 @@ napi_status NAPI_CDECL node_embedding_runtime_use_snapshot(
 
 napi_status NAPI_CDECL node_embedding_runtime_on_create_snapshot(
     node_embedding_runtime runtime,
-    node_embedding_runtime_store_blob_callback store_blob_cb,
+    node_embedding_store_blob_callback store_blob_cb,
     void* store_blob_cb_data,
     node_embedding_snapshot_flags snapshot_flags) {
   return EMBEDDED_RUNTIME(runtime)->OnCreateSnapshotBlob(
@@ -1005,7 +1006,7 @@ node_embedding_runtime_run_event_loop(node_embedding_runtime runtime) {
 
 napi_status NAPI_CDECL node_embedding_runtime_run_event_loop_while(
     node_embedding_runtime runtime,
-    node_embedding_runtime_event_loop_predicate predicate,
+    node_embedding_event_loop_predicate predicate,
     void* predicate_data,
     bool is_thread_blocking,
     bool* has_more_work) {
