@@ -118,6 +118,16 @@ typedef enum {
   node_embedding_snapshot_no_code_cache = 1 << 0,
 } node_embedding_snapshot_flags;
 
+typedef enum {
+  // Run the event loop once and wait if there no items.
+  // It matches the UV_RUN_ONCE behavior.
+  node_embedding_event_loop_run_once = 1,
+
+  // Run the event loop once and do not wait if there no items.
+  // It matches the UV_RUN_NOWAIT behavior.
+  node_embedding_event_loop_run_nowait = 2,
+} node_embedding_event_loop_run_mode;
+
 //==============================================================================
 // Callbacks
 //==============================================================================
@@ -142,7 +152,7 @@ typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
     void* cb_data, const uint8_t* blob, size_t size);
 
 typedef bool(NAPI_CDECL* node_embedding_event_loop_predicate)(
-    void* predicate_data);
+    void* predicate_data, bool has_work);
 
 //==============================================================================
 // Functions
@@ -261,7 +271,7 @@ NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_run_event_loop_while(
     node_embedding_runtime runtime,
     node_embedding_event_loop_predicate predicate,
     void* predicate_data,
-    bool is_thread_blocking,
+    node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work);
 
 // Runs the Node.js runtime event loop until the promise is resolved.
@@ -335,3 +345,10 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO: (vmoroz) Simplify API use for simple default cases.
 // TODO: (vmoroz) Add a way to add embedded modules.
 // TODO: (vmoroz) Check how to pass the V8 thread pool size.
+
+// TODO: (vmoroz) Make the args story simpler or clear named.
+// TODO: (vmoroz) Consider to have one function to retrieve the both arg types.
+// TODO: (vmoroz) Consider to have one function to set the both arg types.
+// TODO: (vmoroz) Event loop predicate to know if more tasks available.
+// TODO: (vmoroz) Event loop predicate to use enum with UV matching name
+// Once/NoWait.

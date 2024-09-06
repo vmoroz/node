@@ -59,7 +59,7 @@ namespace node {
 // Declare functions implemented in embed_helpers.cc
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env);
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
-    Environment* env, const std::function<bool(void)>& shouldContinue);
+    Environment* env, const std::function<bool(bool)>& shouldContinue);
 
 }  // end of namespace node
 
@@ -254,7 +254,7 @@ class EmbeddedRuntime {
 
   napi_status RunEventLoopWhile(node_embedding_event_loop_predicate predicate,
                                 void* predicate_data,
-                                bool /* is_thread_blocking*/,
+                                node_embedding_event_loop_run_mode run_mode,
                                 bool* has_more_work);
 
   napi_status AwaitPromise(napi_value promise,
@@ -730,14 +730,18 @@ napi_status EmbeddedRuntime::RunEventLoop() {
 napi_status EmbeddedRuntime::RunEventLoopWhile(
     node_embedding_event_loop_predicate predicate,
     void* predicate_data,
-    bool /* is_thread_blocking*/,
+    node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work) {
   ARG_NOT_NULL(predicate);
 
-  if (predicate(predicate_data)) {
+  if (predicate(
+          predicate_data,
+          uv_loop_alive(env_setup_->env()->event_loop()))) {
     if (node::SpinEventLoopWithoutCleanup(
             env_setup_->env(),
-            [predicate, predicate_data]() { return predicate(predicate_data); })
+            [predicate, predicate_data](bool has_work) {
+              return predicate(predicate_data, has_work);
+            })
             .IsNothing()) {
       return napi_closing;
     }
@@ -775,7 +779,9 @@ napi_status EmbeddedRuntime::AwaitPromise(napi_value promise,
   if (promise_object->Catch(node_api_env_->context(), err_handler).IsEmpty())
     return napi_pending_exception;
 
-  if (node::SpinEventLoopWithoutCleanup(env_setup_->env(), [&promise_object]() {
+  if (node::SpinEventLoopWithoutCleanup(
+          env_setup_->env(),
+          [&promise_object](bool /*has_work*/) {
         return promise_object->State() == v8::Promise::PromiseState::kPending;
       }).IsNothing())
     return napi_closing;
@@ -1005,10 +1011,10 @@ napi_status NAPI_CDECL node_embedding_runtime_run_event_loop_while(
     node_embedding_runtime runtime,
     node_embedding_event_loop_predicate predicate,
     void* predicate_data,
-    bool is_thread_blocking,
+    node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work) {
   return EMBEDDED_RUNTIME(runtime)->RunEventLoopWhile(
-      predicate, predicate_data, is_thread_blocking, has_more_work);
+      predicate, predicate_data, run_mode, has_more_work);
 }
 
 napi_status NAPI_CDECL

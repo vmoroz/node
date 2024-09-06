@@ -67,7 +67,7 @@ Maybe<ExitCode> SpinEventLoopInternalImpl(
         do {
           if (env->is_stopping()) break;
           more = uv_run(env->event_loop(), UV_RUN_NOWAIT);
-        } while (more && shouldContinue());
+        } while (more && shouldContinue(more));
       } else {
         if (env->is_stopping()) break;
         uv_run(env->event_loop(), UV_RUN_DEFAULT);
@@ -140,7 +140,7 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env) {
 }
 
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
-    Environment* env, const std::function<bool(void)>& shouldContinue) {
+    Environment* env, const std::function<bool(bool)>& shouldContinue) {
   return SpinEventLoopInternalImpl<SpinEventLoopCleanupMode::kNoCleanup>(
       env, shouldContinue);
 }
