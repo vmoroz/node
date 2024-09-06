@@ -126,164 +126,32 @@ class EmbeddedPlatform {
   explicit EmbeddedPlatform(int32_t api_version) noexcept
       : api_version_(api_version) {}
 
-  napi_status Delete() {
-    //   if (!v8impl::EmbeddedPlatform::UninitOncePerProcess())
-    //     return napi_generic_failure;
-    if (v8_is_initialized_ && !v8_is_uninitialized_) {
-      v8::V8::Dispose();
-      v8::V8::DisposePlatform();
-      node::TearDownOncePerProcess();
-      v8_is_uninitialized_ = false;
-    }
-
-    delete this;
-    return napi_ok;
-  }
-
-  napi_status IsInitialized(bool* result) {
-    ARG_NOT_NULL(result);
-    *result = is_initialized_;
-    return napi_ok;
-  }
-
-  napi_status SetFlags(node_embedding_platform_flags flags) {
-    ASSERT(!is_initialized_);
-    flags_ = flags;
-    optional_bits_.flags = true;
-    return napi_ok;
-  }
-
-  napi_status SetArgs(int32_t argc, const char* argv[]) {
-    ARG_NOT_NULL(argv);
-    ASSERT(!is_initialized_);
-    args_.assign(argv, argv + argc);
-    optional_bits_.args = true;
-    return napi_ok;
-  }
-
-  napi_status Initialize(bool* early_return) {
-    ASSERT(!is_initialized_);
-
-    is_initialized_ = true;
-
-    // TODO: (vmoroz) default initialize args_.
-
-    if (!optional_bits_.flags) {
-      flags_ = node_embedding_platform_no_flags;
-    }
-
-    init_result_ = node::InitializeOncePerProcess(
-        args_, GetProcessInitializationFlags(flags_));
-
-    if (init_result_->exit_code() != 0 || !init_result_->errors().empty()) {
-      EmbeddedErrorHandling::HandleError(init_result_->exit_code(),
-                                         init_result_->errors());
-    }
-
-    if (early_return != nullptr) {
-      *early_return = init_result_->early_return();
-    } else if (init_result_->early_return()) {
-      exit(init_result_->exit_code());
-    }
-
-    if (init_result_->early_return()) {
-      return init_result_->exit_code() == 0 ? napi_ok : napi_generic_failure;
-    }
-
-    int32_t thread_pool_size = static_cast<int32_t>(
-        node::per_process::cli_options->v8_thread_pool_size);
-    v8_platform_ = node::MultiIsolatePlatform::Create(thread_pool_size);
-    v8::V8::InitializePlatform(v8_platform_.get());
-    v8::V8::Initialize();
-
-    v8_is_initialized_ = true;
-
-    return napi_ok;
-  }
-
-  napi_status GetArgs(node_embedding_get_args_callback get_args,
-                      void* get_args_data) {
-    ARG_NOT_NULL(get_args);
-    ASSERT(is_initialized_);
-
-    v8impl::CStringArray args(init_result_->args());
-    get_args(args.argc(), args.argv(), get_args_data);
-
-    return napi_ok;
-  }
-
-  napi_status GetExecArgs(node_embedding_get_args_callback get_args,
-                          void* get_args_data) {
-    ARG_NOT_NULL(get_args);
-    ASSERT(is_initialized_);
-
-    v8impl::CStringArray args(init_result_->exec_args());
-    get_args(args.argc(), args.argv(), get_args_data);
-
-    return napi_ok;
-  }
-
-  napi_status CreateRuntime(node_embedding_runtime* result);
-
-  // TODO: (vmoroz) should we implement these once-per-process guards?
-  // static bool InitOncePerProcess() noexcept {
-  //   return !is_initialized_.test_and_set();
-  // }
-
-  // static bool UninitOncePerProcess() noexcept {
-  //   return is_initialized_.test() && !is_uninitialized_.test_and_set();
-  // }
-
-  node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
-      node_embedding_platform_flags flags) {
-    uint32_t result = node::ProcessInitializationFlags::kNoFlags;
-    if ((flags & node_embedding_platform_enable_stdio_inheritance) != 0) {
-      result |= node::ProcessInitializationFlags::kEnableStdioInheritance;
-    }
-    if ((flags & node_embedding_platform_disable_node_options_env) != 0) {
-      result |= node::ProcessInitializationFlags::kDisableNodeOptionsEnv;
-    }
-    if ((flags & node_embedding_platform_disable_cli_options) != 0) {
-      result |= node::ProcessInitializationFlags::kDisableCLIOptions;
-    }
-    if ((flags & node_embedding_platform_no_icu) != 0) {
-      result |= node::ProcessInitializationFlags::kNoICU;
-    }
-    if ((flags & node_embedding_platform_no_stdio_initialization) != 0) {
-      result |= node::ProcessInitializationFlags::kNoStdioInitialization;
-    }
-    if ((flags & node_embedding_platform_no_default_signal_handling) != 0) {
-      result |= node::ProcessInitializationFlags::kNoDefaultSignalHandling;
-    }
-    result |= node::ProcessInitializationFlags::kNoInitializeV8;
-    result |= node::ProcessInitializationFlags::kNoInitializeNodeV8Platform;
-    if ((flags & node_embedding_platform_no_init_openssl) != 0) {
-      result |= node::ProcessInitializationFlags::kNoInitOpenSSL;
-    }
-    if ((flags & node_embedding_platform_no_parse_global_debug_variables) !=
-        0) {
-      result |= node::ProcessInitializationFlags::kNoParseGlobalDebugVariables;
-    }
-    if ((flags & node_embedding_platform_no_adjust_resource_limits) != 0) {
-      result |= node::ProcessInitializationFlags::kNoAdjustResourceLimits;
-    }
-    if ((flags & node_embedding_platform_no_use_large_pages) != 0) {
-      result |= node::ProcessInitializationFlags::kNoUseLargePages;
-    }
-    if ((flags & node_embedding_platform_no_print_help_or_version_output) !=
-        0) {
-      result |= node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput;
-    }
-    if ((flags & node_embedding_platform_generate_predictable_snapshot) != 0) {
-      result |= node::ProcessInitializationFlags::kGeneratePredictableSnapshot;
-    }
-    return static_cast<node::ProcessInitializationFlags::Flags>(result);
-  }
-
   EmbeddedPlatform(const EmbeddedPlatform&) = delete;
   EmbeddedPlatform& operator=(const EmbeddedPlatform&) = delete;
 
+  napi_status Delete();
+
+  napi_status IsInitialized(bool* result);
+
+  napi_status SetFlags(node_embedding_platform_flags flags);
+
+  napi_status SetArgs(int32_t argc, const char* argv[]);
+
+  napi_status Initialize(bool* early_return);
+
+  napi_status GetArgs(node_embedding_get_args_callback get_args,
+                      void* get_args_data);
+
+  napi_status GetExecArgs(node_embedding_get_args_callback get_args,
+                          void* get_args_data);
+
+  napi_status CreateRuntime(node_embedding_runtime* result);
+
   node::MultiIsolatePlatform* get_v8_platform() { return v8_platform_.get(); }
+
+ private:
+  node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
+      node_embedding_platform_flags flags);
 
  private:
   int32_t api_version_{0};
@@ -300,16 +168,10 @@ class EmbeddedPlatform {
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
 
-  // static std::atomic_flag is_initialized_;
-  // static std::atomic_flag is_uninitialized_;
-  // static std::unique_ptr<EmbeddedPlatform> platform_;
   static node_embedding_error_handler custom_error_handler_;
   static void* custom_error_handler_data_;
 };
 
-// std::atomic_flag EmbeddedPlatform::is_initialized_{};
-// std::atomic_flag EmbeddedPlatform::is_uninitialized_{};
-// std::unique_ptr<EmbeddedPlatform> EmbeddedPlatform::platform_{};
 node_embedding_error_handler EmbeddedPlatform::custom_error_handler_{};
 void* EmbeddedPlatform::custom_error_handler_data_{};
 
@@ -715,19 +577,6 @@ std::mutex EmbeddedRuntime::shared_mutex_{};
 std::unordered_map<node::Environment*, node_napi_env>
     EmbeddedRuntime::node_env_to_node_api_env_{};
 
-napi_status EmbeddedPlatform::CreateRuntime(node_embedding_runtime* result) {
-  ARG_NOT_NULL(result);
-  ASSERT(is_initialized_);
-  ASSERT(v8_is_initialized_);
-
-  std::unique_ptr<EmbeddedRuntime> runtime =
-      std::make_unique<EmbeddedRuntime>(this);
-
-  *result = reinterpret_cast<node_embedding_runtime>(runtime.release());
-
-  return napi_ok;
-}
-
 //-----------------------------------------------------------------------------
 // EmbeddedErrorHandling implementation.
 //-----------------------------------------------------------------------------
@@ -798,6 +647,163 @@ std::string EmbeddedErrorHandling::FormatError(const char* format, ...) {
   std::vsnprintf(&result[0], result.size() + 1, format, args2);
   va_end(args2);
   return result;
+}
+
+//-----------------------------------------------------------------------------
+// EmbeddedPlatform implementation.
+//-----------------------------------------------------------------------------
+
+napi_status EmbeddedPlatform::Delete() {
+  if (v8_is_initialized_ && !v8_is_uninitialized_) {
+    v8::V8::Dispose();
+    v8::V8::DisposePlatform();
+    node::TearDownOncePerProcess();
+    v8_is_uninitialized_ = false;
+  }
+
+  delete this;
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::IsInitialized(bool* result) {
+  ARG_NOT_NULL(result);
+  *result = is_initialized_;
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::SetFlags(node_embedding_platform_flags flags) {
+  ASSERT(!is_initialized_);
+  flags_ = flags;
+  optional_bits_.flags = true;
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::SetArgs(int32_t argc, const char* argv[]) {
+  ARG_NOT_NULL(argv);
+  ASSERT(!is_initialized_);
+  args_.assign(argv, argv + argc);
+  optional_bits_.args = true;
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::Initialize(bool* early_return) {
+  ASSERT(!is_initialized_);
+
+  is_initialized_ = true;
+
+  // TODO: (vmoroz) default initialize args_.
+
+  if (!optional_bits_.flags) {
+    flags_ = node_embedding_platform_no_flags;
+  }
+
+  init_result_ = node::InitializeOncePerProcess(
+      args_, GetProcessInitializationFlags(flags_));
+
+  if (init_result_->exit_code() != 0 || !init_result_->errors().empty()) {
+    EmbeddedErrorHandling::HandleError(init_result_->exit_code(),
+                                       init_result_->errors());
+  }
+
+  if (early_return != nullptr) {
+    *early_return = init_result_->early_return();
+  } else if (init_result_->early_return()) {
+    exit(init_result_->exit_code());
+  }
+
+  if (init_result_->early_return()) {
+    return init_result_->exit_code() == 0 ? napi_ok : napi_generic_failure;
+  }
+
+  int32_t thread_pool_size =
+      static_cast<int32_t>(node::per_process::cli_options->v8_thread_pool_size);
+  v8_platform_ = node::MultiIsolatePlatform::Create(thread_pool_size);
+  v8::V8::InitializePlatform(v8_platform_.get());
+  v8::V8::Initialize();
+
+  v8_is_initialized_ = true;
+
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::GetArgs(node_embedding_get_args_callback get_args,
+                                      void* get_args_data) {
+  ARG_NOT_NULL(get_args);
+  ASSERT(is_initialized_);
+
+  v8impl::CStringArray args(init_result_->args());
+  get_args(args.argc(), args.argv(), get_args_data);
+
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::GetExecArgs(
+    node_embedding_get_args_callback get_args, void* get_args_data) {
+  ARG_NOT_NULL(get_args);
+  ASSERT(is_initialized_);
+
+  v8impl::CStringArray args(init_result_->exec_args());
+  get_args(args.argc(), args.argv(), get_args_data);
+
+  return napi_ok;
+}
+
+napi_status EmbeddedPlatform::CreateRuntime(node_embedding_runtime* result) {
+  ARG_NOT_NULL(result);
+  ASSERT(is_initialized_);
+  ASSERT(v8_is_initialized_);
+
+  std::unique_ptr<EmbeddedRuntime> runtime =
+      std::make_unique<EmbeddedRuntime>(this);
+
+  *result = reinterpret_cast<node_embedding_runtime>(runtime.release());
+
+  return napi_ok;
+}
+
+node::ProcessInitializationFlags::Flags
+EmbeddedPlatform::GetProcessInitializationFlags(
+    node_embedding_platform_flags flags) {
+  uint32_t result = node::ProcessInitializationFlags::kNoFlags;
+  if ((flags & node_embedding_platform_enable_stdio_inheritance) != 0) {
+    result |= node::ProcessInitializationFlags::kEnableStdioInheritance;
+  }
+  if ((flags & node_embedding_platform_disable_node_options_env) != 0) {
+    result |= node::ProcessInitializationFlags::kDisableNodeOptionsEnv;
+  }
+  if ((flags & node_embedding_platform_disable_cli_options) != 0) {
+    result |= node::ProcessInitializationFlags::kDisableCLIOptions;
+  }
+  if ((flags & node_embedding_platform_no_icu) != 0) {
+    result |= node::ProcessInitializationFlags::kNoICU;
+  }
+  if ((flags & node_embedding_platform_no_stdio_initialization) != 0) {
+    result |= node::ProcessInitializationFlags::kNoStdioInitialization;
+  }
+  if ((flags & node_embedding_platform_no_default_signal_handling) != 0) {
+    result |= node::ProcessInitializationFlags::kNoDefaultSignalHandling;
+  }
+  result |= node::ProcessInitializationFlags::kNoInitializeV8;
+  result |= node::ProcessInitializationFlags::kNoInitializeNodeV8Platform;
+  if ((flags & node_embedding_platform_no_init_openssl) != 0) {
+    result |= node::ProcessInitializationFlags::kNoInitOpenSSL;
+  }
+  if ((flags & node_embedding_platform_no_parse_global_debug_variables) != 0) {
+    result |= node::ProcessInitializationFlags::kNoParseGlobalDebugVariables;
+  }
+  if ((flags & node_embedding_platform_no_adjust_resource_limits) != 0) {
+    result |= node::ProcessInitializationFlags::kNoAdjustResourceLimits;
+  }
+  if ((flags & node_embedding_platform_no_use_large_pages) != 0) {
+    result |= node::ProcessInitializationFlags::kNoUseLargePages;
+  }
+  if ((flags & node_embedding_platform_no_print_help_or_version_output) != 0) {
+    result |= node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput;
+  }
+  if ((flags & node_embedding_platform_generate_predictable_snapshot) != 0) {
+    result |= node::ProcessInitializationFlags::kGeneratePredictableSnapshot;
+  }
+  return static_cast<node::ProcessInitializationFlags::Flags>(result);
 }
 
 }  // end of anonymous namespace
