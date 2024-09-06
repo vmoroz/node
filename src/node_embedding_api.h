@@ -181,8 +181,8 @@ NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_on_create_snapshot(
     void* store_blob_cb_data,
     node_embedding_snapshot_flags snapshot_flags);
 
-NAPI_EXTERN napi_status NAPI_CDECL
-node_embedding_runtime_initialize(node_embedding_runtime runtime);
+NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_initialize(
+    node_embedding_runtime runtime, const char* main_script);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 node_embedding_runtime_run_event_loop(node_embedding_runtime runtime);
