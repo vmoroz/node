@@ -59,7 +59,8 @@ namespace node {
 // Declare functions implemented in embed_helpers.cc
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env);
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
-    Environment* env, const std::function<bool(bool)>& shouldContinue);
+    Environment* env,
+    uv_run_mode run_mode, const std::function<bool(bool)>& shouldContinue);
 
 }  // end of namespace node
 
@@ -739,6 +740,7 @@ napi_status EmbeddedRuntime::RunEventLoopWhile(
           uv_loop_alive(env_setup_->env()->event_loop()))) {
     if (node::SpinEventLoopWithoutCleanup(
             env_setup_->env(),
+            static_cast<uv_run_mode>(run_mode),
             [predicate, predicate_data](bool has_work) {
               return predicate(predicate_data, has_work);
             })
@@ -781,6 +783,7 @@ napi_status EmbeddedRuntime::AwaitPromise(napi_value promise,
 
   if (node::SpinEventLoopWithoutCleanup(
           env_setup_->env(),
+          UV_RUN_ONCE,
           [&promise_object](bool /*has_work*/) {
         return promise_object->State() == v8::Promise::PromiseState::kPending;
       }).IsNothing())
