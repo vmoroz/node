@@ -223,7 +223,7 @@ The C embedder API is split up by the four major groups described above.
 
 #### Data types
 
-##### `node_platform`
+##### `node_embedding_platform`
 
 <!-- YAML
 added: REPLACEME
@@ -235,7 +235,7 @@ This is an opaque pointer that represents a Node.js platform instance.
 Node.js allows only a single platform instance per process.
 
 
-##### `node_platform_flags`
+##### `node_embedding_platform_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -247,53 +247,54 @@ Flags are used to initialize a Node.js platform instance.
 
 ```c
 typedef enum {
-  node_platform_no_flags = 0,
-  node_platform_enable_stdio_inheritance = 1 << 0,
-  node_platform_disable_node_options_env = 1 << 1,
-  node_platform_disable_cli_options = 1 << 2,
-  node_platform_no_icu = 1 << 3,
-  node_platform_no_stdio_initialization = 1 << 4,
-  node_platform_no_default_signal_handling = 1 << 5,
-  node_platform_no_init_openssl = 1 << 8,
-  node_platform_no_parse_global_debug_variables = 1 << 9,
-  node_platform_no_adjust_resource_limits = 1 << 10,
-  node_platform_no_use_large_pages = 1 << 11,
-  node_platform_no_print_help_or_version_output = 1 << 12,
-  node_platform_generate_predictable_snapshot = 1 << 14,
-} node_platform_flags;
+  node_embedding_platform_no_flags = 0,
+  node_embedding_platform_enable_stdio_inheritance = 1 << 0,
+  node_embedding_platform_disable_node_options_env = 1 << 1,
+  node_embedding_platform_disable_cli_options = 1 << 2,
+  node_embedding_platform_no_icu = 1 << 3,
+  node_embedding_platform_no_stdio_initialization = 1 << 4,
+  node_embedding_platform_no_default_signal_handling = 1 << 5,
+  node_embedding_platform_no_init_openssl = 1 << 8,
+  node_embedding_platform_no_parse_global_debug_variables = 1 << 9,
+  node_embedding_platform_no_adjust_resource_limits = 1 << 10,
+  node_embedding_platform_no_use_large_pages = 1 << 11,
+  node_embedding_platform_no_print_help_or_version_output = 1 << 12,
+  node_embedding_platform_generate_predictable_snapshot = 1 << 14,
+} node_embedding_platform_flags;
 ```
 
 These flags match to the C++ `node::ProcessInitializationFlags` and control the
 Node.js platform initialization.
 
-- `node_platform_no_flags` - The default flags.
-- `node_platform_enable_stdio_inheritance` - Enable `stdio` inheritance, which
-  is disabled by default. This flag is also implied by the
-  `node_platform_no_stdio_initialization`.
-- `node_platform_disable_node_options_env` - Disable reading the `NODE_OPTIONS`
-  environment variable.
-- `node_platform_disable_cli_options` - Do not parse CLI options.
-- `node_platform_no_icu` - Do not initialize ICU.
-- `node_platform_no_stdio_initialization` - Do not modify `stdio` file
+- `node_embedding_platform_no_flags` - The default flags.
+- `node_embedding_platform_enable_stdio_inheritance` - Enable `stdio`
+  inheritance, which is disabled by default. This flag is also implied by the
+  `node_embedding_platform_no_stdio_initialization`.
+- `node_embedding_platform_disable_node_options_env` - Disable reading the
+  `NODE_OPTIONS` environment variable.
+- `node_embedding_platform_disable_cli_options` - Do not parse CLI options.
+- `node_embedding_platform_no_icu` - Do not initialize ICU.
+- `node_embedding_platform_no_stdio_initialization` - Do not modify `stdio` file
   descriptor or TTY state.
-- `node_platform_no_default_signal_handling` - Do not register Node.js-specific
-  signal handlers and reset other signal handlers to default state.
-- `node_platform_no_init_openssl` - Do not initialize OpenSSL config.
-- `node_platform_no_parse_global_debug_variables` - Do not initialize Node.js
-  debugging based on environment variables.
-- `node_platform_no_adjust_resource_limits` - Do not adjust OS resource limits
-  for this process.
-- `node_platform_no_use_large_pages` - Do not map code segments into large pages
-  for this process.
-- `node_platform_no_print_help_or_version_output` - Skip printing output for
-  `--help`, `--version`, `--v8-options`.
-- `node_platform_generate_predictable_snapshot` - Initialize the process for
-  predictable snapshot generation.
+- `node_embedding_platform_no_default_signal_handling` - Do not register
+  Node.js-specific signal handlers and reset other signal handlers to
+  default state.
+- `node_embedding_platform_no_init_openssl` - Do not initialize OpenSSL config.
+- `node_embedding_platform_no_parse_global_debug_variables` - Do not initialize
+  Node.js debugging based on environment variables.
+- `node_embedding_platform_no_adjust_resource_limits` - Do not adjust OS
+  resource limits for this process.
+- `node_embedding_platform_no_use_large_pages` - Do not map code segments into
+  large pages for this process.
+- `node_embedding_platform_no_print_help_or_version_output` - Skip printing
+  output for `--help`, `--version`, `--v8-options`.
+- `node_embedding_platform_generate_predictable_snapshot` - Initialize the
+  process for predictable snapshot generation.
 
 
 #### Callback types
 
-##### `node_platform_error_handler`
+##### `node_embedding_error_handler`
 
 <!-- YAML
 added: REPLACEME
@@ -302,10 +303,10 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_platform_error_handler)(int32_t exit_code,
-                                                      const char* messages[],
-                                                      size_t size,
-                                                      void* handler_data);
+typedef void(NAPI_CDECL* node_embedding_error_handler)(int32_t exit_code,
+                                                       const char* messages[],
+                                                       size_t size,
+                                                       void* handler_data);
 ```
 
 Function pointer type for user-provided native function that handles the list
@@ -320,7 +321,7 @@ The callback parameters:
 - `[in] handler_data`: The user data associated with this callback.
 
 
-##### `node_platform_get_args_callback`
+##### `node_embedding_get_args_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -329,13 +330,13 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_platform_get_args_callback)(int32_t argc,
-                                                          const char* argv[],
-                                                          void* cb_data);
+typedef void(NAPI_CDECL* node_embedding_get_args_callback)(int32_t argc,
+                                                           const char* argv[],
+                                                           void* cb_data);
 ```
 
 Function pointer type for user-provided native function that receives list of
-CLI arguments from the `node_platform`.
+CLI arguments from the `node_embedding_platform`.
 
 The callback parameters:
 
@@ -345,7 +346,7 @@ The callback parameters:
 
 #### Functions
 
-##### `node_platform_on_error`
+##### `node_embedding_on_error`
 
 <!-- YAML
 added: REPLACEME
@@ -357,19 +358,19 @@ Sets global custom error handler for the Node.js embedded code.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_on_error(node_platform_error_handler error_handler,
-                       void* error_handler_data);
+node_embedding_on_error(node_embedding_error_handler error_handler,
+                        void* error_handler_data);
 ```
 
 - `[in] error_handler`: The error handler callback.
 - `[in] error_handler_data`: Optional. The error handler data that will be
   passed to the `error_handler` callback. It can be removed after the
-  `node_platform_delete` call.
+  `node_embedding_delete_platform()` call.
 
 Returns `napi_ok` if there were no issues.
 
 It is recommended to call this function before the creation of the
-`node_platform` instance to handle all error messages the same way.
+`node_embedding_platform` instance to handle all error messages the same way.
 
 This function assigns a custom platform error handler. It replaces the default
 error handler that outputs error messages to the `stderr` and exits the current
@@ -379,7 +380,7 @@ The zero `exit_code` indicates reported warnings or text messages. For example,
 it can be Node.js help text returned in response to the `--help` CLI argument.
 
 
-##### `node_create_platform`
+##### `node_embedding_create_platform`
 
 <!-- YAML
 added: REPLACEME
@@ -391,8 +392,8 @@ Creates new Node.js platform instance.
 
 ```c
 napi_status NAPI_CDECL
-node_create_platform(int32_t api_version,
-                     node_platform* result);
+node_embedding_create_platform(int32_t api_version,
+                               node_embedding_platform* result);
 ```
 
 - `[in] api_version`: The version of the C embedder API.
@@ -406,7 +407,7 @@ other complex work that may fail. It only checks the argument.
 Node.js allows only a single platform instance per process.
 
 
-##### `node_delete_platform`
+##### `node_embedding_delete_platform`
 
 <!-- YAML
 added: REPLACEME
@@ -418,7 +419,7 @@ Deletes Node.js platform instance.
 
 ```c
 napi_status NAPI_CDECL
-node_delete_platform(node_platform platform);
+node_embedding_delete_platform(node_embedding_platform platform);
 ```
 
 - `[in] platform`: The Node.js platform instance to delete.
@@ -429,7 +430,7 @@ If the platform was initialized before the deletion, then the method
 uninitializes the platform before deletion.
 
 
-##### `node_platform_is_initialized`
+##### `node_embedding_platform_is_initialized`
 
 <!-- YAML
 added: REPLACEME
@@ -441,8 +442,8 @@ Checks if the Node.js platform instance is initialized.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_is_initialized(node_platform platform,
-                             bool* result);
+node_embedding_platform_is_initialized(node_embedding_platform platform,
+                                       bool* result);
 ```
 
 - `[in] platform`: The Node.js platform instance to check.
@@ -451,11 +452,11 @@ node_platform_is_initialized(node_platform platform,
 Returns `napi_ok` if there were no issues.
 
 The platform instance settings can be changed until the platform is initialized.
-After the `node_platform_initialize` function call any attempt to change
-platform instance settings will fail.
+After the `node_embedding_platform_initialize` function call any attempt to
+change platform instance settings will fail.
 
 
-##### `node_platform_set_flags`
+##### `node_embedding_platform_set_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -467,8 +468,8 @@ Sets the Node.js platform instance flags.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_set_flags(node_platform platform,
-                        node_platform_flags flags);
+node_embedding_platform_set_flags(node_embedding_platform platform,
+                                  node_embedding_platform_flags flags);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
@@ -477,7 +478,7 @@ node_platform_set_flags(node_platform platform,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_platform_set_args`
+##### `node_embedding_platform_set_args`
 
 <!-- YAML
 added: REPLACEME
@@ -489,9 +490,9 @@ Sets the CLI args for the Node.js platform instance.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_set_args(node_platform platform,
-                       int32_t argc,
-                       const char* argv[]);
+node_embedding_platform_set_args(node_embedding_platform platform,
+                                 int32_t argc,
+                                 const char* argv[]);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
@@ -501,7 +502,7 @@ node_platform_set_args(node_platform platform,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_platform_initialize`
+##### `node_embedding_platform_initialize`
 
 <!-- YAML
 added: REPLACEME
@@ -513,8 +514,8 @@ Initializes the Node.js platform instance.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_initialize(node_platform platform,
-                         bool* early_return);
+node_embedding_platform_initialize(node_platform platform,
+                                   bool* early_return);
 ```
 
 - `[in] platform`: The Node.js platform instance to initialize.
@@ -530,10 +531,11 @@ Node.js version number is completed, then the `early_return` is set to `true`.
 
 After the initialization is completed the Node.js platform settings cannot be
 changed anymore. The parsed arguments can be accessed by calling the
-`node_platform_get_args` and `node_platform_get_exec_args` functions.
+`node_embedding_platform_get_args` and `node_embedding_platform_get_exec_args`
+functions.
 
 
-##### `node_platform_get_args`
+##### `node_embedding_platform_get_args`
 
 <!-- YAML
 added: REPLACEME
@@ -545,9 +547,9 @@ Gets the parsed list of non-Node.js arguments.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_get_args(node_platform platform,
-                       node_platform_get_args_callback get_args,
-                       void* get_args_data);
+node_embedding_platform_get_args(node_embedding_platform platform,
+                                 node_embedding_get_args_callback get_args,
+                                 void* get_args_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
@@ -558,7 +560,7 @@ node_platform_get_args(node_platform platform,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_platform_get_exec_args`
+##### `node_embedding_platform_get_exec_args`
 
 <!-- YAML
 added: REPLACEME
@@ -570,9 +572,9 @@ Gets the parsed list of Node.js arguments.
 
 ```c
 napi_status NAPI_CDECL
-node_platform_get_exec_args(node_platform platform,
-                            node_platform_get_args_callback get_args,
-                            void* get_args_data);
+node_embedding_platform_get_exec_args(node_embedding_platform platform,
+                                      node_embedding_get_args_callback get_args,
+                                      void* get_args_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
@@ -587,7 +589,7 @@ Returns `napi_ok` if there were no issues.
 
 #### Data types
 
-##### `node_runtime`
+##### `node_embedding_runtime`
 
 <!-- YAML
 added: REPLACEME
@@ -599,7 +601,7 @@ This is an opaque pointer that represents a Node.js runtime instance.
 It wraps up the C++ `node::Environment`.
 There can be one or more runtime instances in the process.
 
-##### `node_runtime_flags`
+##### `node_embedding_runtime_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -611,69 +613,71 @@ Flags are used to initialize a Node.js runtime instance.
 
 ```c
 typedef enum {
-  node_runtime_no_flags = 0,
-  node_runtime_default_flags = 1 << 0,
-  node_runtime_owns_process_state = 1 << 1,
-  node_runtime_owns_inspector = 1 << 2,
-  node_runtime_no_register_esm_loader = 1 << 3,
-  node_runtime_track_unmanaged_fds = 1 << 4,
-  node_runtime_hide_console_windows = 1 << 5,
-  node_runtime_no_native_addons = 1 << 6,
-  node_runtime_no_global_search_paths = 1 << 7,
-  node_runtime_no_browser_globals = 1 << 8,
-  node_runtime_no_create_inspector = 1 << 9,
-  node_runtime_no_start_debug_signal_handler = 1 << 10,
-  node_runtime_no_wait_for_inspector_frontend = 1 << 11
-} node_runtime_flags;
+  node_embedding_runtime_no_flags = 0,
+  node_embedding_runtime_default_flags = 1 << 0,
+  node_embedding_runtime_owns_process_state = 1 << 1,
+  node_embedding_runtime_owns_inspector = 1 << 2,
+  node_embedding_runtime_no_register_esm_loader = 1 << 3,
+  node_embedding_runtime_track_unmanaged_fds = 1 << 4,
+  node_embedding_runtime_hide_console_windows = 1 << 5,
+  node_embedding_runtime_no_native_addons = 1 << 6,
+  node_embedding_runtime_no_global_search_paths = 1 << 7,
+  node_embedding_runtime_no_browser_globals = 1 << 8,
+  node_embedding_runtime_no_create_inspector = 1 << 9,
+  node_embedding_runtime_no_start_debug_signal_handler = 1 << 10,
+  node_embedding_runtime_no_wait_for_inspector_frontend = 1 << 11
+} node_embedding_runtime_flags;
 ```
 
 These flags match to the C++ `node::EnvironmentFlags` and control the
 Node.js runtime initialization.
 
-- `node_runtime_no_flags` - No flags set.
-- `node_runtime_default_flags` - Use the default behavior for Node.js instances.
-- `node_runtime_owns_process_state` - Controls whether this runtime is allowed
-  to affect per-process state (e.g. cwd, process title, uid, etc.).
-  This is set when using `node_runtime_default_flags`.
-- `node_runtime_owns_inspector` - Set if this runtime instance is associated
-  with the global inspector handling code (i.e. listening on `SIGUSR1`).
-  This is set when using `node_runtime_default_flags`.
-- `node_runtime_no_register_esm_loader` - Set if Node.js should not run its own
-  esm loader. This is needed by some embedders, because it's possible for the
-  Node.js esm loader to conflict with another one in an embedder environment,
-  e.g. Blink's in Chromium.
-- `node_runtime_track_unmanaged_fds` - Set this flag to make Node.js track "raw"
-  file descriptors, i.e. managed by `fs.open()` and `fs.close()`, and close them
-  during `node_delete_runtime`.
-- `node_runtime_hide_console_windows` - Set this flag to force hiding console
-  windows when spawning child processes. This is usually used when embedding
-  Node.js in GUI programs on Windows.
-- `node_runtime_no_native_addons` - Set this flag to disable loading native
-  addons via `process.dlopen`. This runtime flag is especially important for
-  worker threads so that a worker thread can't load a native addon even if
+- `node_embedding_runtime_no_flags` - No flags set.
+- `node_embedding_runtime_default_flags` - Use the default behavior for
+  Node.js instances.
+- `node_embedding_runtime_owns_process_state` - Controls whether this runtime
+  is allowed to affect per-process state (e.g. cwd, process title, uid, etc.).
+  This is set when using `node_embedding_runtime_default_flags`.
+- `node_embedding_runtime_owns_inspector` - Set if this runtime instance is
+  associated with the global inspector handling code (i.e. listening
+  on `SIGUSR1`).
+  This is set when using `node_embedding_runtime_default_flags`.
+- `node_embedding_runtime_no_register_esm_loader` - Set if Node.js should not
+  run its own esm loader. This is needed by some embedders, because it's
+  possible for the Node.js esm loader to conflict with another one in an
+  embedder environment, e.g. Blink's in Chromium.
+- `node_embedding_runtime_track_unmanaged_fds` - Set this flag to make Node.js
+  track "raw" file descriptors, i.e. managed by `fs.open()` and `fs.close()`,
+  and close them during `node_embedding_delete_runtime`.
+- `node_embedding_runtime_hide_console_windows` - Set this flag to force hiding
+  console windows when spawning child processes. This is usually used when
+  embedding Node.js in GUI programs on Windows.
+- `node_embedding_runtime_no_native_addons` - Set this flag to disable loading
+  native addons via `process.dlopen`. This runtime flag is especially important
+  for worker threads so that a worker thread can't load a native addon even if
   `execArgv` is overwritten and `--no-addons` is not specified but was specified
   for this runtime instance.
-- `node_runtime_no_global_search_paths` - Set this flag to disable searching
-  modules from global paths like `$HOME/.node_modules` and `$NODE_PATH`. This is
-  used by standalone apps that do not expect to have their behaviors changed
-  because of globally installed modules.
-- `node_runtime_no_browser_globals` - Do not export browser globals like
-  setTimeout, console, etc.
-- `node_runtime_no_create_inspector` - Controls whether or not the runtime
-  should call `V8Inspector::create()`. This control is needed by embedders who
-  may not want to initialize the V8 inspector in situations where one has
-  already been created, e.g. Blink's in Chromium.
-- `node_runtime_no_start_debug_signal_handler` - Controls whether or not the
-  `InspectorAgent` for this runtime should call `StartDebugSignalHandler`.
-  This control is needed by embedders who may not want to allow other processes
-  to start the V8 inspector.
-- `node_runtime_no_wait_for_inspector_frontend` - Controls whether the
+- `node_embedding_runtime_no_global_search_paths` - Set this flag to disable
+  searching modules from global paths like `$HOME/.node_modules` and
+  `$NODE_PATH`. This is used by standalone apps that do not expect to have their
+  behaviors changed because of globally installed modules.
+- `node_embedding_runtime_no_browser_globals` - Do not export browser globals
+  like setTimeout, console, etc.
+- `node_embedding_runtime_no_create_inspector` - Controls whether or not the
+  runtime should call `V8Inspector::create()`. This control is needed by
+  embedders who may not want to initialize the V8 inspector in situations where
+  one has already been created, e.g. Blink's in Chromium.
+- `node_embedding_runtime_no_start_debug_signal_handler` - Controls whether or
+  not the `InspectorAgent` for this runtime should call
+  `StartDebugSignalHandler`. This control is needed by embedders who may not
+  want to allow other processes to start the V8 inspector.
+- `node_embedding_runtime_no_wait_for_inspector_frontend` - Controls whether the
   `InspectorAgent` created for this runtime waits for Inspector frontend events
   during the runtime creation. It's used to call `node::Stop(env)` on a Worker
   thread that is waiting for the events.
 
 
-##### `node_runtime_snapshot_flags`
+##### `node_embedding_snapshot_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -685,24 +689,24 @@ Flags are used to create a Node.js runtime JavaScript snapshot.
 
 ```c
 typedef enum {
-  node_runtime_snapshot_no_flags = 0,
-  node_runtime_snapshot_no_code_cache = 1 << 0,
-} node_runtime_snapshot_flags;
+  node_embedding_snapshot_no_flags = 0,
+  node_embedding_snapshot_no_code_cache = 1 << 0,
+} node_embedding_snapshot_flags;
 ```
 
 These flags match to the C++ `node::SnapshotFlags` and control the
 Node.js runtime snapshot creation.
 
-- `node_runtime_snapshot_no_flags` - No flags set.
-- `node_runtime_snapshot_no_code_cache` - Whether code cache should be generated
-  as part of the snapshot. Code cache reduces the time spent on compiling
-  functions included in the snapshot at the expense of a bigger snapshot size
-  and potentially breaking portability of the snapshot.
+- `node_embedding_snapshot_no_flags` - No flags set.
+- `node_embedding_snapshot_no_code_cache` - Whether code cache should be
+  generated as part of the snapshot. Code cache reduces the time spent on
+  compiling functions included in the snapshot at the expense of a bigger
+  snapshot size and potentially breaking portability of the snapshot.
 
 
 #### Callback types
 
-##### `node_runtime_preload_callback`
+##### `node_embedding_runtime_preload_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -711,10 +715,11 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_runtime_preload_callback)(napi_env env,
-                                                        napi_value process,
-                                                        napi_value require,
-                                                        void* cb_data);
+typedef void(NAPI_CDECL* node_embedding_runtime_preload_callback)(
+    napi_env env,
+    napi_value process,
+    napi_value require,
+    void* cb_data);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -728,7 +733,7 @@ The callback parameters:
 - `[in] cb_data`: The user data associated with this callback.
 
 
-##### `node_runtime_store_blob_callback`
+##### `node_embedding_runtime_store_blob_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -737,9 +742,10 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_runtime_store_blob_callback)(const uint8_t* blob,
-                                                           size_t size,
-                                                           void* cb_data);
+typedef void(NAPI_CDECL* node_embedding_runtime_store_blob_callback)(
+    const uint8_t* blob,
+    size_t size,
+    void* cb_data);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -753,7 +759,7 @@ The callback parameters:
 
 #### Functions
 
-##### `node_create_runtime`
+##### `node_embedding_create_runtime`
 
 <!-- YAML
 added: REPLACEME
@@ -765,8 +771,8 @@ Creates new Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_create_runtime(node_platform platform,
-                    node_runtime* result);
+node_embedding_create_runtime(node_embedding_platform platform,
+                              node_embedding_runtime* result);
 ```
 
 - `[in] platform`: Optional. An initialized Node.js platform instance.
@@ -780,16 +786,16 @@ It is a simple object allocation. It does not do any initialization or any
 other complex work that may fail besides checking the arguments.
 
 If the platform instance is `NULL` then a default platform instance will be
-created internally when the `node_platform_initialize` is called. Since there
-can be only one platform instance per process, only one runtime instance can be
-created this way per process.
+created internally when the `node_embedding_platform_initialize` is called.
+Since there can be only one platform instance per process, only one runtime
+instance can be created this way per process.
 
 If it is planned to create more than one runtime instance or a non-default
 platform configuration is required, then it is recommended to create the
 Node.js platform instance explicitly.
 
 
-##### `node_delete_runtime`
+##### `node_embedding_delete_runtime`
 
 <!-- YAML
 added: REPLACEME
@@ -801,7 +807,7 @@ Deletes Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_delete_runtime(node_runtime runtime);
+node_embedding_delete_runtime(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to delete.
@@ -812,10 +818,11 @@ If the runtime was initialized, then the method un-initializes the runtime
 before the deletion.
 
 As a part of the un-initialization it can store created snapshot blob if the
-`node_runtime_on_create_snapshot` set the callback to save the snapshot blob.
+`node_embedding_runtime_on_create_snapshot` set the callback to save the
+snapshot blob.
 
 
-##### `node_runtime_is_initialized`
+##### `node_embedding_runtime_is_initialized`
 
 <!-- YAML
 added: REPLACEME
@@ -827,8 +834,8 @@ Checks if the Node.js runtime instance is initialized.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_is_initialized(node_runtime runtime,
-                            bool* result);
+node_embedding_runtime_is_initialized(node_embedding_runtime runtime,
+                                      bool* result);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to check.
@@ -837,11 +844,11 @@ node_runtime_is_initialized(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 The runtime settings can be changed until the runtime is initialized.
-After the `node_runtime_initialize` function is called any attempt to change
+After the `node_embedding_runtime_initialize` function is called any attempt to change
 runtime settings will fail.
 
 
-##### `node_runtime_set_flags`
+##### `node_embedding_runtime_set_flags`
 
 <!-- YAML
 added: REPLACEME
@@ -853,8 +860,8 @@ Sets the Node.js runtime instance flags.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_set_flags(node_runtime runtime,
-                       node_runtime_flags flags);
+node_embedding_runtime_set_flags(node_embedding_runtime runtime,
+                                 node_embedding_runtime_flags flags);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -863,15 +870,15 @@ node_runtime_set_flags(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_set_args`
+##### `node_embedding_runtime_set_args`
 
 Sets the non-Node.js arguments for the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_set_args(node_runtime runtime,
-                      int32_t argc,
-                      const char* argv[]);
+node_embedding_runtime_set_args(node_embedding_runtime runtime,
+                                int32_t argc,
+                                const char* argv[]);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -881,15 +888,15 @@ node_runtime_set_args(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_set_exec_args`
+##### `node_embedding_runtime_set_exec_args`
 
 Sets the Node.js arguments for the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_set_exec_args(node_runtime runtime,
-                           int32_t argc,
-                           const char* argv[]);
+node_embedding_runtime_set_exec_args(node_embedding_runtime runtime,
+                                     int32_t argc,
+                                     const char* argv[]);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.
@@ -899,7 +906,7 @@ node_runtime_set_exec_args(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_on_preload`
+##### `node_embedding_runtime_on_preload`
 
 <!-- YAML
 added: REPLACEME
@@ -911,9 +918,10 @@ Sets a preload callback to call before Node.js runtime instance is loaded.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_on_preload(node_runtime runtime,
-                        node_runtime_preload_callback preload_cb,
-                        void* preload_cb_data);
+node_embedding_runtime_on_preload(
+    node_embedding_runtime runtime,
+    node_embedding_runtime_preload_callback preload_cb,
+    void* preload_cb_data);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -921,12 +929,12 @@ node_runtime_on_preload(node_runtime runtime,
   instance is loaded.
 - `[in] preload_cb_data`: Optional. The preload callback data that will be
   passed to the `preload_cb` callback. It can be removed after the
-  `node_runtime_delete` call.
+  `node_embedding_delete_runtime` call.
 
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_use_snapshot`
+##### `node_embedding_runtime_use_snapshot`
 
 <!-- YAML
 added: REPLACEME
@@ -938,9 +946,9 @@ Use a snapshot blob to load this Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_use_snapshot(node_runtime runtime,
-                          const uint8_t* snapshot,
-                          size_t size);
+node_embedding_runtime_use_snapshot(node_embedding_runtime runtime,
+                                    const uint8_t* snapshot,
+                                    size_t size);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -950,7 +958,7 @@ node_runtime_use_snapshot(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_on_create_snapshot`
+##### `node_embedding_runtime_on_create_snapshot`
 
 <!-- YAML
 added: REPLACEME
@@ -963,10 +971,11 @@ finished execution.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_on_create_snapshot(node_runtime runtime,
-                                node_runtime_store_blob_callback store_blob_cb,
-                                void* store_blob_cb_data,
-                                node_runtime_snapshot_flags snapshot_flags);
+node_embedding_runtime_on_create_snapshot(
+    node_embedding_runtime runtime,
+    node_embedding_store_blob_callback store_blob_cb,
+    void* store_blob_cb_data,
+    node_embedding_snapshot_flags snapshot_flags);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -974,13 +983,13 @@ node_runtime_on_create_snapshot(node_runtime runtime,
   runtime instance is deleted.
 - `[in] store_blob_cb_data`: Optional. The store blob callback data that will be
   passed to the `store_blob_cb` callback. It can be removed after the
-  `node_runtime_delete` call.
+  `node_embedding_delete_runtime` call.
 - `[in] snapshot_flags`: The flags controlling the snapshot creation.
 
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_initialize`
+##### `node_embedding_runtime_initialize`
 
 <!-- YAML
 added: REPLACEME
@@ -992,7 +1001,7 @@ Initializes the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_initialize(node_runtime runtime);
+node_embedding_runtime_initialize(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to initialize.
@@ -1010,7 +1019,7 @@ changed anymore.
 
 #### Callback types
 
-##### `node_runtime_event_loop_predicate`
+##### `node_embedding_runtime_event_loop_predicate`
 
 <!-- YAML
 added: REPLACEME
@@ -1019,7 +1028,7 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef bool(NAPI_CDECL* node_runtime_event_loop_predicate)(
+typedef bool(NAPI_CDECL* node_embedding_runtime_event_loop_predicate)(
     void* predicate_data);
 ```
 
@@ -1035,7 +1044,7 @@ Returns `true` if the runtime loop must continue to run.
 
 #### Functions
 
-##### `node_runtime_run_event_loop`
+##### `node_embedding_runtime_run_event_loop`
 
 <!-- YAML
 added: REPLACEME
@@ -1047,7 +1056,7 @@ Runs Node.js runtime instance event loop.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_run_event_loop(node_runtime runtime);
+node_embedding_runtime_run_event_loop(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1057,7 +1066,7 @@ Returns `napi_ok` if there were no issues.
 The function exits when there are no more tasks to process in the loop.
 
 
-##### `node_runtime_run_event_loop_while`
+##### `node_embedding_runtime_run_event_loop_while`
 
 <!-- YAML
 added: REPLACEME
@@ -1070,11 +1079,12 @@ the provided predicate returns true.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_run_event_loop_while(node_runtime runtime,
-                                  node_runtime_event_loop_predicate predicate,
-                                  void* predicate_data,
-                                  bool is_thread_blocking,
-                                  bool* has_more_work);
+node_embedding_runtime_run_event_loop_while(
+    node_embedding_runtime runtime,
+    node_embedding_runtime_event_loop_predicate predicate,
+    void* predicate_data,
+    bool is_thread_blocking,
+    bool* has_more_work);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1093,7 +1103,7 @@ node_runtime_run_event_loop_while(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_await_promise`
+##### `node_embedding_runtime_await_promise`
 
 <!-- YAML
 added: REPLACEME
@@ -1107,10 +1117,10 @@ loop and the promise is not completed.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_await_promise(node_runtime runtime,
-                           napi_value promise,
-                           napi_value* result,
-                           bool* has_more_work);
+node_embedding_runtime_await_promise(node_embedding_runtime runtime,
+                                     napi_value promise,
+                                     napi_value* result,
+                                     bool* has_more_work);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1126,7 +1136,7 @@ Returns `napi_ok` if there were no issues.
 
 #### Functions
 
-##### `node_runtime_set_node_api_version`
+##### `node_embedding_runtime_set_node_api_version`
 
 <!-- YAML
 added: REPLACEME
@@ -1138,7 +1148,7 @@ Sets the Node-API version for the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_set_node_api_version(node_runtime runtime,
+node_runtime_set_node_api_version(node_embedding_runtime runtime,
                                   int32_t node_api_version);
 ```
 
@@ -1150,7 +1160,7 @@ Returns `napi_ok` if there were no issues.
 By default it is using the Node-API version 8.
 
 
-##### `node_runtime_get_node_api_env`
+##### `node_embedding_runtime_get_node_api_env`
 
 <!-- YAML
 added: REPLACEME
@@ -1162,7 +1172,7 @@ Gets `napi_env` associated with the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_get_node_api_env(node_runtime runtime,
+node_embedding_runtime_get_node_api_env(node_runtime embedding_runtime,
                               napi_env* env);
 ```
 
@@ -1172,7 +1182,7 @@ node_runtime_get_node_api_env(node_runtime runtime,
 Returns `napi_ok` if there were no issues.
 
 
-##### `node_runtime_open_scope`
+##### `node_embedding_runtime_open_scope`
 
 <!-- YAML
 added: REPLACEME
@@ -1184,7 +1194,7 @@ Opens V8 Isolate and Context scope associated with the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_open_scope(node_runtime runtime);
+node_embedding_runtime_open_scope(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
@@ -1213,10 +1223,10 @@ runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_runtime_close_scope(node_runtime runtime);
+node_embedding_runtime_close_scope(node_embedding_runtime runtime);
 ```
 
-- `[in] runtime`: The Node.js runtime instance.
+- `[in] runtime`: The Node.js embedding_runtime instance.
 
 Returns `napi_ok` if there were no issues.
 
