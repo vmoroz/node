@@ -854,7 +854,7 @@ Sets the Node.js runtime instance flags.
 ```c
 napi_status NAPI_CDECL
 node_runtime_set_flags(node_runtime runtime,
-                       node_platform_flags flags);
+                       node_runtime_flags flags);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to configure.

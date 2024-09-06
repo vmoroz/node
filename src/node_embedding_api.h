@@ -160,7 +160,7 @@ NAPI_EXTERN napi_status NAPI_CDECL
 node_runtime_is_initialized(node_runtime runtime, bool* result);
 
 NAPI_EXTERN napi_status NAPI_CDECL
-node_runtime_set_flags(node_runtime runtime, node_platform_flags flags);
+node_runtime_set_flags(node_runtime runtime, node_runtime_flags flags);
 
 NAPI_EXTERN napi_status NAPI_CDECL node_runtime_set_args(node_runtime runtime,
                                                          int32_t argc,
