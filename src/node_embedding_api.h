@@ -349,6 +349,3 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO: (vmoroz) Make the args story simpler or clear named.
 // TODO: (vmoroz) Consider to have one function to retrieve the both arg types.
 // TODO: (vmoroz) Consider to have one function to set the both arg types.
-// TODO: (vmoroz) Event loop predicate to know if more tasks available.
-// TODO: (vmoroz) Event loop predicate to use enum with UV matching name
-// Once/NoWait.
