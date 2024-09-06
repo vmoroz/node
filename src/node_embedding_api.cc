@@ -8,23 +8,17 @@
 
 #include <mutex>
 
-#ifdef ASSERT
-#undef ASSERT
-#endif
-
 #define EMBEDDED_PLATFORM(platform)                                            \
-  reinterpret_cast<v8impl::EmbeddedPlatform*>(platform)
-//return ((platform) == nullptr)                                               \
-  //           ? v8impl::EmbeddedPlatform::ReportError(                          \
-  //                 #platform " is null", __FILE__, __LINE__, napi_invalid_arg) \
-  //           : reinterpret_cast<v8impl::EmbeddedPlatform*>(platform)
+  ((platform) == nullptr)                                                      \
+      ? v8impl::EmbeddedPlatform::ReportError(                                 \
+            #platform " is null", __FILE__, __LINE__, napi_invalid_arg)        \
+      : reinterpret_cast<v8impl::EmbeddedPlatform*>(platform)
 
 #define EMBEDDED_RUNTIME(runtime)                                              \
-  reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
-//return (runtime) == nullptr                                                  \
-  //           ? v8impl::EmbeddedPlatform::ReportError(                          \
-  //                 #runtime " is null", __FILE__, __LINE__, napi_invalid_arg)  \
-  //           : reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
+  (runtime) == nullptr                                                         \
+      ? v8impl::EmbeddedPlatform::ReportError(                                 \
+            #runtime " is null", __FILE__, __LINE__, napi_invalid_arg)         \
+      : reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
 
 #define ARG_NOT_NULL(arg)                                                      \
   do {                                                                         \
