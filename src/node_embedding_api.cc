@@ -60,7 +60,8 @@ namespace node {
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env);
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
     Environment* env,
-    uv_run_mode run_mode, const std::function<bool(bool)>& shouldContinue);
+    uv_run_mode run_mode,
+    const std::function<bool(bool)>& shouldContinue);
 
 }  // end of namespace node
 
@@ -160,7 +161,7 @@ class EmbeddedPlatform {
 
   napi_status SetFlags(node_embedding_platform_flags flags);
 
-  napi_status SetArgs(int32_t argc, const char* argv[]);
+  napi_status SetArgs(int32_t argc, char* argv[]);
 
   napi_status Initialize(bool* early_return);
 
@@ -416,7 +417,7 @@ napi_status EmbeddedPlatform::SetFlags(node_embedding_platform_flags flags) {
   return napi_ok;
 }
 
-napi_status EmbeddedPlatform::SetArgs(int32_t argc, const char* argv[]) {
+napi_status EmbeddedPlatform::SetArgs(int32_t argc, char* argv[]) {
   ARG_NOT_NULL(argv);
   ASSERT(!is_initialized_);
   args_.assign(argv, argv + argc);
@@ -735,9 +736,8 @@ napi_status EmbeddedRuntime::RunEventLoopWhile(
     bool* has_more_work) {
   ARG_NOT_NULL(predicate);
 
-  if (predicate(
-          predicate_data,
-          uv_loop_alive(env_setup_->env()->event_loop()))) {
+  if (predicate(predicate_data,
+                uv_loop_alive(env_setup_->env()->event_loop()))) {
     if (node::SpinEventLoopWithoutCleanup(
             env_setup_->env(),
             static_cast<uv_run_mode>(run_mode),
@@ -785,8 +785,10 @@ napi_status EmbeddedRuntime::AwaitPromise(napi_value promise,
           env_setup_->env(),
           UV_RUN_ONCE,
           [&promise_object](bool /*has_work*/) {
-        return promise_object->State() == v8::Promise::PromiseState::kPending;
-      }).IsNothing())
+            return promise_object->State() ==
+                   v8::Promise::PromiseState::kPending;
+          })
+          .IsNothing())
     return napi_closing;
 
   *result =
@@ -925,7 +927,7 @@ napi_status NAPI_CDECL node_embedding_platform_set_flags(
 }
 
 napi_status NAPI_CDECL node_embedding_platform_set_args(
-    node_embedding_platform platform, int32_t argc, const char* argv[]) {
+    node_embedding_platform platform, int32_t argc, char* argv[]) {
   return EMBEDDED_PLATFORM(platform)->SetArgs(argc, argv);
 }
 

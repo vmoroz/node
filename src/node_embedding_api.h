@@ -17,6 +17,8 @@
 
 #include "node_api.h"
 
+#define NODE_EMBEDDING_VERSION 1
+
 EXTERN_C_START
 
 //==============================================================================
@@ -188,7 +190,7 @@ NAPI_EXTERN napi_status NAPI_CDECL node_embedding_platform_set_flags(
 
 // Sets the CLI arguments for the Node.js platform initialization.
 NAPI_EXTERN napi_status NAPI_CDECL node_embedding_platform_set_args(
-    node_embedding_platform platform, int32_t argc, const char* argv[]);
+    node_embedding_platform platform, int32_t argc, char* argv[]);
 
 // Initializes the Node.js platform.
 NAPI_EXTERN napi_status NAPI_CDECL node_embedding_platform_initialize(

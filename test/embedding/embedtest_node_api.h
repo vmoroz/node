@@ -2,7 +2,7 @@
 #define TEST_EMBEDDING_EMBEDTEST_NODE_API_H_
 
 #define NAPI_EXPERIMENTAL
-#include <node_api_embedding.h>
+#include <node_embedding_api.h>
 
 #ifdef __cplusplus
 
