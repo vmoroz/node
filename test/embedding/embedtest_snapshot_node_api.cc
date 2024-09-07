@@ -40,24 +40,7 @@ class CStringArray {
 static int32_t RunNodeInstance(node_embedding_platform platform);
 
 extern "C" int32_t test_main_snapshot_node_api(int32_t argc, char* argv[]) {
-  node_embedding_on_error(
-      [](void* handler_data,
-         const char* messages[],
-         size_t messages_size,
-         int32_t exit_code,
-         napi_status status) {
-        auto exe_name = static_cast<const char*>(handler_data);
-        if (exit_code != 0) {
-          for (size_t i = 0; i < messages_size; ++i)
-            fprintf(stderr, "%s: %s\n", exe_name, messages[i]);
-          exit(exit_code);
-        } else {
-          for (size_t i = 0; i < messages_size; ++i)
-            printf("%s\n", messages[i]);
-        }
-        return status;
-      },
-      argv[0]);
+  CHECK(node_embedding_on_error(HandleTestError, argv[0]));
 
   node_embedding_platform platform;
   CHECK(node_embedding_create_platform(NODE_EMBEDDING_VERSION, &platform));
