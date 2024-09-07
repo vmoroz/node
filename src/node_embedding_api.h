@@ -121,11 +121,11 @@ typedef enum {
 } node_embedding_snapshot_flags;
 
 typedef enum {
-  // Run the event loop once and wait if there no items.
+  // Run the event loop once and wait if there are no items.
   // It matches the UV_RUN_ONCE behavior.
   node_embedding_event_loop_run_once = 1,
 
-  // Run the event loop once and do not wait if there no items.
+  // Run the event loop once and do not wait if there are no items.
   // It matches the UV_RUN_NOWAIT behavior.
   node_embedding_event_loop_run_nowait = 2,
 } node_embedding_event_loop_run_mode;

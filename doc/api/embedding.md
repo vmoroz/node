@@ -303,10 +303,12 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_embedding_error_handler)(int32_t exit_code,
-                                                       const char* messages[],
-                                                       size_t size,
-                                                       void* handler_data);
+typedef napi_status(NAPI_CDECL* node_embedding_error_handler)(
+    void* handler_data,
+    const char* messages[],
+    size_t messages_size,
+    int32_t exit_code,
+    napi_status status);
 ```
 
 Function pointer type for user-provided native function that handles the list
@@ -314,11 +316,12 @@ of error messages and the exit code.
 
 The callback parameters:
 
+- `[in] handler_data`: The user data associated with this callback.
+- `[in] messages`: Pointer to an array of zero terminating strings.
+- `[in] messages_size`: Size of the `messages` string array.
 - `[in] exit_code`: The suggested process exit code in case of error. If the
   `exit_code` is zero, then the callback is used to output non-error messages.
-- `[in] messages`: Pointer to an array of zero terminating strings.
-- `[in] size`: Size of the `messages` string array.
-- `[in] handler_data`: The user data associated with this callback.
+- `[in] status`: Reported Node-API status.
 
 
 ##### `node_embedding_get_args_callback`
@@ -330,9 +333,9 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_embedding_get_args_callback)(int32_t argc,
-                                                           const char* argv[],
-                                                           void* cb_data);
+typedef void(NAPI_CDECL* node_embedding_get_args_callback)(void* cb_data,
+                                                           int32_t argc,
+                                                           const char* argv[]);
 ```
 
 Function pointer type for user-provided native function that receives list of
@@ -340,9 +343,10 @@ CLI arguments from the `node_embedding_platform`.
 
 The callback parameters:
 
+- `[in] cb_data`: The user data associated with this callback.
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: CLI arguments as an array of zero terminating strings.
-- `[in] cb_data`: The user data associated with this callback.
+
 
 #### Functions
 
@@ -492,7 +496,7 @@ Sets the CLI args for the Node.js platform instance.
 napi_status NAPI_CDECL
 node_embedding_platform_set_args(node_embedding_platform platform,
                                  int32_t argc,
-                                 const char* argv[]);
+                                 char* argv[]);
 ```
 
 - `[in] platform`: The Node.js platform instance to configure.
@@ -548,14 +552,14 @@ Gets the parsed list of non-Node.js arguments.
 ```c
 napi_status NAPI_CDECL
 node_embedding_platform_get_args(node_embedding_platform platform,
-                                 node_embedding_get_args_callback get_args,
-                                 void* get_args_data);
+                                 node_embedding_get_args_callback get_args_cb,
+                                 void* get_args_cb_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
-- `[in] get_args`: The callback to receive non-Node.js arguments.
-- `[in] get_args_data`: Optional. The callback data that will be passed to the
-  callback. It can be deleted right after the function call.
+- `[in] get_args_cb`: The callback to receive non-Node.js arguments.
+- `[in] get_args_cb_data`: Optional. The callback data that will be passed to
+  the `get_args_cb` callback. It can be deleted right after the function call.
 
 Returns `napi_ok` if there were no issues.
 
@@ -572,15 +576,16 @@ Gets the parsed list of Node.js arguments.
 
 ```c
 napi_status NAPI_CDECL
-node_embedding_platform_get_exec_args(node_embedding_platform platform,
-                                      node_embedding_get_args_callback get_args,
-                                      void* get_args_data);
+node_embedding_platform_get_exec_args(
+    node_embedding_platform platform,
+    node_embedding_get_args_callback get_args_cb,
+    void* get_args_cb_data);
 ```
 
 - `[in] platform`: The Node.js platform instance.
-- `[in] get_args`: The callback to receive Node.js arguments.
-- `[in] get_args_data`: Optional. The callback data that will be passed to the
-  `get_args` callback. It can be deleted right after the function call.
+- `[in] get_args_cb`: The callback to receive Node.js arguments.
+- `[in] get_args_cb_data`: Optional. The callback data that will be passed to
+  the `get_args_cb` callback. It can be deleted right after the function call.
 
 Returns `napi_ok` if there were no issues.
 
@@ -716,10 +721,10 @@ added: REPLACEME
 
 ```c
 typedef void(NAPI_CDECL* node_embedding_runtime_preload_callback)(
+    void* cb_data,
     napi_env env,
     napi_value process,
-    napi_value require,
-    void* cb_data);
+    napi_value require);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -727,13 +732,13 @@ runtime initially loads the JavaScript code.
 
 The callback parameters:
 
+- `[in] cb_data`: The user data associated with this callback.
 - `[in] env`: Node-API environmentStart of the blob memory span.
 - `[in] process`: The Node.js `process` object.
 - `[in] require`: The internal `require` function.
-- `[in] cb_data`: The user data associated with this callback.
 
 
-##### `node_embedding_runtime_store_blob_callback`
+##### `node_embedding_store_blob_callback`
 
 <!-- YAML
 added: REPLACEME
@@ -742,10 +747,10 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef void(NAPI_CDECL* node_embedding_runtime_store_blob_callback)(
+typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
+    void* cb_data,
     const uint8_t* blob,
-    size_t size,
-    void* cb_data);
+    size_t size);
 ```
 
 Function pointer type for user-provided native function that is called when the
@@ -753,9 +758,10 @@ runtime needs to store the snapshot blob.
 
 The callback parameters:
 
+- `[in] cb_data`: The user data associated with this callback.
 - `[in] blob`: Start of the blob memory span.
 - `[in] size`: Size of the blob memory span.
-- `[in] cb_data`: The user data associated with this callback.
+
 
 #### Functions
 
@@ -1001,10 +1007,12 @@ Initializes the Node.js runtime instance.
 
 ```c
 napi_status NAPI_CDECL
-node_embedding_runtime_initialize(node_embedding_runtime runtime);
+node_embedding_runtime_initialize(node_embedding_runtime runtime,
+                                  const char* main_script);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to initialize.
+- `[in] main_script`: The main script to run.
 
 Returns `napi_ok` if there were no issues.
 
@@ -1017,9 +1025,37 @@ changed anymore.
 
 ### Event loop APIs
 
+#### Data types
+
+##### `node_embedding_event_loop_run_mode`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+The event loop run mode.
+
+```c
+typedef enum {
+  node_embedding_event_loop_run_once = 1,
+  node_embedding_event_loop_run_nowait = 2,
+} node_embedding_event_loop_run_mode;
+```
+
+These values match to UV library `uv_run_mode` enum and control the event loop
+beahvior.
+
+- `node_embedding_event_loop_run_once` - Run the event loop once and wait if
+  there are no items. It matches the `UV_RUN_ONCE` behavior.
+- `node_embedding_event_loop_run_nowait` - Run the event loop once and do not
+  wait if there are no items. It matches the `UV_RUN_NOWAIT` behavior.
+
+
 #### Callback types
 
-##### `node_embedding_runtime_event_loop_predicate`
+##### `node_embedding_event_loop_predicate`
 
 <!-- YAML
 added: REPLACEME
@@ -1028,8 +1064,9 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef bool(NAPI_CDECL* node_embedding_runtime_event_loop_predicate)(
-    void* predicate_data);
+typedef bool(NAPI_CDECL* node_embedding_event_loop_predicate)(
+    void* predicate_data,
+    bool has_work);
 ```
 
 Function pointer type for user-provided predicate function that is checked
@@ -1038,6 +1075,7 @@ before each task execution in the Node.js runtime event loop.
 The callback parameters:
 
 - `[in] predicate_data`: The user data associated with this predicate callback.
+- `[in] has_work`: `true` if the event loop has work to do.
 
 Returns `true` if the runtime loop must continue to run.
 
@@ -1083,7 +1121,7 @@ node_embedding_runtime_run_event_loop_while(
     node_embedding_runtime runtime,
     node_embedding_runtime_event_loop_predicate predicate,
     void* predicate_data,
-    bool is_thread_blocking,
+    node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work);
 ```
 
@@ -1093,10 +1131,10 @@ node_embedding_runtime_run_event_loop_while(
 - `[in] predicate_data`: Optional. The predicate data that will be
   passed to the `predicate` callback. It can be removed right after this 
   function call.
-- `[in] is_thread_blocking`: If `true` then the runtime loop will block the
-  thread if the predicate returned `true` and there are no more tasks to invoke
-  in the event loop. It unblocks after a new task is submitted to the
-  event loop.
+- `[in] run_mode`: Specifies behavior in case if the event loop does not have
+  items to process. The `node_embedding_event_loop_run_once` will block the
+  current thread and the `node_embedding_event_loop_run_nowait` will not wait
+  and exit.
 - `[out] has_more_work`: `true` if the runtime event loop has more tasks after
   returning from the function.
 
