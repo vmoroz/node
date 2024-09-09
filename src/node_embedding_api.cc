@@ -728,7 +728,7 @@ napi_status EmbeddedRuntime::RunEventLoop() {
   return napi_ok;
 }
 
-// TODO: (vmoroz) add support for is_thread_blocking.
+// TODO: (vmoroz) add support node_embedding_event_loop_run_once.
 napi_status EmbeddedRuntime::RunEventLoopWhile(
     node_embedding_event_loop_predicate predicate,
     void* predicate_data,
