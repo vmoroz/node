@@ -365,3 +365,7 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO: (vmoroz) Consider to have one function to retrieve the both arg types.
 // TODO: (vmoroz) Consider to have one function to set the both arg types.
 // TODO: (vmoroz) Single runtime rby default vs multiple runtimes on demand.
+// TODO: (vmoroz) Add a way to terminate the runtime.
+// TODO: (vmoroz) Allow to provide custom thread pool from the app.
+// TODO: (vmoroz) See the UV example how to integrate UV loop with the QT loop.
+
