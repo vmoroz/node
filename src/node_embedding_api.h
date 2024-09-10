@@ -358,7 +358,6 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO: (vmoroz) Can we init plat again if it returns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.
-// TODO: (vmoroz) Add a way to add embedded modules.
 // TODO: (vmoroz) Check how to pass the V8 thread pool size.
 
 // TODO: (vmoroz) Make the args story simpler or clear named.
