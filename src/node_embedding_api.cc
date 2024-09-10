@@ -714,7 +714,6 @@ napi_status EmbeddedRuntime::AddModule(
   return napi_ok;
 }
 
-// TODO: (vmoroz) avoid passing the main_script this way.
 napi_status EmbeddedRuntime::Initialize(const char* main_script) {
   ASSERT(!is_initialized_);
 
@@ -777,7 +776,6 @@ napi_status EmbeddedRuntime::RunEventLoop() {
   return napi_ok;
 }
 
-// TODO: (vmoroz) add support node_embedding_event_loop_run_once.
 napi_status EmbeddedRuntime::RunEventLoopWhile(
     node_embedding_event_loop_predicate predicate,
     void* predicate_data,

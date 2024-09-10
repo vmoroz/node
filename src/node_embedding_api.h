@@ -9,7 +9,8 @@
 //
 // This file contains the C-based API for embedding Node.js in a host
 // application. The API is designed to be used by applications that want to
-// embed Node.js as a library and can interop with C-based API.
+// embed Node.js as a shared library (.so or .dll) and can interop with
+// C-based API.
 //
 
 #ifndef SRC_NODE_EMBEDDING_API_H_
@@ -348,18 +349,19 @@ inline constexpr node_embedding_snapshot_flags operator|(
 
 #endif  // SRC_NODE_EMBEDDING_API_H_
 
-// TODO: (vmoroz) Remove the main_script parameter.
+// TODO: (vmoroz) Remove the main_script parameter from the initialize function.
 // TODO: (vmoroz) Add startup callback with process and require parameters.
-// TODO: (vmoroz) Add ABI-safe way to access internal module functionality.
-// TODO: (vmoroz) Allow setting the global inspector for a specific environment.
+// TODO: (vmoroz) Generate the main script based on the runtime settings.
+// TODO: (vmoroz) Set the global inspector for a specific environment.
 // TODO: (vmoroz) Start workers from C++.
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
-// TODO: (vmoroz) Can we init plat again if it returns early?
+// TODO: (vmoroz) The runtime delete must avoid pumping tasks.
+// TODO: (vmoroz) Can we init platform again if it returns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.
 // TODO: (vmoroz) Check how to pass the V8 thread pool size.
-
 // TODO: (vmoroz) Make the args story simpler or clear named.
 // TODO: (vmoroz) Consider to have one function to retrieve the both arg types.
 // TODO: (vmoroz) Consider to have one function to set the both arg types.
+// TODO: (vmoroz) Single runtime rby default vs multiple runtimes on demand.
