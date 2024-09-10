@@ -153,6 +153,9 @@ typedef void(NAPI_CDECL* node_embedding_preload_callback)(void* cb_data,
 typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
     void* cb_data, const uint8_t* blob, size_t size);
 
+typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
+    void* cb_data, napi_env env, napi_value exports);
+
 typedef bool(NAPI_CDECL* node_embedding_event_loop_predicate)(
     void* predicate_data, bool has_work);
 
@@ -252,6 +255,16 @@ NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_on_create_snapshot(
     node_embedding_store_blob_callback store_blob_cb,
     void* store_blob_cb_data,
     node_embedding_snapshot_flags snapshot_flags);
+
+// Adds a new module to the Node.js runtime.
+// It is accessed as process._linkedBinding(module_name) in the main JS and in
+// the related worker threads.
+NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_add_module(
+    node_embedding_runtime runtime,
+    const char* module_name,
+    node_embedding_initialize_module_callback init_module_cb,
+    void* init_module_cb_data,
+    int32_t module_node_api_version);
 
 // Initializes the Node.js runtime.
 NAPI_EXTERN napi_status NAPI_CDECL node_embedding_runtime_initialize(
