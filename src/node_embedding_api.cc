@@ -199,13 +199,7 @@ class EmbeddedPlatform {
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
-
-  static node_embedding_error_handler custom_error_handler_;
-  static void* custom_error_handler_data_;
 };
-
-node_embedding_error_handler EmbeddedPlatform::custom_error_handler_{};
-void* EmbeddedPlatform::custom_error_handler_data_{};
 
 struct IsolateLocker {
   IsolateLocker(node::CommonEnvironmentSetup* env_setup)
@@ -306,6 +300,15 @@ class EmbeddedRuntime {
     int32_t module_node_api_version;
   };
 
+  struct SharedData {
+    std::mutex mutex;
+    std::unordered_map<node::Environment*, napi_env> node_env_to_node_api_env;
+
+    static SharedData& Get() {
+      static SharedData shared_data;
+      return shared_data;
+    }
+  };
  private:
   EmbeddedPlatform* platform_;
   bool is_initialized_{false};
@@ -329,16 +332,7 @@ class EmbeddedRuntime {
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<IsolateLocker> isolate_locker_;
-
-  static std::mutex shared_mutex_;
-  static std::unordered_map<node::Environment*, napi_env>
-      node_env_to_node_api_env_;
 };
-
-// TODO: (vmoroz) remove from the static initialization on module load.
-std::mutex EmbeddedRuntime::shared_mutex_{};
-std::unordered_map<node::Environment*, napi_env>
-    EmbeddedRuntime::node_env_to_node_api_env_{};
 
 //-----------------------------------------------------------------------------
 // EmbeddedErrorHandling implementation.
@@ -896,19 +890,23 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
     node::Environment* node_env,
     const std::string& module_filename,
     int32_t node_api_version) {
+  SharedData& shared_data = SharedData::Get();
+
   {
-    std::scoped_lock<std::mutex> lock(shared_mutex_);
-    auto it = node_env_to_node_api_env_.find(node_env);
-    if (it != node_env_to_node_api_env_.end()) return it->second;
+    std::scoped_lock<std::mutex> lock(shared_data.mutex);
+    auto it = shared_data.node_env_to_node_api_env.find(node_env);
+    if (it != shared_data.node_env_to_node_api_env.end()) return it->second;
   }
+
   // Avoid creating the environment under the lock.
   napi_env env = NewEnv(node_env->context(), module_filename, node_api_version);
 
-  std::scoped_lock<std::mutex> lock(shared_mutex_);
-  auto instert_result = node_env_to_node_api_env_.try_emplace(node_env, env);
+  std::scoped_lock<std::mutex> lock(shared_data.mutex);
+  auto insert_result =
+      shared_data.node_env_to_node_api_env.try_emplace(node_env, env);
 
   // Return either the inserted or the existing environment.
-  return instert_result.first->second;
+  return insert_result.first->second;
 }
 
 node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
