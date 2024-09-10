@@ -284,7 +284,7 @@ class EmbeddedRuntime {
 
   bool IsScopeOpened() const;
 
-  static node_napi_env GetOrCreateNodeApiEnv(
+  static napi_env GetOrCreateNodeApiEnv(
       node::Environment* node_env,
       const std::string& module_filename = "<worker_thread>",
       int32_t node_api_version = 0);
@@ -319,7 +319,7 @@ class EmbeddedRuntime {
   std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
   node::SnapshotConfig snapshot_config_{};
   int32_t node_api_version_{0};
-  node_napi_env node_api_env_{};
+  napi_env node_api_env_{};
 
   struct {
     bool flags : 1;
@@ -333,13 +333,13 @@ class EmbeddedRuntime {
   std::optional<IsolateLocker> isolate_locker_;
 
   static std::mutex shared_mutex_;
-  static std::unordered_map<node::Environment*, node_napi_env>
+  static std::unordered_map<node::Environment*, napi_env>
       node_env_to_node_api_env_;
 };
 
 // TODO: (vmoroz) remove from the static initialization on module load.
 std::mutex EmbeddedRuntime::shared_mutex_{};
-std::unordered_map<node::Environment*, node_napi_env>
+std::unordered_map<node::Environment*, napi_env>
     EmbeddedRuntime::node_env_to_node_api_env_{};
 
 //-----------------------------------------------------------------------------
@@ -649,7 +649,7 @@ napi_status EmbeddedRuntime::SetPreloadCallback(
                                       v8::Local<v8::Value> process,
                                       v8::Local<v8::Value> require) {
           // TODO: (vmoroz) propagate node_api_version from the parent env.
-          node_napi_env env = GetOrCreateNodeApiEnv(node_env);
+          napi_env env = GetOrCreateNodeApiEnv(node_env);
           napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
           napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
           preload_cb(preload_cb_data, env, process_value, require_value);
@@ -892,19 +892,23 @@ bool EmbeddedRuntime::IsScopeOpened() const {
   return isolate_locker_.has_value();
 }
 
-node_napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
+napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
     node::Environment* node_env,
     const std::string& module_filename,
     int32_t node_api_version) {
+  {
+    std::scoped_lock<std::mutex> lock(shared_mutex_);
+    auto it = node_env_to_node_api_env_.find(node_env);
+    if (it != node_env_to_node_api_env_.end()) return it->second;
+  }
+  // Avoid creating the environment under the lock.
+  napi_env env = NewEnv(node_env->context(), module_filename, node_api_version);
+
   std::scoped_lock<std::mutex> lock(shared_mutex_);
-  auto it = node_env_to_node_api_env_.find(node_env);
-  if (it != node_env_to_node_api_env_.end()) return it->second;
-  node_napi_env env = new node_napi_env__(
-      node_env->context(), module_filename, node_api_version);
-  node_env->AddCleanupHook(
-      [](void* arg) { static_cast<node_napi_env>(arg)->Unref(); }, env);
-  node_env_to_node_api_env_.try_emplace(node_env, env);
-  return env;
+  auto instert_result = node_env_to_node_api_env_.try_emplace(node_env, env);
+
+  // Return either the inserted or the existing environment.
+  return instert_result.first->second;
 }
 
 node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
