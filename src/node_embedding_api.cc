@@ -284,10 +284,9 @@ class EmbeddedRuntime {
 
   bool IsScopeOpened() const;
 
-  static napi_env GetOrCreateNodeApiEnv(
-      node::Environment* node_env,
-      const std::string& module_filename = "<worker_thread>",
-      int32_t node_api_version = 0);
+  static napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
+                                        const std::string& module_filename,
+                                        int32_t node_api_version);
 
  private:
   static node::EnvironmentFlags::Flags GetEnvironmentFlags(
@@ -642,17 +641,19 @@ napi_status EmbeddedRuntime::SetPreloadCallback(
     node_embedding_preload_callback preload_cb, void* preload_cb_data) {
   ASSERT(!is_initialized_);
 
-  // TODO: (vmoroz) use CallIntoModule to handle errors.
   if (preload_cb != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
-        [preload_cb, preload_cb_data](node::Environment* node_env,
-                                      v8::Local<v8::Value> process,
-                                      v8::Local<v8::Value> require) {
-          // TODO: (vmoroz) propagate node_api_version from the parent env.
-          napi_env env = GetOrCreateNodeApiEnv(node_env);
-          napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
-          napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-          preload_cb(preload_cb_data, env, process_value, require_value);
+        [preload_cb, preload_cb_data, node_api_version = node_api_version_](
+            node::Environment* node_env,
+            v8::Local<v8::Value> process,
+            v8::Local<v8::Value> require) {
+          napi_env env = GetOrCreateNodeApiEnv(
+              node_env, "<worker thread>", node_api_version);
+          env->CallIntoModule([&](napi_env env) {
+            napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
+            napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
+            preload_cb(preload_cb_data, env, process_value, require_value);
+          });
         });
   } else {
     preload_cb_ = {};
