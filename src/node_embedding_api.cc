@@ -80,9 +80,8 @@ namespace {
 // Ideally the class must be allocated on the stack.
 // In any case it must not outlive the passed vector since it keeps only the
 // string pointers returned by std::string::c_str() method.
+template <size_t kInplaceBufferSize = 32>
 class CStringArray {
-  static constexpr size_t kInplaceBufferSize = 32;
-
  public:
   explicit CStringArray(const std::vector<std::string>& strings) noexcept
       : size_(strings.size()) {
