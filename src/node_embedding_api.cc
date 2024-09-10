@@ -952,16 +952,15 @@ node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
 void EmbeddedRuntime::RegisterModules() {
   for (const auto& [module_name, module_info] : modules_) {
     node::node_module mod = {
-        -1,           // nm_version for Node-API
-        NM_F_LINKED,  // nm_flags
-        nullptr,      // nm_dso_handle
-        nullptr,      // nm_filename
-        nullptr,      // nm_register_func
-        RegisterModule,
-        module_name.c_str(),  // nm_modname
-        const_cast<void*>(
-            reinterpret_cast<const void*>(&module_info)),  // nm_priv
-        nullptr                                            // nm_link
+        -1,                                     // nm_version for Node-API
+        NM_F_LINKED,                            // nm_flags
+        nullptr,                                // nm_dso_handle
+        nullptr,                                // nm_filename
+        nullptr,                                // nm_register_func
+        RegisterModule,                         // nm_context_register_func
+        module_name.c_str(),                    // nm_modname
+        const_cast<ModuleInfo*>(&module_info),  // nm_priv
+        nullptr                                 // nm_link
     };
     node::AddLinkedBinding(env_setup_->env(), mod);
   }
@@ -982,6 +981,7 @@ void EmbeddedRuntime::RegisterModules() {
     node_api_exports =
         module_info->init_module_cb(module_info->init_module_cb_data,
                                     env,
+                                    module_info->module_name.c_str(),
                                     v8impl::JsValueFromV8LocalValue(exports));
   });
 

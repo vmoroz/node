@@ -154,7 +154,7 @@ typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
     void* cb_data, const uint8_t* blob, size_t size);
 
 typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
-    void* cb_data, napi_env env, napi_value exports);
+    void* cb_data, napi_env env, const char* module_name, napi_value exports);
 
 typedef bool(NAPI_CDECL* node_embedding_event_loop_predicate)(
     void* predicate_data, bool has_work);
