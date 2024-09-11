@@ -309,6 +309,7 @@ class EmbeddedRuntime {
       return shared_data;
     }
   };
+
  private:
   EmbeddedPlatform* platform_;
   bool is_initialized_{false};
@@ -997,6 +998,10 @@ void EmbeddedRuntime::RegisterModules() {
 
 }  // end of anonymous namespace
 }  // end of namespace v8impl
+
+int32_t NAPI_CDECL node_embedding_run_nodejs_main(int32_t argc, char* argv[]) {
+  return node::Start(argc, argv);
+}
 
 napi_status NAPI_CDECL node_embedding_on_error(
     node_embedding_error_handler error_handler, void* error_handler_data) {
