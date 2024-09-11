@@ -357,16 +357,17 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO: (vmoroz) Worker to inherit parent inspector.
 // TODO: (vmoroz) Cancel pending tasks on delete env.
 // TODO: (vmoroz) The runtime delete must avoid pumping tasks.
-// TODO: (vmoroz) Can we init platform again if it returns early?
+// TODO: (vmoroz) Can we initialize platform again if it returns early?
 // TODO: (vmoroz) Add simpler threading model - without open/close scope.
 // TODO: (vmoroz) Simplify API use for simple default cases.
 // TODO: (vmoroz) Check how to pass the V8 thread pool size.
 // TODO: (vmoroz) Make the args story simpler or clear named.
 // TODO: (vmoroz) Consider to have one function to retrieve the both arg types.
 // TODO: (vmoroz) Consider to have one function to set the both arg types.
-// TODO: (vmoroz) Single runtime rby default vs multiple runtimes on demand.
+// TODO: (vmoroz) Single runtime by default vs multiple runtimes on demand.
 // TODO: (vmoroz) Add a way to terminate the runtime.
 // TODO: (vmoroz) Allow to provide custom thread pool from the app.
 // TODO: (vmoroz) See the UV example how to integrate UV loop with the QT loop.
 // TODO: (vmoroz) Consider adding a v-table for the API functions to simplify
 //       binding with other languages.
+// TODO: (vmoroz) Add exit code enum.
