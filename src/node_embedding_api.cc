@@ -451,7 +451,7 @@ napi_status EmbeddedPlatform::Initialize(bool* early_return) {
 
   is_initialized_ = true;
 
-  // TODO: (vmoroz) default initialize args_.
+  // TODO(vmoroz): default initialize args_.
 
   if (!optional_bits_.flags) {
     flags_ = node_embedding_platform_no_flags;
@@ -593,7 +593,7 @@ napi_status EmbeddedRuntime::DeleteMe() {
   if (create_snapshot_) {
     node::EmbedderSnapshotData::Pointer snapshot = env_setup->CreateSnapshot();
     ASSERT(snapshot);
-    // TODO: (vmoroz) handle error conditions.
+    // TODO(vmoroz): handle error conditions.
     create_snapshot_(snapshot.get());
   }
 
