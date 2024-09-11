@@ -30,7 +30,7 @@ typedef struct node_embedding_platform__* node_embedding_platform;
 typedef struct node_embedding_runtime__* node_embedding_runtime;
 
 typedef enum {
-  node_embedding_exit_code_no_failure = 0,
+  node_embedding_exit_code_ok = 0,
   // 1 was intended for uncaught JS exceptions from the user land but we
   // actually use this for all kinds of generic errors.
   node_embedding_exit_code_generic_user_error = 1,

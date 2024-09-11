@@ -39,7 +39,7 @@ napi_status AddUtf8String(std::string& str, napi_env env, napi_value value);
 
 #define CHECK(expr)                                                            \
   do {                                                                         \
-    if ((expr) != node_embedding_exit_code_no_failure) {                       \
+    if ((expr) != node_embedding_exit_code_ok) {                               \
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
