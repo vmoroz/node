@@ -233,6 +233,62 @@ added: REPLACEME
 This is an opaque pointer that represents a Node.js platform instance.
 Node.js allows only a single platform instance per process.
 
+##### `node_embedding_exit_code`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+The exit code returned from the C Node.js embedding APIs.
+
+```c
+typedef enum {
+  node_embedding_exit_code_ok = 0,
+  node_embedding_exit_code_generic_user_error = 1,
+  node_embedding_exit_code_internal_js_parse_error = 3,
+  node_embedding_exit_code_internal_js_evaluation_failure = 4,
+  node_embedding_exit_code_v8_fatal_error = 5,
+  node_embedding_exit_code_invalid_fatal_exception_monkey_patching = 6,
+  node_embedding_exit_code_exception_in_fatal_exception_handler = 7,
+  node_embedding_exit_code_invalid_command_line_argument = 9,
+  node_embedding_exit_code_bootstrap_failure = 10,
+  node_embedding_exit_code_invalid_command_line_argument2 = 12,
+  node_embedding_exit_code_unsettled_top_level_await = 13,
+  node_embedding_exit_code_startup_snapshot_failure = 14,
+  node_embedding_exit_code_abort = 134,
+} node_embedding_exit_code;
+```
+
+These values match to the C++ `node::ExitCode` enum that are used as Node.js
+process exit codes.
+
+- `node_embedding_exit_code_ok` - No issues.
+- `node_embedding_exit_code_generic_user_error` - It was originally intended for
+  uncaught JS exceptions from the user land but we actually use this for all
+  kinds of generic errors.
+- `node_embedding_exit_code_internal_js_parse_error` - It is unused because we
+  pre-compile all builtins during snapshot building, when we exit with 1 if
+  there's any error.
+- `node_embedding_exit_code_internal_js_evaluation_failure` - It is actually
+  unused. We exit with 1 in this case.
+- `node_embedding_exit_code_v8_fatal_error` - It is actually unused. We exit
+  with 133 (128+`SIGTRAP`) or 134 (128+`SIGABRT`) in this case.
+- `node_embedding_exit_code_invalid_fatal_exception_monkey_patching`
+- `node_embedding_exit_code_exception_in_fatal_exception_handler`
+- `node_embedding_exit_code_invalid_command_line_argument`
+- `node_embedding_exit_code_bootstrap_failure`
+- `node_embedding_exit_code_invalid_command_line_argument2` - This was intended
+  for invalid inspector arguments but is actually now just a duplicate of
+  `node_embedding_exit_code_invalid_command_line_argument`.
+- `node_embedding_exit_code_unsettled_top_level_await` -
+- `node_embedding_exit_code_startup_snapshot_failure` -
+- `node_embedding_exit_code_abort` - If the process exits from unhandled signals
+  e.g. `SIGABRT`, `SIGTRAP`, typically the exit codes are 128 + signal number.
+  We also exit with certain error codes directly for legacy reasons. Here we
+  define those that are used to normalize the exit code on Windows.
+
 ##### `node_embedding_platform_flags`
 
 <!-- YAML
@@ -300,12 +356,11 @@ added: REPLACEME
 > Stability: 1 - Experimental
 
 ```c
-typedef napi_status(NAPI_CDECL* node_embedding_error_handler)(
+typedef node_embedding_exit_code(NAPI_CDECL* node_embedding_error_handler)(
     void* handler_data,
     const char* messages[],
     size_t messages_size,
-    int32_t exit_code,
-    napi_status status);
+    node_embedding_exit_code exit_code);
 ```
 
 Function pointer type for user-provided native function that handles the list
@@ -318,7 +373,6 @@ The callback parameters:
 - `[in] messages_size`: Size of the `messages` string array.
 - `[in] exit_code`: The suggested process exit code in case of error. If the
   `exit_code` is zero, then the callback is used to output non-error messages.
-- `[in] status`: Reported Node-API status.
 
 ##### `node_embedding_get_args_callback`
 
@@ -378,7 +432,7 @@ added: REPLACEME
 Sets global custom error handler for the Node.js embedded code.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_on_error(node_embedding_error_handler error_handler,
                         void* error_handler_data);
 ```
@@ -388,7 +442,7 @@ node_embedding_on_error(node_embedding_error_handler error_handler,
   passed to the `error_handler` callback. It can be removed after the
   `node_embedding_delete_platform()` call.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 It is recommended to call this function before the creation of the
 `node_embedding_platform` instance to handle all error messages the same way.
@@ -411,7 +465,7 @@ added: REPLACEME
 Creates new Node.js platform instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_create_platform(int32_t api_version,
                                node_embedding_platform* result);
 ```
@@ -419,7 +473,7 @@ node_embedding_create_platform(int32_t api_version,
 - `[in] api_version`: The version of the C embedder API.
 - `[out] result`: New Node.js platform instance.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 It is a simple object allocation. It does not do any initialization or any
 other complex work that may fail. It only checks the argument.
@@ -437,13 +491,13 @@ added: REPLACEME
 Deletes Node.js platform instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 ```
 
 - `[in] platform`: The Node.js platform instance to delete.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 If the platform was initialized before the deletion, then the method
 uninitializes the platform before deletion.
@@ -459,7 +513,7 @@ added: REPLACEME
 Checks if the Node.js platform instance is initialized.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_is_initialized(node_embedding_platform platform,
                                        bool* result);
 ```
@@ -467,7 +521,7 @@ node_embedding_platform_is_initialized(node_embedding_platform platform,
 - `[in] platform`: The Node.js platform instance to check.
 - `[out] result`: `true` if the platform is already initialized.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The platform instance settings can be changed until the platform is initialized.
 After the `node_embedding_platform_initialize` function call any attempt to
@@ -484,7 +538,7 @@ added: REPLACEME
 Sets the Node.js platform instance flags.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_set_flags(node_embedding_platform platform,
                                   node_embedding_platform_flags flags);
 ```
@@ -492,7 +546,7 @@ node_embedding_platform_set_flags(node_embedding_platform platform,
 - `[in] platform`: The Node.js platform instance to configure.
 - `[in] flags`: The platform flags that control the platform behavior.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_platform_set_args`
 
@@ -505,7 +559,7 @@ added: REPLACEME
 Sets the CLI args for the Node.js platform instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_set_args(node_embedding_platform platform,
                                  int32_t argc,
                                  char* argv[]);
@@ -515,7 +569,7 @@ node_embedding_platform_set_args(node_embedding_platform platform,
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: CLI arguments as an array of zero terminating strings.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_platform_initialize`
 
@@ -528,7 +582,7 @@ added: REPLACEME
 Initializes the Node.js platform instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_initialize(node_platform platform,
                                    bool* early_return);
 ```
@@ -538,7 +592,7 @@ node_embedding_platform_initialize(node_platform platform,
   early return either because of an error or the Node.js completed the work.
   For example, it had printed Node.js version or the help text.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The Node.js platform instance initialization parses CLI args, initializes
 Node.js internals and the V8 runtime. If the initial work such as printing the
@@ -560,7 +614,7 @@ added: REPLACEME
 Gets the parsed list of non-Node.js arguments.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_get_args(node_embedding_platform platform,
                                  node_embedding_get_args_callback get_args_cb,
                                  void* get_args_cb_data);
@@ -571,7 +625,7 @@ node_embedding_platform_get_args(node_embedding_platform platform,
 - `[in] get_args_cb_data`: Optional. The callback data that will be passed to
   the `get_args_cb` callback. It can be deleted right after the function call.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_platform_get_exec_args`
 
@@ -584,7 +638,7 @@ added: REPLACEME
 Gets the parsed list of Node.js arguments.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_get_exec_args(
     node_embedding_platform platform,
     node_embedding_get_args_callback get_args_cb,
@@ -596,7 +650,7 @@ node_embedding_platform_get_exec_args(
 - `[in] get_args_cb_data`: Optional. The callback data that will be passed to
   the `get_args_cb` callback. It can be deleted right after the function call.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ### Runtime instance APIs
 
@@ -810,7 +864,7 @@ added: REPLACEME
 Creates new Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_create_runtime(node_embedding_platform platform,
                               node_embedding_runtime* result);
 ```
@@ -818,7 +872,7 @@ node_embedding_create_runtime(node_embedding_platform platform,
 - `[in] platform`: Optional. An initialized Node.js platform instance.
 - `[out] result`: Upon return has a new Node.js runtime instance.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 Creates new Node.js runtime instance based on the provided platform instance.
 
@@ -845,13 +899,13 @@ added: REPLACEME
 Deletes Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_delete_runtime(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance to delete.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 If the runtime was initialized, then the method un-initializes the runtime
 before the deletion.
@@ -871,7 +925,7 @@ added: REPLACEME
 Checks if the Node.js runtime instance is initialized.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_is_initialized(node_embedding_runtime runtime,
                                       bool* result);
 ```
@@ -879,11 +933,11 @@ node_embedding_runtime_is_initialized(node_embedding_runtime runtime,
 - `[in] runtime`: The Node.js runtime instance to check.
 - `[out] result`: `true` if the runtime is already initialized.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The runtime settings can be changed until the runtime is initialized.
-After the `node_embedding_runtime_initialize` function is called any attempt to change
-runtime settings will fail.
+After the `node_embedding_runtime_initialize` function is called any attempt
+to change runtime settings will fail.
 
 ##### `node_embedding_runtime_set_flags`
 
@@ -896,7 +950,7 @@ added: REPLACEME
 Sets the Node.js runtime instance flags.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_set_flags(node_embedding_runtime runtime,
                                  node_embedding_runtime_flags flags);
 ```
@@ -904,14 +958,14 @@ node_embedding_runtime_set_flags(node_embedding_runtime runtime,
 - `[in] runtime`: The Node.js runtime instance to configure.
 - `[in] flags`: The runtime flags that control the runtime behavior.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_set_args`
 
 Sets the non-Node.js arguments for the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_set_args(node_embedding_runtime runtime,
                                 int32_t argc,
                                 const char* argv[]);
@@ -921,14 +975,14 @@ node_embedding_runtime_set_args(node_embedding_runtime runtime,
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: non-Node.js arguments as an array of zero terminating strings.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_set_exec_args`
 
 Sets the Node.js arguments for the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_set_exec_args(node_embedding_runtime runtime,
                                      int32_t argc,
                                      const char* argv[]);
@@ -938,7 +992,7 @@ node_embedding_runtime_set_exec_args(node_embedding_runtime runtime,
 - `[in] argc`: Number of items in the `argv` array.
 - `[in] argv`: Node.js arguments as an array of zero terminating strings.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_on_preload`
 
@@ -951,7 +1005,7 @@ added: REPLACEME
 Sets a preload callback to call before Node.js runtime instance is loaded.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_preload(
     node_embedding_runtime runtime,
     node_embedding_runtime_preload_callback preload_cb,
@@ -965,7 +1019,7 @@ node_embedding_runtime_on_preload(
   passed to the `preload_cb` callback. It can be removed after the
   `node_embedding_delete_runtime` call.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_use_snapshot`
 
@@ -978,7 +1032,7 @@ added: REPLACEME
 Use a snapshot blob to load this Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_use_snapshot(node_embedding_runtime runtime,
                                     const uint8_t* snapshot,
                                     size_t size);
@@ -988,7 +1042,7 @@ node_embedding_runtime_use_snapshot(node_embedding_runtime runtime,
 - `[in] snapshot`: Start of the snapshot memory span.
 - `[in] size`: Size of the snapshot memory span.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_on_create_snapshot`
 
@@ -1002,7 +1056,7 @@ Sets a callback to store created snapshot when Node.js runtime instance
 finished execution.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_create_snapshot(
     node_embedding_runtime runtime,
     node_embedding_store_blob_callback store_blob_cb,
@@ -1018,7 +1072,7 @@ node_embedding_runtime_on_create_snapshot(
   `node_embedding_delete_runtime` call.
 - `[in] snapshot_flags`: The flags controlling the snapshot creation.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_add_module`
 
@@ -1031,7 +1085,7 @@ added: REPLACEME
 Adds a linked module for the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_add_module(
     node_embedding_runtime runtime,
     const char* module_name,
@@ -1047,7 +1101,7 @@ node_embedding_runtime_add_module(
 - `[in] init_module_cb_data`: The user data for the init_module_cb.
 - `[in] module_node_api_version`: The Node API version used by the module.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The registered module can be accessed in JavaScript as
 `process._linkedBinding(module_name)` in the main JS and in the related
@@ -1064,7 +1118,7 @@ added: REPLACEME
 Initializes the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_initialize(node_embedding_runtime runtime,
                                   const char* main_script);
 ```
@@ -1072,7 +1126,7 @@ node_embedding_runtime_initialize(node_embedding_runtime runtime,
 - `[in] runtime`: The Node.js runtime instance to initialize.
 - `[in] main_script`: The main script to run.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The Node.js runtime initialization creates new Node.js environment associated
 with a V8 `Isolate` and V8 `Context`.
@@ -1108,6 +1162,34 @@ beahvior.
   there are no items. It matches the `UV_RUN_ONCE` behavior.
 - `node_embedding_event_loop_run_nowait` - Run the event loop once and do not
   wait if there are no items. It matches the `UV_RUN_NOWAIT` behavior.
+
+##### `node_embedding_promise_state`
+
+<!-- YAML
+added: REPLACEME
+-->
+
+> Stability: 1 - Experimental
+
+The state of the completed `Promise`.
+
+```c
+typedef enum {
+  node_embedding_promise_state_pending = 0,
+  node_embedding_promise_state_fulfilled = 1,
+  node_embedding_promise_state_rejected = 2,
+} node_embedding_promise_state;
+```
+
+These values match to `v8::Promise::PromiseState` enum and indicate the internal
+state of a `Promise` object.
+
+- `node_embedding_promise_state_pending` - The Promise is still awaiting to
+  be completed.
+- `node_embedding_promise_state_fulfilled` - The Promise was successfully
+  fulfilled.
+- `node_embedding_promise_state_rejected` - The Promise was rejected due an
+  error.
 
 #### Callback types
 
@@ -1148,13 +1230,13 @@ added: REPLACEME
 Runs Node.js runtime instance event loop.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_run_event_loop(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 The function exits when there are no more tasks to process in the loop.
 
@@ -1170,7 +1252,7 @@ Runs Node.js runtime instance event loop while there tasks to process and
 the provided predicate returns true.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_run_event_loop_while(
     node_embedding_runtime runtime,
     node_embedding_runtime_event_loop_predicate predicate,
@@ -1192,7 +1274,7 @@ node_embedding_runtime_run_event_loop_while(
 - `[out] has_more_work`: `true` if the runtime event loop has more tasks after
   returning from the function.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_await_promise`
 
@@ -1207,20 +1289,23 @@ with a success of a failure. It blocks the thread if there are to tasks in the
 loop and the promise is not completed.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_await_promise(node_embedding_runtime runtime,
                                      napi_value promise,
+                                     node_embedding_promise_state* state,
                                      napi_value* result,
                                      bool* has_more_work);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
 - `[in] promise`: The promise to complete.
-- `[out] result`: Result of the `promise` completion.
+- `[out] state`: The state of the `promise` upon the return from the function.
+- `[out] result`: Result of the `promise` completion. It is either fulfilled or
+  rejected value depending on `state`.
 - `[out] has_more_work`: `true` if the runtime event loop has more tasks after
   returning from the function.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ### JavaScript/Native interop APIs
 
@@ -1237,7 +1322,7 @@ added: REPLACEME
 Sets the Node-API version for the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_runtime_set_node_api_version(node_embedding_runtime runtime,
                                   int32_t node_api_version);
 ```
@@ -1245,7 +1330,7 @@ node_runtime_set_node_api_version(node_embedding_runtime runtime,
 - `[in] runtime`: The Node.js runtime instance.
 - `[in] node_api_version`: The version of the Node-API.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 By default it is using the Node-API version 8.
 
@@ -1260,15 +1345,15 @@ added: REPLACEME
 Gets `napi_env` associated with the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_get_node_api_env(node_runtime embedding_runtime,
-                              napi_env* env);
+                                        napi_env* env);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
-- `[out] env`: An instance of `napi_env`.
+- `[out] env`: An instance of Node API environment.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 ##### `node_embedding_runtime_open_scope`
 
@@ -1281,13 +1366,13 @@ added: REPLACEME
 Opens V8 Isolate and Context scope associated with the Node.js runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_open_scope(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js runtime instance.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 Any Node-API function call requires the runtime scope to be opened for the
 current thread.
@@ -1309,13 +1394,13 @@ Closes V8 Isolate and Context scope associated with the Node.js
 runtime instance.
 
 ```c
-napi_status NAPI_CDECL
+node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_close_scope(node_embedding_runtime runtime);
 ```
 
 - `[in] runtime`: The Node.js embedding_runtime instance.
 
-Returns `napi_ok` if there were no issues.
+Returns `node_embedding_exit_code_ok` if there were no issues.
 
 Any Node-API function call requires the runtime scope to be opened for the
 current thread. Each opened runtime scoped must be closed in the end.
