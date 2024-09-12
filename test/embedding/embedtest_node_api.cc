@@ -197,13 +197,11 @@ int32_t RunNodeInstance(node_embedding_platform platform) {
   CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
   CHECK(node_embedding_runtime_initialize(runtime, main_script));
   napi_env env;
-  CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-
-  CHECK(node_embedding_runtime_open_scope(runtime));
+  CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
   CHECK_EXIT_CODE(callMe(env));
   CHECK_EXIT_CODE(waitMe(env, runtime));
   CHECK_EXIT_CODE(waitMeWithCheese(env, runtime));
-  CHECK(node_embedding_runtime_close_scope(runtime));
+  CHECK(node_embedding_runtime_close_node_api_scope(runtime));
 
   CHECK(node_embedding_delete_runtime(runtime));
 

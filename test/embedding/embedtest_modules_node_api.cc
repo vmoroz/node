@@ -145,9 +145,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
   CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
   CHECK(node_embedding_runtime_initialize(runtime, nullptr));
   napi_env env;
-  CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-
-  CHECK(node_embedding_runtime_open_scope(runtime));
+  CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
   napi_value global, import_name, require_name, import, require, cjs, es6,
       value;
@@ -186,7 +184,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
     FAIL("Unexpected value: %s\n", buffer);
   }
 
-  CHECK(node_embedding_runtime_close_scope(runtime));
+  CHECK(node_embedding_runtime_close_node_api_scope(runtime));
   CHECK(node_embedding_delete_runtime(runtime));
   CHECK(node_embedding_delete_platform(platform));
   return 0;

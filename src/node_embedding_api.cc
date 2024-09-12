@@ -267,9 +267,10 @@ class EmbeddedRuntime {
 
   node_embedding_exit_code SetNodeApiVersion(int32_t node_api_version);
 
-  node_embedding_exit_code GetNodeApiEnv(napi_env* env);
+  node_embedding_exit_code InvokeNodeApi(
+      node_embedding_node_api_callback node_api_cb, void* node_api_cb_data);
 
-  node_embedding_exit_code OpenScope();
+  node_embedding_exit_code OpenScope(napi_env* env);
 
   node_embedding_exit_code CloseScope();
 
@@ -861,18 +862,33 @@ node_embedding_exit_code EmbeddedRuntime::SetNodeApiVersion(
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::GetNodeApiEnv(napi_env* env) {
-  ARG_NOT_NULL(env);
-  *env = node_api_env_;
-  return node_embedding_exit_code_ok;
-}
-
-node_embedding_exit_code EmbeddedRuntime::OpenScope() {
+node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
+    node_embedding_node_api_callback node_api_cb, void* node_api_cb_data) {
+  ARG_NOT_NULL(node_api_cb);
   if (isolate_locker_.has_value()) {
     ASSERT(isolate_locker_->IsLocked());
     isolate_locker_->IncrementLockCount();
   } else {
     isolate_locker_.emplace(env_setup_.get());
+  }
+
+  node_api_env_->CallIntoModule(
+      [&](napi_env env) { node_api_cb(node_api_cb_data, env); });
+
+  if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
+  return node_embedding_exit_code_ok;
+}
+
+node_embedding_exit_code EmbeddedRuntime::OpenScope(napi_env* env) {
+  if (isolate_locker_.has_value()) {
+    ASSERT(isolate_locker_->IsLocked());
+    isolate_locker_->IncrementLockCount();
+  } else {
+    isolate_locker_.emplace(env_setup_.get());
+  }
+
+  if (env != nullptr) {
+    *env = node_api_env_;
   }
   return node_embedding_exit_code_ok;
 }
@@ -1159,17 +1175,20 @@ node_embedding_exit_code NAPI_CDECL node_embedding_runtime_set_node_api_version(
   return EMBEDDED_RUNTIME(runtime)->SetNodeApiVersion(node_api_version);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_get_node_api_env(
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_invoke_node_api_env(
+    node_embedding_runtime runtime,
+    node_embedding_node_api_callback node_api_cb,
+    void* node_api_cb_data) {
+  return EMBEDDED_RUNTIME(runtime)->InvokeNodeApi(node_api_cb,
+                                                  node_api_cb_data);
+}
+
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_open_node_api_scope(
     node_embedding_runtime runtime, napi_env* env) {
-  return EMBEDDED_RUNTIME(runtime)->GetNodeApiEnv(env);
+  return EMBEDDED_RUNTIME(runtime)->OpenScope(env);
 }
 
 node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_open_scope(node_embedding_runtime runtime) {
-  return EMBEDDED_RUNTIME(runtime)->OpenScope();
-}
-
-node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_close_scope(node_embedding_runtime runtime) {
+node_embedding_runtime_close_node_api_scope(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->CloseScope();
 }

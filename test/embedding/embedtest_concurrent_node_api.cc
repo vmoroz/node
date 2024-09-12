@@ -36,9 +36,7 @@ extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
             node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
         CHECK(node_embedding_runtime_initialize(runtime, main_script));
         napi_env env;
-        CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-
-        CHECK(node_embedding_runtime_open_scope(runtime));
+        CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
         napi_value global, my_count;
         CHECK(napi_get_global(env, &global));
@@ -47,7 +45,7 @@ extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
         CHECK(napi_get_value_int32(env, my_count, &count));
         global_count.fetch_add(count);
 
-        CHECK(node_embedding_runtime_close_scope(runtime));
+        CHECK(node_embedding_runtime_close_node_api_scope(runtime));
         CHECK(node_embedding_delete_runtime(runtime));
         return 0;
       }();
@@ -99,8 +97,7 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
     runtimes.push_back(runtime);
 
     napi_env env;
-    CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-    CHECK(node_embedding_runtime_open_scope(runtime));
+    CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
     napi_value undefined, global, func;
     CHECK(napi_get_undefined(env, &undefined));
@@ -112,7 +109,7 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
     CHECK_TRUE(func_type == napi_function);
     CHECK(napi_call_function(env, undefined, func, 0, nullptr, nullptr));
 
-    CHECK(node_embedding_runtime_close_scope(runtime));
+    CHECK(node_embedding_runtime_close_node_api_scope(runtime));
   }
 
   bool more_work = false;
@@ -120,8 +117,7 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
     more_work = false;
     for (node_embedding_runtime runtime : runtimes) {
       napi_env env;
-      CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-      CHECK(node_embedding_runtime_open_scope(runtime));
+      CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
       bool has_more_work = false;
       bool had_run_once = false;
@@ -140,15 +136,14 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
           &has_more_work));
       more_work |= has_more_work;
 
-      CHECK(node_embedding_runtime_close_scope(runtime));
+      CHECK(node_embedding_runtime_close_node_api_scope(runtime));
     }
   } while (more_work);
 
   int32_t global_count = 0;
   for (node_embedding_runtime runtime : runtimes) {
     napi_env env;
-    CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
-    CHECK(node_embedding_runtime_open_scope(runtime));
+    CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
     napi_value global, my_count;
     CHECK(napi_get_global(env, &global));
@@ -162,7 +157,7 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
 
     global_count += count;
 
-    CHECK(node_embedding_runtime_close_scope(runtime));
+    CHECK(node_embedding_runtime_close_node_api_scope(runtime));
     CHECK(node_embedding_delete_runtime(runtime));
   }
 
@@ -189,8 +184,6 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   CHECK(node_embedding_create_runtime(platform, &runtime));
   CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
   CHECK(node_embedding_runtime_initialize(runtime, main_script));
-  napi_env env;
-  CHECK(node_embedding_runtime_get_node_api_env(runtime, &env));
 
   // Use mutex to synchronize access to the runtime.
   std::mutex mutex;
@@ -200,36 +193,39 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
   for (size_t i = 0; i < thread_count; i++) {
-    threads.emplace_back([runtime, env, &result_count, &result_exit_code, &mutex] {
-      int32_t exit_code = [&]() {
-        std::scoped_lock lock(mutex);
-        CHECK(node_embedding_runtime_open_scope(runtime));
+    threads.emplace_back(
+        [runtime, &result_count, &result_exit_code, &mutex] {
+          int32_t exit_code = [&]() {
+            std::scoped_lock lock(mutex);
+            napi_env env;
+            CHECK(node_embedding_runtime_open_node_api_scope(runtime, &env));
 
-        napi_value undefined, global, func, my_count;
-        CHECK(napi_get_undefined(env, &undefined));
-        CHECK(napi_get_global(env, &global));
-        CHECK(napi_get_named_property(env, global, "incMyCount", &func));
+            napi_value undefined, global, func, my_count;
+            CHECK(napi_get_undefined(env, &undefined));
+            CHECK(napi_get_global(env, &global));
+            CHECK(napi_get_named_property(env, global, "incMyCount", &func));
 
-        napi_valuetype func_type;
-        CHECK(napi_typeof(env, func, &func_type));
-        CHECK_TRUE(func_type == napi_function);
-        CHECK(napi_call_function(env, undefined, func, 0, nullptr, nullptr));
+            napi_valuetype func_type;
+            CHECK(napi_typeof(env, func, &func_type));
+            CHECK_TRUE(func_type == napi_function);
+            CHECK(
+                napi_call_function(env, undefined, func, 0, nullptr, nullptr));
 
-        CHECK(napi_get_named_property(env, global, "myCount", &my_count));
-        napi_valuetype count_type;
-        CHECK(napi_typeof(env, my_count, &count_type));
-        CHECK_TRUE(count_type == napi_number);
-        int32_t count;
-        CHECK(napi_get_value_int32(env, my_count, &count));
-        result_count.store(count);
+            CHECK(napi_get_named_property(env, global, "myCount", &my_count));
+            napi_valuetype count_type;
+            CHECK(napi_typeof(env, my_count, &count_type));
+            CHECK_TRUE(count_type == napi_number);
+            int32_t count;
+            CHECK(napi_get_value_int32(env, my_count, &count));
+            result_count.store(count);
 
-        CHECK(node_embedding_runtime_close_scope(runtime));
-        return 0;
-      }();
-      if (exit_code != 0) {
-        result_exit_code.store(exit_code);
-      }
-    });
+            CHECK(node_embedding_runtime_close_node_api_scope(runtime));
+            return 0;
+          }();
+          if (exit_code != 0) {
+            result_exit_code.store(exit_code);
+          }
+        });
   }
 
   for (size_t i = 0; i < thread_count; i++) {
