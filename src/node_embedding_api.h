@@ -373,23 +373,12 @@ NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_set_node_api_version(node_embedding_runtime runtime,
                                             int32_t node_api_version);
 
-// Invokes a callback to run code in Node-API scope.
-// It automatically opens and closes the Node-API scope.
+// Invokes Node-API code.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_invoke_node_api_env(
+node_embedding_runtime_invoke_node_api(
     node_embedding_runtime runtime,
     node_embedding_node_api_callback node_api_cb,
     void* node_api_cb_data);
-
-// Opens a new Node-API scope for the current thread and returns the Node-APi
-// environment for the runtime.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_open_node_api_scope(node_embedding_runtime runtime,
-                                           napi_env* env);
-
-// Closes the current Node-API scope for the current thread.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_close_node_api_scope(node_embedding_runtime runtime);
 
 EXTERN_C_END
 

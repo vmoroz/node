@@ -270,10 +270,6 @@ class EmbeddedRuntime {
   node_embedding_exit_code InvokeNodeApi(
       node_embedding_node_api_callback node_api_cb, void* node_api_cb_data);
 
-  node_embedding_exit_code OpenScope(napi_env* env);
-
-  node_embedding_exit_code CloseScope();
-
   bool IsScopeOpened() const;
 
   static napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
@@ -767,6 +763,10 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(const char* main_script) {
 }
 
 node_embedding_exit_code EmbeddedRuntime::RunEventLoop() {
+  ASSERT(is_initialized_);
+
+  IsolateLocker isolate_locker(env_setup_.get());
+
   if (node::SpinEventLoopWithoutCleanup(env_setup_->env()).IsNothing()) {
     return node_embedding_exit_code_generic_user_error;
   }
@@ -780,6 +780,9 @@ node_embedding_exit_code EmbeddedRuntime::RunEventLoopWhile(
     node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work) {
   ARG_NOT_NULL(predicate);
+  ASSERT(is_initialized_);
+
+  IsolateLocker isolate_locker(env_setup_.get());
 
   if (predicate(predicate_data,
                 uv_loop_alive(env_setup_->env()->event_loop()))) {
@@ -873,29 +876,18 @@ node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
   }
 
   node_api_env_->CallIntoModule(
-      [&](napi_env env) { node_api_cb(node_api_cb_data, env); });
+      [&](napi_env env) { node_api_cb(node_api_cb_data, env); },
+      [](napi_env env, v8::Local<v8::Value> local_err) {
+        node_napi_env__* node_napi_env = static_cast<node_napi_env__*>(env);
+        if (node_napi_env->terminatedOrTerminating()) {
+          return;
+        }
+        // If there was an unhandled exception while calling Node-API,
+        // report it as a fatal exception. (There is no JavaScript on the
+        // call stack that can possibly handle it.)
+        node_napi_env->trigger_fatal_exception(local_err);
+      });
 
-  if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
-  return node_embedding_exit_code_ok;
-}
-
-node_embedding_exit_code EmbeddedRuntime::OpenScope(napi_env* env) {
-  if (isolate_locker_.has_value()) {
-    ASSERT(isolate_locker_->IsLocked());
-    isolate_locker_->IncrementLockCount();
-  } else {
-    isolate_locker_.emplace(env_setup_.get());
-  }
-
-  if (env != nullptr) {
-    *env = node_api_env_;
-  }
-  return node_embedding_exit_code_ok;
-}
-
-node_embedding_exit_code EmbeddedRuntime::CloseScope() {
-  ASSERT(isolate_locker_.has_value());
-  ASSERT(isolate_locker_->IsLocked());
   if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
   return node_embedding_exit_code_ok;
 }
@@ -1175,20 +1167,10 @@ node_embedding_exit_code NAPI_CDECL node_embedding_runtime_set_node_api_version(
   return EMBEDDED_RUNTIME(runtime)->SetNodeApiVersion(node_api_version);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_invoke_node_api_env(
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_invoke_node_api(
     node_embedding_runtime runtime,
     node_embedding_node_api_callback node_api_cb,
     void* node_api_cb_data) {
   return EMBEDDED_RUNTIME(runtime)->InvokeNodeApi(node_api_cb,
                                                   node_api_cb_data);
-}
-
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_open_node_api_scope(
-    node_embedding_runtime runtime, napi_env* env) {
-  return EMBEDDED_RUNTIME(runtime)->OpenScope(env);
-}
-
-node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_close_node_api_scope(node_embedding_runtime runtime) {
-  return EMBEDDED_RUNTIME(runtime)->CloseScope();
 }
