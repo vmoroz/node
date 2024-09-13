@@ -584,16 +584,9 @@ void SharedFunctionInfo::SetScopeInfo(Tagged<ScopeInfo> scope_info,
     name = Cast<UnionOf<Smi, String>>(name_or_scope_info);
   }
   DCHECK(IsString(name) || name == kNoSharedNameSentinel);
-  // ScopeInfo can get promoted to read-only space. Now that we reuse them after
-  // flushing bytecode, we'll actually reinstall read-only scopeinfos on
-  // SharedFunctionInfos if they required a context. The read-only scopeinfos
-  // should already be fully initialized though, and hence will already have the
-  // right FunctionName (and InferredName if relevant).
-  if (scope_info->FunctionName() != name) {
-    scope_info->SetFunctionName(name);
-  }
-  if (HasInferredName() && inferred_name()->length() != 0 &&
-      scope_info->InferredFunctionName() != inferred_name()) {
+  // Only set the function name for function scopes.
+  scope_info->SetFunctionName(name);
+  if (HasInferredName() && inferred_name()->length() != 0) {
     scope_info->SetInferredFunctionName(inferred_name());
   }
   set_name_or_scope_info(scope_info, kReleaseStore, mode);
@@ -613,11 +606,11 @@ DEF_GETTER(SharedFunctionInfo, outer_scope_info, Tagged<HeapObject>) {
 
 bool SharedFunctionInfo::HasOuterScopeInfo() const {
   Tagged<ScopeInfo> outer_info;
-  Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
-  if (info->IsEmpty()) {
+  if (!is_compiled()) {
     if (!IsScopeInfo(outer_scope_info())) return false;
     outer_info = Cast<ScopeInfo>(outer_scope_info());
   } else {
+    Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
     if (!info->HasOuterScopeInfo()) return false;
     outer_info = info->OuterScopeInfo();
   }
@@ -626,9 +619,8 @@ bool SharedFunctionInfo::HasOuterScopeInfo() const {
 
 Tagged<ScopeInfo> SharedFunctionInfo::GetOuterScopeInfo() const {
   DCHECK(HasOuterScopeInfo());
-  Tagged<ScopeInfo> info = scope_info(kAcquireLoad);
-  if (info->IsEmpty()) return Cast<ScopeInfo>(outer_scope_info());
-  return info->OuterScopeInfo();
+  if (!is_compiled()) return Cast<ScopeInfo>(outer_scope_info());
+  return scope_info(kAcquireLoad)->OuterScopeInfo();
 }
 
 void SharedFunctionInfo::set_outer_scope_info(Tagged<HeapObject> value,
@@ -636,7 +628,6 @@ void SharedFunctionInfo::set_outer_scope_info(Tagged<HeapObject> value,
   DCHECK(!is_compiled());
   DCHECK(IsTheHole(raw_outer_scope_info_or_feedback_metadata()));
   DCHECK(IsScopeInfo(value) || IsTheHole(value));
-  DCHECK(scope_info()->IsEmpty());
   set_raw_outer_scope_info_or_feedback_metadata(value, mode);
 }
 
