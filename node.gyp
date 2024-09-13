@@ -203,6 +203,7 @@
       'src/compile_cache.h',
       'src/connect_wrap.h',
       'src/connection_wrap.h',
+      'src/cppgc_helpers.h',
       'src/dataqueue/queue.h',
       'src/debug_utils.h',
       'src/debug_utils-inl.h',
@@ -468,11 +469,6 @@
       }, {
         'use_openssl_def%': 0,
       }],
-      [ 'node_use_amaro=="true"', {
-          'deps_files': [
-              'deps/amaro/dist/index.js',
-          ]
-      } ]
     ],
   },
 
@@ -493,6 +489,9 @@
     },
 
     'conditions': [
+      ['clang==0 and OS!="win"', {
+        'cflags': [ '-Wno-restrict', ],
+      }],
       # Pointer authentication for ARM64.
       ['target_arch=="arm64"', {
           'target_conditions': [

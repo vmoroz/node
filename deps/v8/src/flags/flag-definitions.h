@@ -996,11 +996,6 @@ DEFINE_BOOL(trace_track_allocation_sites, false,
 DEFINE_BOOL(trace_migration, false, "trace object migration")
 DEFINE_BOOL(trace_generalization, false, "trace map generalization")
 
-DEFINE_BOOL(reuse_scope_infos, false,
-            "reuse scope infos from previous compiles")
-
-DEFINE_IMPLICATION(fuzzing, reuse_scope_infos)
-
 // Flags for Sparkplug
 #undef FLAG
 #if V8_ENABLE_SPARKPLUG
@@ -2217,7 +2212,6 @@ DEFINE_BOOL(
     merge_background_deserialized_script_with_compilation_cache, true,
     "After deserializing code cache data on a background thread, merge it into "
     "an existing Script if one is found in the Isolate compilation cache")
-DEFINE_BOOL(verify_code_merge, false, "Verify scope infos after merge")
 DEFINE_BOOL(
     embedder_instance_types, false,
     "enable type checks based on instance types provided by the embedder")
