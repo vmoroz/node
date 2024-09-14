@@ -423,3 +423,10 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO(vmoroz): Follow the UV example that integrates UV loop with QT loop.
 // TODO(vmoroz): Consider adding a v-table for the API functions to simplify
 //               binding with other languages.
+// TODO(vmoroz): libuv setup for the platform.
+// TODO(vmoroz): Augment the node_embedding_run_nodejs_main with callbacks to
+//               setup platform, setup runtime, and to run runtime.
+// TODO(vmoroz): Consider deleting the snapshot APIs.
+// TODO(vmoroz): We must not exit the process on node::Environment errors.
+// TODO(vmoroz): Be explicit about the recoverable errors.
+// TODO(vmoroz): Add a test that handles JS errors.
