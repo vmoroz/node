@@ -405,22 +405,22 @@ inline constexpr node_embedding_snapshot_flags operator|(
 
 #endif  // SRC_NODE_EMBEDDING_API_H_
 
+// TODO(vmoroz): Allow running Node.js uv_loop from UI loop. Follow the Electron
+//               implementation.
 // TODO(vmoroz): Add startup callback with process and require parameters.
 // TODO(vmoroz): Generate the main script based on the runtime settings.
-// TODO(vmoroz): Set the global inspector for a specific environment.
+// TODO(vmoroz): Set the global Inspector for he main runtime.
 // TODO(vmoroz): Start workers from C++.
-// TODO(vmoroz): Worker to inherit parent inspector.
-// TODO(vmoroz): Cancel pending tasks on delete env.
-// TODO(vmoroz): The runtime delete must avoid pumping tasks.
+// TODO(vmoroz): Worker to inherit parent Inspector.
+// TODO(vmoroz): Cancel pending tasks on runtime deletion.
+// TODO(vmoroz): The runtime delete must not pump uv_loop events.
 // TODO(vmoroz): Can we initialize platform again if it returns early?
-// TODO(vmoroz): Add simpler threading model - without open/close scope.
 // TODO(vmoroz): Simplify API use for simple default cases.
 // TODO(vmoroz): Test passing the V8 thread pool size.
 // TODO(vmoroz): Make the args story simpler or clear named.
 // TODO(vmoroz): Single runtime by default vs multiple runtimes on demand.
 // TODO(vmoroz): Add a way to terminate the runtime.
 // TODO(vmoroz): Allow to provide custom thread pool from the app.
-// TODO(vmoroz): Follow the UV example that integrates UV loop with QT loop.
 // TODO(vmoroz): Consider adding a v-table for the API functions to simplify
 //               binding with other languages.
 // TODO(vmoroz): libuv setup for the platform.
@@ -429,4 +429,3 @@ inline constexpr node_embedding_snapshot_flags operator|(
 // TODO(vmoroz): Consider deleting the snapshot APIs.
 // TODO(vmoroz): We must not exit the process on node::Environment errors.
 // TODO(vmoroz): Be explicit about the recoverable errors.
-// TODO(vmoroz): Add a test that handles JS errors.
