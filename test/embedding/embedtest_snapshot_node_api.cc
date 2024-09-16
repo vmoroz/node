@@ -174,6 +174,7 @@ int32_t RunNodeInstance(node_embedding_platform platform) {
     CHECK(node_embedding_runtime_initialize_from_script(runtime, main_script));
   }
 
+  CHECK(node_embedding_runtime_complete_event_loop(runtime));
   CHECK(node_embedding_delete_runtime(runtime));
 
   return 0;

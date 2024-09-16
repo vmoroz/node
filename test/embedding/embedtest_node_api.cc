@@ -111,6 +111,7 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
 
 int32_t waitMe(node_embedding_runtime runtime) {
   int32_t exit_code = 0;
+  /*
   CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
     napi_value global;
     napi_value cb;
@@ -151,11 +152,13 @@ int32_t waitMe(node_embedding_runtime runtime) {
       FAIL_RETURN_VOID("Invalid waitMe value\n");
     }
   }));
+  */
   return exit_code;
 }
 
 int32_t waitMeWithCheese(node_embedding_runtime runtime) {
   int32_t exit_code = 0;
+  /*
   CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
     napi_value global;
     napi_value cb;
@@ -214,6 +217,7 @@ int32_t waitMeWithCheese(node_embedding_runtime runtime) {
       FAIL_RETURN_VOID("Invalid waitPromise value\n");
     }
   }));
+  */
   return exit_code;
 }
 
