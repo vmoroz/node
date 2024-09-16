@@ -225,12 +225,13 @@ int32_t RunNodeInstance(node_embedding_platform platform) {
   node_embedding_runtime runtime;
   CHECK(node_embedding_create_runtime(platform, &runtime));
   CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-  CHECK(node_embedding_runtime_initialize_from_script(runtime, main_script));
+  CHECK(node_embedding_runtime_initialize(runtime, main_script));
 
   CHECK_EXIT_CODE(callMe(runtime));
   CHECK_EXIT_CODE(waitMe(runtime));
   CHECK_EXIT_CODE(waitMeWithCheese(runtime));
 
+  CHECK(node_embedding_runtime_complete_event_loop(runtime));
   CHECK(node_embedding_delete_runtime(runtime));
 
   return 0;

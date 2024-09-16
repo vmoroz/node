@@ -145,15 +145,6 @@ typedef enum {
 } node_embedding_runtime_flags;
 
 typedef enum {
-  node_embedding_snapshot_no_flags = 0,
-  // Whether code cache should be generated as part of the snapshot.
-  // Code cache reduces the time spent on compiling functions included
-  // in the snapshot at the expense of a bigger snapshot size and
-  // potentially breaking portability of the snapshot.
-  node_embedding_snapshot_no_code_cache = 1 << 0,
-} node_embedding_snapshot_flags;
-
-typedef enum {
   // Run the event loop until it is completed.
   // It matches the UV_RUN_DEFAULT behavior.
   node_embedding_event_loop_run_default = 0,
@@ -183,9 +174,6 @@ typedef void(NAPI_CDECL* node_embedding_preload_callback)(void* cb_data,
                                                           napi_env env,
                                                           napi_value process,
                                                           napi_value require);
-
-typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
-    void* cb_data, const uint8_t* blob, size_t size);
 
 typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     void* cb_data, napi_env env, const char* module_name, napi_value exports);
@@ -306,24 +294,10 @@ node_embedding_runtime_add_module(
     void* init_module_cb_data,
     int32_t module_node_api_version);
 
-// Sets the snapshot creation parameters for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_on_create_snapshot(
-    node_embedding_runtime runtime,
-    node_embedding_store_blob_callback store_blob_cb,
-    void* store_blob_cb_data,
-    node_embedding_snapshot_flags snapshot_flags);
-
 // Initializes the Node.js runtime.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_initialize_from_script(node_embedding_runtime runtime,
-                                              const char* main_script);
-
-// Sets the snapshot for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_initialize_from_snapshot(node_embedding_runtime runtime,
-                                                const uint8_t* snapshot,
-                                                size_t size);
+node_embedding_runtime_initialize(node_embedding_runtime runtime,
+                                  const char* main_script);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the event loop.
@@ -386,12 +360,6 @@ inline constexpr node_embedding_runtime_flags operator|(
     node_embedding_runtime_flags lhs, node_embedding_runtime_flags rhs) {
   return static_cast<node_embedding_runtime_flags>(static_cast<int32_t>(lhs) |
                                                    static_cast<int32_t>(rhs));
-}
-
-inline constexpr node_embedding_snapshot_flags operator|(
-    node_embedding_snapshot_flags lhs, node_embedding_snapshot_flags rhs) {
-  return static_cast<node_embedding_snapshot_flags>(static_cast<int32_t>(lhs) |
-                                                    static_cast<int32_t>(rhs));
 }
 
 #endif

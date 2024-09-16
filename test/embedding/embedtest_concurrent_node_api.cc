@@ -34,7 +34,7 @@ extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
                 node_embedding_runtime_no_create_inspector));
         CHECK(
             node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-        CHECK(node_embedding_runtime_initialize_from_script(runtime, main_script));
+        CHECK(node_embedding_runtime_initialize(runtime, main_script));
         CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
           napi_value global, my_count;
           NODE_API_CALL(napi_get_global(env, &global));
@@ -72,7 +72,6 @@ extern "C" int32_t test_main_concurrent_node_api(int32_t argc, char* argv[]) {
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.
 extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
-  /*
   node_embedding_platform platform;
   CHECK(node_embedding_create_platform(1, &platform));
   CHECK(node_embedding_platform_set_args(platform, argc, argv));
@@ -94,7 +93,7 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
         node_embedding_runtime_default_flags |
             node_embedding_runtime_no_create_inspector));
     CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-    CHECK(node_embedding_runtime_initialize_from_script(runtime, main_script));
+    CHECK(node_embedding_runtime_initialize(runtime, main_script));
     runtimes.push_back(runtime);
 
     int32_t exit_code = 0;
@@ -118,20 +117,8 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
     more_work = false;
     for (node_embedding_runtime runtime : runtimes) {
       bool has_more_work = false;
-      bool had_run_once = false;
-      CHECK(node_embedding_runtime_run_event_loop_while(
-          runtime,
-          [](void* predicate_data, bool has_work) {
-            bool* had_run_once = static_cast<bool*>(predicate_data);
-            if (*had_run_once) {
-              return false;
-            }
-            *had_run_once = true;
-            return true;
-          },
-          &had_run_once,
-          node_embedding_event_loop_run_nowait,
-          &has_more_work));
+      CHECK(node_embedding_runtime_run_event_loop(
+          runtime, node_embedding_event_loop_run_nowait, &has_more_work));
       more_work |= has_more_work;
     }
   } while (more_work);
@@ -153,20 +140,20 @@ extern "C" int32_t test_main_multi_env_node_api(int32_t argc, char* argv[]) {
       global_count += count;
     }));
     CHECK(exit_code);
+    CHECK(node_embedding_runtime_complete_event_loop(runtime));
     CHECK(node_embedding_delete_runtime(runtime));
   }
 
   CHECK(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", global_count);
-*/
+
   return 0;
 }
 
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
 extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
-  /*
   node_embedding_platform platform;
   CHECK(node_embedding_create_platform(NODE_EMBEDDING_VERSION, &platform));
   CHECK(node_embedding_platform_set_args(platform, argc, argv));
@@ -179,7 +166,7 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   node_embedding_runtime runtime;
   CHECK(node_embedding_create_runtime(platform, &runtime));
   CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-  CHECK(node_embedding_runtime_initialize_from_script(runtime, main_script));
+  CHECK(node_embedding_runtime_initialize(runtime, main_script));
 
   // Use mutex to synchronize access to the runtime.
   std::mutex mutex;
@@ -190,9 +177,8 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
   threads.reserve(thread_count);
   for (size_t i = 0; i < thread_count; i++) {
     threads.emplace_back([runtime, &result_count, &result_exit_code, &mutex] {
-      int32_t exit_code = 0;
       std::scoped_lock lock(mutex);
-      CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
+      int32_t exit_code = InvokeNodeApi(runtime, [&](napi_env env) {
         napi_value undefined, global, func, my_count;
         NODE_API_CALL(napi_get_undefined(env, &undefined));
         NODE_API_CALL(napi_get_global(env, &global));
@@ -213,7 +199,7 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
         int32_t count;
         NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
         result_count.store(count);
-      }));
+      });
       if (exit_code != 0) {
         result_exit_code.store(exit_code);
       }
@@ -226,10 +212,11 @@ extern "C" int32_t test_main_multi_thread_node_api(int32_t argc, char* argv[]) {
 
   CHECK_EXIT_CODE(result_exit_code.load());
 
+  CHECK(node_embedding_runtime_complete_event_loop(runtime));
   CHECK(node_embedding_delete_runtime(runtime));
   CHECK(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", result_count.load());
-  */
+
   return 0;
 }

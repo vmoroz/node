@@ -252,19 +252,7 @@ class EmbeddedRuntime {
       void* init_module_cb_data,
       int32_t module_node_api_version);
 
-  node_embedding_exit_code OnCreateSnapshotBlob(
-      node_embedding_store_blob_callback store_blob_cb,
-      void* store_blob_cb_data,
-      node_embedding_snapshot_flags snapshot_flags);
-
-  template <typename TCreateEnvSetup, typename TLoadEnv>
-  node_embedding_exit_code Initialize(TCreateEnvSetup&& createEnvSetup,
-                                      TLoadEnv&& loadEnv);
-
-  node_embedding_exit_code InitializeFromScript(const char* main_script);
-
-  node_embedding_exit_code InitializeFromSnapshot(const uint8_t* snapshot,
-                                                  size_t size);
+  node_embedding_exit_code Initialize(const char* main_script);
 
   node_embedding_exit_code OnEventLoopRunRequest(
       node_embedding_event_loop_handler event_loop_handler,
@@ -328,9 +316,6 @@ class EmbeddedRuntime {
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
-  node::EmbedderSnapshotData::Pointer snapshot_{};
-  std::function<void(const node::EmbedderSnapshotData*)> create_snapshot_;
-  node::SnapshotConfig snapshot_config_{};
   int32_t node_api_version_{0};
   napi_env node_api_env_{};
 
@@ -586,26 +571,8 @@ EmbeddedRuntime::EmbeddedRuntime(EmbeddedPlatform* platform)
 node_embedding_exit_code EmbeddedRuntime::DeleteMe() {
   ASSERT(!IsScopeOpened());
 
-  {
-    v8impl::IsolateLocker isolate_locker(env_setup_.get());
-
-    node_embedding_exit_code exit_code = static_cast<node_embedding_exit_code>(
-        node::SpinEventLoop(env_setup_->env()).FromMaybe(1));
-    if (exit_code != node_embedding_exit_code_ok) {
-      return EmbeddedErrorHandling::HandleError(
-          "Failed while closing the runtime", exit_code);
-    }
-  }
-
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup =
       std::move(env_setup_);
-
-  if (create_snapshot_) {
-    node::EmbedderSnapshotData::Pointer snapshot = env_setup->CreateSnapshot();
-    ASSERT(snapshot);
-    // TODO(vmoroz): handle error conditions.
-    create_snapshot_(snapshot.get());
-  }
 
   node::Stop(env_setup->env());
 
@@ -691,33 +658,7 @@ node_embedding_exit_code EmbeddedRuntime::AddModule(
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::OnCreateSnapshotBlob(
-    node_embedding_store_blob_callback store_blob_cb,
-    void* store_blob_cb_data,
-    node_embedding_snapshot_flags snapshot_flags) {
-  ARG_IS_NOT_NULL(store_blob_cb);
-  ASSERT(!is_initialized_);
-
-  create_snapshot_ = [store_blob_cb, store_blob_cb_data](
-                         const node::EmbedderSnapshotData* snapshot) {
-    std::vector<char> blob = snapshot->ToBlob();
-    store_blob_cb(store_blob_cb_data,
-                  reinterpret_cast<const uint8_t*>(blob.data()),
-                  blob.size());
-  };
-
-  if ((snapshot_flags & node_embedding_snapshot_no_code_cache) != 0) {
-    snapshot_config_.flags = static_cast<node::SnapshotFlags>(
-        static_cast<uint32_t>(snapshot_config_.flags) |
-        static_cast<uint32_t>(node::SnapshotFlags::kWithoutCodeCache));
-  }
-
-  return node_embedding_exit_code_ok;
-}
-
-template <typename TCreateEnvSetup, typename TLoadEnv>
-node_embedding_exit_code EmbeddedRuntime::Initialize(
-    TCreateEnvSetup&& createEnvSetup, TLoadEnv&& loadEnv) {
+node_embedding_exit_code EmbeddedRuntime::Initialize(const char* main_script) {
   ASSERT(!is_initialized_);
 
   is_initialized_ = true;
@@ -735,7 +676,8 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(
                                : platform_->init_result()->exec_args();
 
   std::vector<std::string> errors;
-  env_setup_ = createEnvSetup(platform, &errors, args, exec_args, flags);
+  env_setup_ = node::CommonEnvironmentSetup::Create(
+      platform, &errors, args, exec_args, flags);
 
   if (env_setup_ == nullptr || !errors.empty()) {
     return EmbeddedErrorHandling::HandleError(
@@ -752,52 +694,13 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(
 
   RegisterModules();
 
-  v8::MaybeLocal<v8::Value> ret = loadEnv(node_env);
+  v8::MaybeLocal<v8::Value> ret = node::LoadEnvironment(
+      node_env, std::string_view(main_script), preload_cb_);
   if (ret.IsEmpty()) return node_embedding_exit_code_generic_user_error;
 
   InitializeEventLoopPollingThread();
 
   return node_embedding_exit_code_ok;
-}
-
-node_embedding_exit_code EmbeddedRuntime::InitializeFromScript(
-    const char* main_script) {
-  return Initialize(
-      [&](node::MultiIsolatePlatform* platform,
-          std::vector<std::string>* errors,
-          const std::vector<std::string>& args,
-          const std::vector<std::string>& exec_args,
-          node::EnvironmentFlags::Flags flags) {
-        if (create_snapshot_) {
-          return node::CommonEnvironmentSetup::CreateForSnapshotting(
-              platform, errors, args, exec_args, snapshot_config_);
-        } else {
-          return node::CommonEnvironmentSetup::Create(
-              platform, errors, args, exec_args, flags);
-        }
-      },
-      [&](node::Environment* node_env) {
-        return node::LoadEnvironment(
-            node_env, std::string_view(main_script), preload_cb_);
-      });
-}
-
-node_embedding_exit_code EmbeddedRuntime::InitializeFromSnapshot(
-    const uint8_t* snapshot, size_t size) {
-  return Initialize(
-      [&](node::MultiIsolatePlatform* platform,
-          std::vector<std::string>* errors,
-          const std::vector<std::string>& args,
-          const std::vector<std::string>& exec_args,
-          node::EnvironmentFlags::Flags flags) {
-        snapshot_ = node::EmbedderSnapshotData::FromBlob(
-            std::string_view(reinterpret_cast<const char*>(snapshot), size));
-        return node::CommonEnvironmentSetup::CreateFromSnapshot(
-            platform, errors, snapshot_.get(), args, exec_args, flags);
-      },
-      [&](node::Environment* node_env) {
-        return node::LoadEnvironment(node_env, node::StartExecutionCallback{});
-      });
 }
 
 void EmbeddedRuntime::InitializeEventLoopPollingThread() {
@@ -1173,26 +1076,9 @@ node_embedding_exit_code NAPI_CDECL node_embedding_runtime_add_module(
                                               module_node_api_version);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_on_create_snapshot(
-    node_embedding_runtime runtime,
-    node_embedding_store_blob_callback store_blob_cb,
-    void* store_blob_cb_data,
-    node_embedding_snapshot_flags snapshot_flags) {
-  return EMBEDDED_RUNTIME(runtime)->OnCreateSnapshotBlob(
-      store_blob_cb, store_blob_cb_data, snapshot_flags);
-}
-
-node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_initialize_from_script(node_embedding_runtime runtime,
-                                              const char* main_script) {
-  return EMBEDDED_RUNTIME(runtime)->InitializeFromScript(main_script);
-}
-
-node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_initialize_from_snapshot(node_embedding_runtime runtime,
-                                                const uint8_t* snapshot,
-                                                size_t size) {
-  return EMBEDDED_RUNTIME(runtime)->InitializeFromSnapshot(snapshot, size);
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_initialize(
+    node_embedding_runtime runtime, const char* main_script) {
+  return EMBEDDED_RUNTIME(runtime)->Initialize(main_script);
 }
 
 node_embedding_exit_code NAPI_CDECL

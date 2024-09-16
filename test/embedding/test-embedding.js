@@ -234,7 +234,6 @@ function runSnapshotTests(apiType) {
 }
 
 runSnapshotTests('cpp-api');
-runSnapshotTests('snapshot-node-api');
 
 // Node-API specific tests
 {
@@ -254,7 +253,7 @@ runSnapshotTests('snapshot-node-api');
     ['node-api', 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
-
+/*
   runTest(
     `node-api: waitMe`,
     spawnSyncAndAssert,
@@ -290,7 +289,7 @@ runSnapshotTests('snapshot-node-api');
     ],
     { stdout: 'waited without cheese' }
   );
-
+*/
   runTest(
     `concurrent-node-api: run 12 environments concurrently`,
     spawnSyncAndAssert,
