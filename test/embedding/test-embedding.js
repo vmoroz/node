@@ -253,7 +253,7 @@ runSnapshotTests('cpp-api');
     ['node-api', 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
-/*
+
   runTest(
     `node-api: waitMe`,
     spawnSyncAndAssert,
@@ -263,7 +263,7 @@ runSnapshotTests('cpp-api');
     ],
     { stdout: 'waited you' }
   );
-
+/*
   runTest(
     `node-api: waitPromise`,
     spawnSyncAndAssert,

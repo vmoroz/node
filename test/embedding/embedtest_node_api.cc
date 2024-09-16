@@ -111,7 +111,6 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
 
 int32_t waitMe(node_embedding_runtime runtime) {
   int32_t exit_code = 0;
-  /*
   CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
     napi_value global;
     napi_value cb;
@@ -142,7 +141,8 @@ int32_t waitMe(node_embedding_runtime runtime) {
         FAIL_RETURN_VOID("Anachronism detected: %s\n", callback_buf);
       }
 
-      CHECK_RETURN_VOID(node_embedding_runtime_run_event_loop(runtime));
+      CHECK_RETURN_VOID(node_embedding_runtime_run_event_loop(
+          runtime, node_embedding_event_loop_run_default, nullptr));
 
       if (strcmp(callback_buf, "waited you") != 0) {
         FAIL_RETURN_VOID("Invalid value received: %s\n", callback_buf);
@@ -152,7 +152,7 @@ int32_t waitMe(node_embedding_runtime runtime) {
       FAIL_RETURN_VOID("Invalid waitMe value\n");
     }
   }));
-  */
+
   return exit_code;
 }
 
