@@ -154,20 +154,16 @@ typedef enum {
 } node_embedding_snapshot_flags;
 
 typedef enum {
+  // Run the event loop until it is completed.
+  // It matches the UV_RUN_DEFAULT behavior.
+  node_embedding_event_loop_run_default = 0,
   // Run the event loop once and wait if there are no items.
   // It matches the UV_RUN_ONCE behavior.
   node_embedding_event_loop_run_once = 1,
-
   // Run the event loop once and do not wait if there are no items.
   // It matches the UV_RUN_NOWAIT behavior.
   node_embedding_event_loop_run_nowait = 2,
 } node_embedding_event_loop_run_mode;
-
-typedef enum {
-  node_embedding_promise_state_pending = 0,
-  node_embedding_promise_state_fulfilled = 1,
-  node_embedding_promise_state_rejected = 2,
-} node_embedding_promise_state;
 
 //==============================================================================
 // Callbacks
@@ -194,8 +190,7 @@ typedef void(NAPI_CDECL* node_embedding_store_blob_callback)(
 typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     void* cb_data, napi_env env, const char* module_name, napi_value exports);
 
-typedef bool(NAPI_CDECL* node_embedding_event_loop_predicate)(
-    void* predicate_data, bool has_work);
+typedef void(NAPI_CDECL* node_embedding_event_loop_handler)(void* handler_data);
 
 typedef void(NAPI_CDECL* node_embedding_node_api_callback)(void* cb_data,
                                                            napi_env env);
@@ -334,30 +329,28 @@ node_embedding_runtime_initialize_from_snapshot(node_embedding_runtime runtime,
 // Node.js runtime functions for the event loop.
 //------------------------------------------------------------------------------
 
-// Runs the Node.js runtime event loop.
-// It does not block the calling thread.
+// Initializes the runtime to call the provided handler when the runtime event
+// loop has some work to do. It starts an observer thread and the runtime event
+// loop is not stopped until this function is called again with the NULL
+// event_loop_handler. This function helps to integrate the Node.js runtime
+// event loop with the host UI loop.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_run_event_loop(node_embedding_runtime runtime);
-
-// Runs the Node.js runtime event loop until the predicate returns false.
-// It may block the calling thread depending on the is_thread_blocking
-// parameter.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_run_event_loop_while(
+node_embedding_runtime_on_event_loop_run_request(
     node_embedding_runtime runtime,
-    node_embedding_event_loop_predicate predicate,
-    void* predicate_data,
+    node_embedding_event_loop_handler event_loop_handler,
+    void* event_loop_handler_data);
+
+// Runs the Node.js runtime event loop.
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_runtime_run_event_loop(
+    node_embedding_runtime runtime,
     node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work);
 
-// Runs the Node.js runtime event loop until the promise is resolved.
-// It may block the calling thread.
+// Runs the Node.js runtime event loop in node_embedding_event_loop_run_default
+// mode and finishes it with emitting the beforeExit and exit process events.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_await_promise(node_embedding_runtime runtime,
-                                     napi_value promise,
-                                     node_embedding_promise_state* state,
-                                     napi_value* result,
-                                     bool* has_more_work);
+node_embedding_runtime_complete_event_loop(node_embedding_runtime runtime);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
@@ -407,6 +400,8 @@ inline constexpr node_embedding_snapshot_flags operator|(
 
 // TODO(vmoroz): Allow running Node.js uv_loop from UI loop. Follow the Electron
 //               implementation.
+// TODO(vmoroz): Can we use some kind of waiter concept instead of the
+//               observer thread?
 // TODO(vmoroz): Add startup callback with process and require parameters.
 // TODO(vmoroz): Generate the main script based on the runtime settings.
 // TODO(vmoroz): Set the global Inspector for he main runtime.

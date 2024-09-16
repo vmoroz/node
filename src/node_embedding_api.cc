@@ -5,6 +5,7 @@
 #include "js_native_api_v8.h"
 #include "node_api_internals.h"
 #include "util-inl.h"
+#include "uv.h"
 
 #include <mutex>
 #include <string>
@@ -29,11 +30,22 @@
                              node_embedding_exit_code_generic_user_error)      \
                        : reinterpret_cast<v8impl::EmbeddedRuntime*>(runtime)
 
-#define ARG_NOT_NULL(arg)                                                      \
+#define ARG_IS_NOT_NULL(arg)                                                   \
   do {                                                                         \
     if ((arg) == nullptr) {                                                    \
       return v8impl::EmbeddedErrorHandling::HandleError(                       \
           "Argument must not be null: " #arg,                                  \
+          __FILE__,                                                            \
+          __LINE__,                                                            \
+          node_embedding_exit_code_generic_user_error);                        \
+    }                                                                          \
+  } while (false)
+
+#define ARG_IS_NULL(arg)                                                       \
+  do {                                                                         \
+    if ((arg) != nullptr) {                                                    \
+      return v8impl::EmbeddedErrorHandling::HandleError(                       \
+          "Argument must be null: " #arg,                                      \
           __FILE__,                                                            \
           __LINE__,                                                            \
           node_embedding_exit_code_generic_user_error);                        \
@@ -54,11 +66,8 @@
 namespace node {
 
 // Declare functions implemented in embed_helpers.cc
-v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env);
-v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(
-    Environment* env,
-    uv_run_mode run_mode,
-    const std::function<bool(bool)>& shouldContinue);
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
+                                                uv_run_mode run_mode);
 
 }  // end of namespace node
 
@@ -257,18 +266,14 @@ class EmbeddedRuntime {
   node_embedding_exit_code InitializeFromSnapshot(const uint8_t* snapshot,
                                                   size_t size);
 
-  node_embedding_exit_code RunEventLoop();
+  node_embedding_exit_code OnEventLoopRunRequest(
+      node_embedding_event_loop_handler event_loop_handler,
+      void* event_loop_handler_data);
 
-  node_embedding_exit_code RunEventLoopWhile(
-      node_embedding_event_loop_predicate predicate,
-      void* predicate_data,
-      node_embedding_event_loop_run_mode run_mode,
-      bool* has_more_work);
+  node_embedding_exit_code RunEventLoop(
+      node_embedding_event_loop_run_mode run_mode, bool* has_more_work);
 
-  node_embedding_exit_code AwaitPromise(napi_value promise,
-                                        node_embedding_promise_state* state,
-                                        napi_value* result,
-                                        bool* has_more_work);
+  node_embedding_exit_code CompleteEventLoop();
 
   node_embedding_exit_code SetNodeApiVersion(int32_t node_api_version);
 
@@ -291,6 +296,12 @@ class EmbeddedRuntime {
                              v8::Local<v8::Value> module,
                              v8::Local<v8::Context> context,
                              void* priv);
+
+  void InitializeEventLoopPollingThread();
+  void DestroyEventLoopPollingThread();
+  void WakeupEventLoopPollingThread();
+  static void RunPollingThread(void* data);
+  void PollWin32();
 
  private:
   struct ModuleInfo {
@@ -333,6 +344,13 @@ class EmbeddedRuntime {
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<IsolateLocker> isolate_locker_;
+
+  node_embedding_event_loop_handler event_loop_handler_{};
+  void* event_loop_handler_data_{};
+  uv_async_t dummy_async_polling_handle_{};
+  uv_sem_t polling_sem_{};
+  uv_thread_t polling_thread_{};
+  bool polling_thread_closed_{false};
 };
 
 //-----------------------------------------------------------------------------
@@ -418,7 +436,7 @@ node_embedding_exit_code EmbeddedPlatform::DeleteMe() {
 }
 
 node_embedding_exit_code EmbeddedPlatform::IsInitialized(bool* result) {
-  ARG_NOT_NULL(result);
+  ARG_IS_NOT_NULL(result);
   *result = is_initialized_;
   return node_embedding_exit_code_ok;
 }
@@ -432,7 +450,7 @@ node_embedding_exit_code EmbeddedPlatform::SetFlags(
 }
 
 node_embedding_exit_code EmbeddedPlatform::SetArgs(int32_t argc, char* argv[]) {
-  ARG_NOT_NULL(argv);
+  ARG_IS_NOT_NULL(argv);
   ASSERT(!is_initialized_);
   args_.assign(argv, argv + argc);
   optional_bits_.args = true;
@@ -501,7 +519,7 @@ node_embedding_exit_code EmbeddedPlatform::GetParsedArgs(
 
 node_embedding_exit_code EmbeddedPlatform::CreateRuntime(
     node_embedding_runtime* result) {
-  ARG_NOT_NULL(result);
+  ARG_IS_NOT_NULL(result);
   ASSERT(is_initialized_);
   ASSERT(v8_is_initialized_);
 
@@ -595,7 +613,7 @@ node_embedding_exit_code EmbeddedRuntime::DeleteMe() {
 }
 
 node_embedding_exit_code EmbeddedRuntime::IsInitialized(bool* result) {
-  ARG_NOT_NULL(result);
+  ARG_IS_NOT_NULL(result);
   *result = is_initialized_;
   return node_embedding_exit_code_ok;
 }
@@ -654,8 +672,8 @@ node_embedding_exit_code EmbeddedRuntime::AddModule(
     node_embedding_initialize_module_callback init_module_cb,
     void* init_module_cb_data,
     int32_t module_node_api_version) {
-  ARG_NOT_NULL(module_name);
-  ARG_NOT_NULL(init_module_cb);
+  ARG_IS_NOT_NULL(module_name);
+  ARG_IS_NOT_NULL(init_module_cb);
   ASSERT(!is_initialized_);
 
   auto insert_result = modules_.try_emplace(module_name,
@@ -677,7 +695,7 @@ node_embedding_exit_code EmbeddedRuntime::OnCreateSnapshotBlob(
     node_embedding_store_blob_callback store_blob_cb,
     void* store_blob_cb_data,
     node_embedding_snapshot_flags snapshot_flags) {
-  ARG_NOT_NULL(store_blob_cb);
+  ARG_IS_NOT_NULL(store_blob_cb);
   ASSERT(!is_initialized_);
 
   create_snapshot_ = [store_blob_cb, store_blob_cb_data](
@@ -737,6 +755,8 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(
   v8::MaybeLocal<v8::Value> ret = loadEnv(node_env);
   if (ret.IsEmpty()) return node_embedding_exit_code_generic_user_error;
 
+  InitializeEventLoopPollingThread();
+
   return node_embedding_exit_code_ok;
 }
 
@@ -780,100 +800,122 @@ node_embedding_exit_code EmbeddedRuntime::InitializeFromSnapshot(
       });
 }
 
-node_embedding_exit_code EmbeddedRuntime::RunEventLoop() {
-  ASSERT(is_initialized_);
+void EmbeddedRuntime::InitializeEventLoopPollingThread() {
+  if (event_loop_handler_ == nullptr) return;
 
-  IsolateLocker isolate_locker(env_setup_.get());
+  uv_loop_t* event_loop = env_setup_->env()->event_loop();
 
-  if (node::SpinEventLoopWithoutCleanup(env_setup_->env()).IsNothing()) {
-    return node_embedding_exit_code_generic_user_error;
+  // keep the loop alive and allow waking up the polling thread
+  uv_async_init(event_loop, &dummy_async_polling_handle_, nullptr);
+
+  uv_sem_init(&polling_sem_, 0);
+  uv_thread_create(&polling_thread_, RunPollingThread, this);
+  polling_thread_closed_ = false;
+}
+
+void EmbeddedRuntime::DestroyEventLoopPollingThread() {
+  if (event_loop_handler_ == nullptr) return;
+  if (polling_thread_closed_) return;
+
+  polling_thread_closed_ = true;
+  uv_sem_post(&polling_sem_);
+  // wake up polling thread
+  uv_async_send(&dummy_async_polling_handle_);
+
+  uv_thread_join(&polling_thread_);
+
+  uv_sem_destroy(&polling_sem_);
+  uv_close(reinterpret_cast<uv_handle_t*>(&dummy_async_polling_handle_),
+           nullptr);
+}
+
+void EmbeddedRuntime::WakeupEventLoopPollingThread() {
+  if (event_loop_handler_ == nullptr) return;
+  if (polling_thread_closed_) return;
+
+  uv_sem_post(&polling_sem_);
+}
+
+void EmbeddedRuntime::RunPollingThread(void* data) {
+  EmbeddedRuntime* runtime = static_cast<EmbeddedRuntime*>(data);
+  for (;;) {
+    uv_sem_wait(&runtime->polling_sem_);
+    if (runtime->polling_thread_closed_) break;
+
+    runtime->PollWin32();
+    if (runtime->polling_thread_closed_) break;
+
+    runtime->event_loop_handler_(runtime->event_loop_handler_data_);
   }
+}
 
+void EmbeddedRuntime::PollWin32() {
+  uv_loop_t* event_loop = env_setup_->env()->event_loop();
+
+  // If there are other kinds of events pending, uv_backend_timeout will
+  // instruct us not to wait.
+  DWORD timeout = static_cast<DWORD>(uv_backend_timeout(event_loop));
+
+  DWORD byte_count;
+  ULONG_PTR completion_key;
+  OVERLAPPED* overlapped;
+  GetQueuedCompletionStatus(
+      event_loop->iocp, &byte_count, &completion_key, &overlapped, timeout);
+
+  // Give the event back so libuv can deal with it.
+  if (overlapped != nullptr)
+    PostQueuedCompletionStatus(
+        event_loop->iocp, byte_count, completion_key, overlapped);
+}
+
+node_embedding_exit_code EmbeddedRuntime::OnEventLoopRunRequest(
+    node_embedding_event_loop_handler event_loop_handler,
+    void* event_loop_handler_data) {
+  ASSERT(!is_initialized_);
+  event_loop_handler_ = event_loop_handler;
+  event_loop_handler_data_ = event_loop_handler_data;
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::RunEventLoopWhile(
-    node_embedding_event_loop_predicate predicate,
-    void* predicate_data,
-    node_embedding_event_loop_run_mode run_mode,
-    bool* has_more_work) {
-  ARG_NOT_NULL(predicate);
+node_embedding_exit_code EmbeddedRuntime::RunEventLoop(
+    node_embedding_event_loop_run_mode run_mode, bool* has_more_work) {
   ASSERT(is_initialized_);
 
   IsolateLocker isolate_locker(env_setup_.get());
 
-  if (predicate(predicate_data,
-                uv_loop_alive(env_setup_->env()->event_loop()))) {
-    if (node::SpinEventLoopWithoutCleanup(
-            env_setup_->env(),
-            static_cast<uv_run_mode>(run_mode),
-            [predicate, predicate_data](bool has_work) {
-              return predicate(predicate_data, has_work);
-            })
-            .IsNothing()) {
-      return node_embedding_exit_code_generic_user_error;
-    }
+  node_embedding_exit_code exit_code = static_cast<node_embedding_exit_code>(
+      node::SpinEventLoopWithoutCleanup(env_setup_->env(),
+                                        static_cast<uv_run_mode>(run_mode))
+          .FromMaybe(node::ExitCode::kGenericUserError));
+  if (exit_code != node_embedding_exit_code_ok) {
+    return EmbeddedErrorHandling::HandleError("Failed running the event loop",
+                                              exit_code);
   }
 
   if (has_more_work != nullptr) {
     *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
   }
 
+  WakeupEventLoopPollingThread();
+
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::AwaitPromise(
-    napi_value promise,
-    node_embedding_promise_state* state,
-    napi_value* result,
-    bool* has_more_work) {
-  napi_status status = [&]() {
-    NAPI_PREAMBLE(node_api_env_);
-    CHECK_ARG(node_api_env_, state);
-    CHECK_ARG(node_api_env_, result);
+node_embedding_exit_code EmbeddedRuntime::CompleteEventLoop() {
+  ASSERT(is_initialized_);
 
-    v8::EscapableHandleScope scope(node_api_env_->isolate);
+  IsolateLocker isolate_locker(env_setup_.get());
 
-    v8::Local<v8::Value> promise_value =
-        v8impl::V8LocalValueFromJsValue(promise);
-    if (promise_value.IsEmpty() || !promise_value->IsPromise())
-      return napi_invalid_arg;
-    v8::Local<v8::Promise> promise_object = promise_value.As<v8::Promise>();
+  DestroyEventLoopPollingThread();
 
-    v8::Local<v8::Value> rejected =
-        v8::Boolean::New(node_api_env_->isolate, false);
-    v8::Local<v8::Function> err_handler =
-        v8::Function::New(
-            node_api_env_->context(),
-            [](const v8::FunctionCallbackInfo<v8::Value>& info) { return; },
-            rejected)
-            .ToLocalChecked();
+  node_embedding_exit_code exit_code = static_cast<node_embedding_exit_code>(
+      node::SpinEventLoop(env_setup_->env()).FromMaybe(1));
+  if (exit_code != node_embedding_exit_code_ok) {
+    return EmbeddedErrorHandling::HandleError(
+        "Failed while closing the runtime", exit_code);
+  }
 
-    if (promise_object->Catch(node_api_env_->context(), err_handler).IsEmpty())
-      return napi_pending_exception;
-
-    if (node::SpinEventLoopWithoutCleanup(
-            env_setup_->env(),
-            UV_RUN_ONCE,
-            [&promise_object](bool /*has_work*/) {
-              return promise_object->State() ==
-                     v8::Promise::PromiseState::kPending;
-            })
-            .IsNothing())
-      return napi_closing;
-
-    *state = static_cast<node_embedding_promise_state>(promise_object->State());
-    *result =
-        v8impl::JsValueFromV8LocalValue(scope.Escape(promise_object->Result()));
-
-    if (has_more_work != nullptr) {
-      *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
-    }
-
-    return napi_ok;
-  }();
-  return (status == napi_ok) ? node_embedding_exit_code_ok
-                             : node_embedding_exit_code_generic_user_error;
+  return node_embedding_exit_code_ok;
 }
 
 node_embedding_exit_code EmbeddedRuntime::SetNodeApiVersion(
@@ -885,7 +927,7 @@ node_embedding_exit_code EmbeddedRuntime::SetNodeApiVersion(
 
 node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
     node_embedding_node_api_callback node_api_cb, void* node_api_cb_data) {
-  ARG_NOT_NULL(node_api_cb);
+  ARG_IS_NOT_NULL(node_api_cb);
   if (isolate_locker_.has_value()) {
     ASSERT(isolate_locker_->IsLocked());
     isolate_locker_->IncrementLockCount();
@@ -1041,7 +1083,7 @@ node_embedding_exit_code NAPI_CDECL node_embedding_on_error(
 
 node_embedding_exit_code NAPI_CDECL node_embedding_create_platform(
     int32_t api_version, node_embedding_platform* result) {
-  ARG_NOT_NULL(result);
+  ARG_IS_NOT_NULL(result);
   *result = reinterpret_cast<node_embedding_platform>(
       new v8impl::EmbeddedPlatform(api_version));
   return node_embedding_exit_code_ok;
@@ -1154,28 +1196,24 @@ node_embedding_runtime_initialize_from_snapshot(node_embedding_runtime runtime,
 }
 
 node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_run_event_loop(node_embedding_runtime runtime) {
-  return EMBEDDED_RUNTIME(runtime)->RunEventLoop();
+node_embedding_runtime_on_event_loop_run_request(
+    node_embedding_runtime runtime,
+    node_embedding_event_loop_handler event_loop_handler,
+    void* event_loop_handler_data) {
+  return EMBEDDED_RUNTIME(runtime)->OnEventLoopRunRequest(
+      event_loop_handler, event_loop_handler_data);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_run_event_loop_while(
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_run_event_loop(
     node_embedding_runtime runtime,
-    node_embedding_event_loop_predicate predicate,
-    void* predicate_data,
     node_embedding_event_loop_run_mode run_mode,
     bool* has_more_work) {
-  return EMBEDDED_RUNTIME(runtime)->RunEventLoopWhile(
-      predicate, predicate_data, run_mode, has_more_work);
+  return EMBEDDED_RUNTIME(runtime)->RunEventLoop(run_mode, has_more_work);
 }
 
 node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_await_promise(node_embedding_runtime runtime,
-                                     napi_value promise,
-                                     node_embedding_promise_state* state,
-                                     napi_value* result,
-                                     bool* has_more_work) {
-  return EMBEDDED_RUNTIME(runtime)->AwaitPromise(
-      promise, state, result, has_more_work);
+node_embedding_runtime_complete_event_loop(node_embedding_runtime runtime) {
+  return EMBEDDED_RUNTIME(runtime)->CompleteEventLoop();
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_runtime_set_node_api_version(
