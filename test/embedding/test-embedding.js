@@ -263,7 +263,7 @@ runSnapshotTests('cpp-api');
     ],
     { stdout: 'waited you' }
   );
-/*
+
   runTest(
     `node-api: waitPromise`,
     spawnSyncAndAssert,
@@ -289,7 +289,7 @@ runSnapshotTests('cpp-api');
     ],
     { stdout: 'waited without cheese' }
   );
-*/
+
   runTest(
     `concurrent-node-api: run 12 environments concurrently`,
     spawnSyncAndAssert,
