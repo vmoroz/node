@@ -44,7 +44,7 @@ inline node_embedding_exit_code InvokeNodeApi(
     node_embedding_runtime runtime, const std::function<void(napi_env)>& func) {
   return node_embedding_runtime_invoke_node_api(
       runtime,
-      [](void* cb_data, napi_env env) {
+      [](node_embedding_runtime runtime, void* cb_data, napi_env env) {
         auto func = static_cast<std::function<void(napi_env)>*>(cb_data);
         (*func)(env);
       },

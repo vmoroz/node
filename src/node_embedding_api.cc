@@ -293,6 +293,7 @@ class EmbeddedRuntime {
 
  private:
   struct ModuleInfo {
+    node_embedding_runtime runtime;
     std::string module_name;
     node_embedding_initialize_module_callback init_module_cb;
     void* init_module_cb_data;
@@ -615,16 +616,19 @@ node_embedding_exit_code EmbeddedRuntime::OnPreloadCallback(
 
   if (preload_cb != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
-        [preload_cb, preload_cb_data, node_api_version = node_api_version_](
-            node::Environment* node_env,
-            v8::Local<v8::Value> process,
-            v8::Local<v8::Value> require) {
+        [runtime = reinterpret_cast<node_embedding_runtime>(this),
+         preload_cb,
+         preload_cb_data,
+         node_api_version = node_api_version_](node::Environment* node_env,
+                                               v8::Local<v8::Value> process,
+                                               v8::Local<v8::Value> require) {
           napi_env env = GetOrCreateNodeApiEnv(
               node_env, "<worker thread>", node_api_version);
           env->CallIntoModule([&](napi_env env) {
             napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
             napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-            preload_cb(preload_cb_data, env, process_value, require_value);
+            preload_cb(
+                runtime, preload_cb_data, env, process_value, require_value);
           });
         });
   } else {
@@ -643,11 +647,13 @@ node_embedding_exit_code EmbeddedRuntime::AddModule(
   ARG_IS_NOT_NULL(init_module_cb);
   ASSERT(!is_initialized_);
 
-  auto insert_result = modules_.try_emplace(module_name,
-                                            module_name,
-                                            init_module_cb,
-                                            init_module_cb_data,
-                                            module_node_api_version);
+  auto insert_result =
+      modules_.try_emplace(module_name,
+                           reinterpret_cast<node_embedding_runtime>(this),
+                           module_name,
+                           init_module_cb,
+                           init_module_cb_data,
+                           module_node_api_version);
   if (!insert_result.second) {
     return EmbeddedErrorHandling::HandleError(
         EmbeddedErrorHandling::FormatString(
@@ -748,7 +754,9 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     runtime->PollWin32();
     if (runtime->polling_thread_closed_) break;
 
-    runtime->event_loop_handler_(runtime->event_loop_handler_data_);
+    runtime->event_loop_handler_(
+        reinterpret_cast<node_embedding_runtime>(runtime),
+        runtime->event_loop_handler_data_);
   }
 }
 
@@ -839,7 +847,11 @@ node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
   }
 
   node_api_env_->CallIntoModule(
-      [&](napi_env env) { node_api_cb(node_api_cb_data, env); },
+      [&](napi_env env) {
+        node_api_cb(reinterpret_cast<node_embedding_runtime>(this),
+                    node_api_cb_data,
+                    env);
+      },
       [](napi_env env, v8::Local<v8::Value> local_err) {
         node_napi_env__* node_napi_env = static_cast<node_napi_env__*>(env);
         if (node_napi_env->terminatedOrTerminating()) {
@@ -953,11 +965,12 @@ void EmbeddedRuntime::RegisterModules() {
 
   napi_value node_api_exports = nullptr;
   env->CallIntoModule([&](napi_env env) {
-    node_api_exports =
-        module_info->init_module_cb(module_info->init_module_cb_data,
-                                    env,
-                                    module_info->module_name.c_str(),
-                                    v8impl::JsValueFromV8LocalValue(exports));
+    node_api_exports = module_info->init_module_cb(
+        module_info->runtime,
+        module_info->init_module_cb_data,
+        env,
+        module_info->module_name.c_str(),
+        v8impl::JsValueFromV8LocalValue(exports));
   });
 
   // If register function returned a non-null exports object different from

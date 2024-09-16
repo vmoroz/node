@@ -170,18 +170,25 @@ typedef void(NAPI_CDECL* node_embedding_get_args_callback)(void* cb_data,
                                                            int32_t argc,
                                                            const char* argv[]);
 
-typedef void(NAPI_CDECL* node_embedding_preload_callback)(void* cb_data,
-                                                          napi_env env,
-                                                          napi_value process,
-                                                          napi_value require);
+typedef void(NAPI_CDECL* node_embedding_preload_callback)(
+    node_embedding_runtime runtime,
+    void* cb_data,
+    napi_env env,
+    napi_value process,
+    napi_value require);
 
 typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
-    void* cb_data, napi_env env, const char* module_name, napi_value exports);
+    node_embedding_runtime runtime,
+    void* cb_data,
+    napi_env env,
+    const char* module_name,
+    napi_value exports);
 
-typedef void(NAPI_CDECL* node_embedding_event_loop_handler)(void* handler_data);
+typedef void(NAPI_CDECL* node_embedding_event_loop_handler)(
+    node_embedding_runtime runtime, void* handler_data);
 
-typedef void(NAPI_CDECL* node_embedding_node_api_callback)(void* cb_data,
-                                                           napi_env env);
+typedef void(NAPI_CDECL* node_embedding_node_api_callback)(
+    node_embedding_runtime runtime, void* cb_data, napi_env env);
 
 //==============================================================================
 // Functions
