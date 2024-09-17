@@ -157,11 +157,15 @@ void* EmbeddedErrorHandling::error_handler_data_{};
 
 class EmbeddedPlatform {
  public:
-  explicit EmbeddedPlatform(int32_t api_version) noexcept
-      : api_version_(api_version) {}
+  EmbeddedPlatform() noexcept = default;
 
   EmbeddedPlatform(const EmbeddedPlatform&) = delete;
   EmbeddedPlatform& operator=(const EmbeddedPlatform&) = delete;
+
+  static node_embedding_exit_code SetApiVersion(int32_t embedding_api_version,
+                                                int32_t node_api_version);
+
+  static node_embedding_platform Create();
 
   node_embedding_exit_code DeleteMe();
 
@@ -190,7 +194,6 @@ class EmbeddedPlatform {
       node_embedding_platform_flags flags);
 
  private:
-  int32_t api_version_{1};
   bool is_initialized_{false};
   bool v8_is_initialized_{false};
   bool v8_is_uninitialized_{false};
@@ -203,7 +206,13 @@ class EmbeddedPlatform {
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
+
+  static int32_t embedding_api_version_;
+  static int32_t node_api_version_;
 };
+
+int32_t EmbeddedPlatform::embedding_api_version_{};
+int32_t EmbeddedPlatform::node_api_version_{};
 
 struct IsolateLocker {
   IsolateLocker(node::CommonEnvironmentSetup* env_setup)
@@ -230,6 +239,16 @@ struct IsolateLocker {
 
 class EmbeddedRuntime {
  public:
+  static node_embedding_exit_code Run(
+      int32_t argc,
+      char* argv[],
+      node_embedding_configure_platform_callback configure_platform_cb,
+      void* configure_platform_cb_data,
+      node_embedding_configure_runtime_callback configure_runtime_cb,
+      void* configure_runtime_cb_data,
+      node_embedding_run_callback run_cb,
+      void* run_cb_data);
+
   explicit EmbeddedRuntime(EmbeddedPlatform* platform);
 
   node_embedding_exit_code DeleteMe();
@@ -243,8 +262,12 @@ class EmbeddedRuntime {
                                    int32_t exec_argc,
                                    const char* exec_argv[]);
 
-  node_embedding_exit_code OnPreloadCallback(
+  node_embedding_exit_code OnPreload(
       node_embedding_preload_callback preload_cb, void* preload_cb_data);
+
+  node_embedding_exit_code OnStartExecution(
+      node_embedding_start_execution_callback start_execution_cb,
+      void* start_execution_cb_data);
 
   node_embedding_exit_code AddModule(
       const char* module_name,
@@ -252,7 +275,7 @@ class EmbeddedRuntime {
       void* init_module_cb_data,
       int32_t module_node_api_version);
 
-  node_embedding_exit_code Initialize(const char* main_script);
+  node_embedding_exit_code Initialize();
 
   node_embedding_exit_code OnEventLoopRunRequest(
       node_embedding_event_loop_handler event_loop_handler,
@@ -317,6 +340,7 @@ class EmbeddedRuntime {
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
+  node::StartExecutionCallback start_execution_cb_{};
   int32_t node_api_version_{0};
   napi_env node_api_env_{};
 
@@ -408,6 +432,17 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
 //-----------------------------------------------------------------------------
 // EmbeddedPlatform implementation.
 //-----------------------------------------------------------------------------
+
+/*static*/ node_embedding_exit_code EmbeddedPlatform::SetApiVersion(
+    int32_t embedding_api_version, int32_t node_api_version) {
+  embedding_api_version_ = embedding_api_version;
+  node_api_version_ = node_api_version;
+  return node_embedding_exit_code_ok;
+}
+
+/*static*/ node_embedding_platform EmbeddedPlatform::Create() {
+  return reinterpret_cast<node_embedding_platform>(new EmbeddedPlatform());
+}
 
 node_embedding_exit_code EmbeddedPlatform::DeleteMe() {
   if (v8_is_initialized_ && !v8_is_uninitialized_) {
@@ -566,6 +601,52 @@ EmbeddedPlatform::GetProcessInitializationFlags(
 // EmbeddedRuntime implementation.
 //-----------------------------------------------------------------------------
 
+/* static */ node_embedding_exit_code EmbeddedRuntime::Run(
+    int32_t argc,
+    char* argv[],
+    node_embedding_configure_platform_callback configure_platform_cb,
+    void* configure_platform_cb_data,
+    node_embedding_configure_runtime_callback configure_runtime_cb,
+    void* configure_runtime_cb_data,
+    node_embedding_run_callback run_cb,
+    void* run_cb_data) {
+  EmbeddedPlatform* platform = new EmbeddedPlatform();
+  node_embedding_platform node_platform =
+      reinterpret_cast<node_embedding_platform>(platform);
+  platform->SetArgs(argc, argv);
+  if (configure_platform_cb != nullptr) {
+    configure_platform_cb(configure_platform_cb_data, node_platform);
+  }
+  bool early_return = false;
+  platform->Initialize(&early_return);
+  if (early_return) {
+    return platform->DeleteMe();
+  }
+
+  std::unique_ptr<EmbeddedRuntime> runtime =
+      std::make_unique<EmbeddedRuntime>(platform);
+  node_embedding_runtime node_runtime =
+      reinterpret_cast<node_embedding_runtime>(runtime.get());
+  if (configure_runtime_cb != nullptr) {
+    configure_runtime_cb(
+        configure_runtime_cb_data, node_platform, node_runtime);
+  }
+
+  runtime->Initialize();
+
+  if (run_cb != nullptr) {
+    run_cb(run_cb_data, node_runtime);
+  } else {
+    runtime->CompleteEventLoop();
+  }
+
+  runtime->DeleteMe();
+
+  platform->DeleteMe();
+
+  return node_embedding_exit_code_ok;
+}
+
 EmbeddedRuntime::EmbeddedRuntime(EmbeddedPlatform* platform)
     : platform_(platform) {}
 
@@ -610,7 +691,7 @@ node_embedding_exit_code EmbeddedRuntime::SetArgs(int32_t argc,
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::OnPreloadCallback(
+node_embedding_exit_code EmbeddedRuntime::OnPreload(
     node_embedding_preload_callback preload_cb, void* preload_cb_data) {
   ASSERT(!is_initialized_);
 
@@ -633,6 +714,48 @@ node_embedding_exit_code EmbeddedRuntime::OnPreloadCallback(
         });
   } else {
     preload_cb_ = {};
+  }
+
+  return node_embedding_exit_code_ok;
+}
+
+node_embedding_exit_code EmbeddedRuntime::OnStartExecution(
+    node_embedding_start_execution_callback start_execution_cb,
+    void* start_execution_cb_data) {
+  ASSERT(!is_initialized_);
+
+  if (start_execution_cb != nullptr) {
+    start_execution_cb_ = node::StartExecutionCallback(
+        [this,
+         start_execution_cb,
+         start_execution_cb_data,
+         node_api_version =
+             node_api_version_](const node::StartExecutionCallbackInfo& info)
+            -> v8::MaybeLocal<v8::Value> {
+          napi_value result{};
+          node_api_env_->CallIntoModule([&](napi_env env) {
+            napi_value process_value =
+                v8impl::JsValueFromV8LocalValue(info.process_object);
+            napi_value require_value =
+                v8impl::JsValueFromV8LocalValue(info.native_require);
+            napi_value run_cjs_value =
+                v8impl::JsValueFromV8LocalValue(info.run_cjs);
+            result = start_execution_cb(
+                reinterpret_cast<node_embedding_runtime>(this),
+                start_execution_cb_data,
+                env,
+                process_value,
+                require_value,
+                run_cjs_value);
+          });
+
+          if (result == nullptr)
+            return {};
+          else
+            return v8impl::V8LocalValueFromJsValue(result);
+        });
+  } else {
+    start_execution_cb_ = {};
   }
 
   return node_embedding_exit_code_ok;
@@ -664,7 +787,7 @@ node_embedding_exit_code EmbeddedRuntime::AddModule(
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::Initialize(const char* main_script) {
+node_embedding_exit_code EmbeddedRuntime::Initialize() {
   ASSERT(!is_initialized_);
 
   is_initialized_ = true;
@@ -700,8 +823,8 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(const char* main_script) {
 
   RegisterModules();
 
-  v8::MaybeLocal<v8::Value> ret = node::LoadEnvironment(
-      node_env, std::string_view(main_script), preload_cb_);
+  v8::MaybeLocal<v8::Value> ret =
+      node::LoadEnvironment(node_env, start_execution_cb_, preload_cb_);
   if (ret.IsEmpty()) return node_embedding_exit_code_generic_user_error;
 
   InitializeEventLoopPollingThread();
@@ -965,12 +1088,12 @@ void EmbeddedRuntime::RegisterModules() {
 
   napi_value node_api_exports = nullptr;
   env->CallIntoModule([&](napi_env env) {
-    node_api_exports = module_info->init_module_cb(
-        module_info->runtime,
-        module_info->init_module_cb_data,
-        env,
-        module_info->module_name.c_str(),
-        v8impl::JsValueFromV8LocalValue(exports));
+    node_api_exports =
+        module_info->init_module_cb(module_info->runtime,
+                                    module_info->init_module_cb_data,
+                                    env,
+                                    module_info->module_name.c_str(),
+                                    v8impl::JsValueFromV8LocalValue(exports));
   });
 
   // If register function returned a non-null exports object different from
@@ -986,22 +1109,41 @@ void EmbeddedRuntime::RegisterModules() {
 }  // end of anonymous namespace
 }  // end of namespace v8impl
 
-node_embedding_exit_code NAPI_CDECL
-node_embedding_run_nodejs_main(int32_t argc, char* argv[]) {
-  return static_cast<node_embedding_exit_code>(node::Start(argc, argv));
-}
-
 node_embedding_exit_code NAPI_CDECL node_embedding_on_error(
     node_embedding_error_handler error_handler, void* error_handler_data) {
   return v8impl::EmbeddedErrorHandling::SetErrorHandler(error_handler,
                                                         error_handler_data);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_create_platform(
-    int32_t api_version, node_embedding_platform* result) {
+node_embedding_exit_code NAPI_CDECL node_embedding_run(
+    int32_t argc,
+    char* argv[],
+    node_embedding_configure_platform_callback configure_platform_cb,
+    void* configure_platform_cb_data,
+    node_embedding_configure_runtime_callback configure_runtime_cb,
+    void* configure_runtime_cb_data,
+    node_embedding_run_callback run_cb,
+    void* run_cb_data) {
+  return v8impl::EmbeddedRuntime::Run(argc,
+                                      argv,
+                                      configure_platform_cb,
+                                      configure_platform_cb_data,
+                                      configure_runtime_cb,
+                                      configure_runtime_cb_data,
+                                      run_cb,
+                                      run_cb_data);
+}
+
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_set_api_version(
+    int32_t embedding_api_version, int32_t node_api_version) {
+  return v8impl::EmbeddedPlatform::SetApiVersion(embedding_api_version,
+                                                 node_api_version);
+}
+
+node_embedding_exit_code NAPI_CDECL
+node_embedding_create_platform(node_embedding_platform* result) {
   ARG_IS_NOT_NULL(result);
-  *result = reinterpret_cast<node_embedding_platform>(
-      new v8impl::EmbeddedPlatform(api_version));
+  *result = v8impl::EmbeddedPlatform::Create();
   return node_embedding_exit_code_ok;
 }
 
@@ -1073,8 +1215,16 @@ node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_preload(node_embedding_runtime runtime,
                                   node_embedding_preload_callback preload_cb,
                                   void* preload_cb_data) {
-  return EMBEDDED_RUNTIME(runtime)->OnPreloadCallback(preload_cb,
+  return EMBEDDED_RUNTIME(runtime)->OnPreload(preload_cb,
                                                       preload_cb_data);
+}
+
+node_embedding_exit_code NAPI_CDECL node_embedding_runtime_on_start_execution(
+    node_embedding_runtime runtime,
+    node_embedding_start_execution_callback start_execution_cb,
+    void* start_execution_cb_data) {
+  return EMBEDDED_RUNTIME(runtime)->OnStartExecution(
+      start_execution_cb, start_execution_cb_data);
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_runtime_add_module(
@@ -1089,9 +1239,9 @@ node_embedding_exit_code NAPI_CDECL node_embedding_runtime_add_module(
                                               module_node_api_version);
 }
 
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_initialize(
-    node_embedding_runtime runtime, const char* main_script) {
-  return EMBEDDED_RUNTIME(runtime)->Initialize(main_script);
+node_embedding_exit_code NAPI_CDECL
+node_embedding_runtime_initialize(node_embedding_runtime runtime) {
+  return EMBEDDED_RUNTIME(runtime)->Initialize();
 }
 
 node_embedding_exit_code NAPI_CDECL
