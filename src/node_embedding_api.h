@@ -311,10 +311,9 @@ node_embedding_runtime_initialize(node_embedding_runtime runtime,
 //------------------------------------------------------------------------------
 
 // Initializes the runtime to call the provided handler when the runtime event
-// loop has some work to do. It starts an observer thread and the runtime event
-// loop is not stopped until this function is called again with the NULL
-// event_loop_handler. This function helps to integrate the Node.js runtime
-// event loop with the host UI loop.
+// loop has some work to do. It starts an observer thread that is stopped by the
+// `node_embedding_runtime_complete_event_loop` function call. This function
+// helps to integrate the Node.js runtime event loop with the host UI loop.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_event_loop_run_request(
     node_embedding_runtime runtime,
@@ -374,7 +373,7 @@ inline constexpr node_embedding_runtime_flags operator|(
 #endif  // SRC_NODE_EMBEDDING_API_H_
 
 // TODO(vmoroz): Allow running Node.js uv_loop from UI loop. Follow the Electron
-//               implementation.
+//               implementation. - Complete implementation for non-Windows.
 // TODO(vmoroz): Can we use some kind of waiter concept instead of the
 //               observer thread?
 // TODO(vmoroz): Add startup callback with process and require parameters.
@@ -383,7 +382,6 @@ inline constexpr node_embedding_runtime_flags operator|(
 // TODO(vmoroz): Start workers from C++.
 // TODO(vmoroz): Worker to inherit parent Inspector.
 // TODO(vmoroz): Cancel pending tasks on runtime deletion.
-// TODO(vmoroz): The runtime delete must not pump uv_loop events.
 // TODO(vmoroz): Can we initialize platform again if it returns early?
 // TODO(vmoroz): Simplify API use for simple default cases.
 // TODO(vmoroz): Test passing the V8 thread pool size.
@@ -396,6 +394,5 @@ inline constexpr node_embedding_runtime_flags operator|(
 // TODO(vmoroz): libuv setup for the platform.
 // TODO(vmoroz): Augment the node_embedding_run_nodejs_main with callbacks to
 //               setup platform, setup runtime, and to run runtime.
-// TODO(vmoroz): Consider deleting the snapshot APIs.
 // TODO(vmoroz): We must not exit the process on node::Environment errors.
 // TODO(vmoroz): Be explicit about the recoverable errors.
