@@ -131,9 +131,3 @@ inline node_embedding_exit_code InvokeNodeApi(
   } while (0)
 
 #endif  // TEST_EMBEDDING_EMBEDTEST_NODE_API_H_
-
-// TODO(vmoroz): Enable the test_main_modules_node_api test.
-// TODO(vmoroz): Test failure in Preload callback.
-// TODO(vmoroz): Test failure in linked modules.
-// TODO(vmoroz): Add a test that handles JS errors.
-// TODO(vmoroz): Make sure that delete call matches the create call.

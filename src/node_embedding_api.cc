@@ -210,7 +210,6 @@ class EmbeddedPlatform {
   std::vector<std::string> args_;
   struct {
     bool flags : 1;
-    bool args : 1;
   } optional_bits_{};
 
   std::shared_ptr<node::InitializationResult> init_result_;
@@ -488,7 +487,6 @@ node_embedding_exit_code EmbeddedPlatform::SetArgs(int32_t argc, char* argv[]) {
   ARG_IS_NOT_NULL(argv);
   ASSERT(!is_initialized_);
   args_.assign(argv, argv + argc);
-  optional_bits_.args = true;
   return node_embedding_exit_code_ok;
 }
 
@@ -496,8 +494,6 @@ node_embedding_exit_code EmbeddedPlatform::Initialize(bool* early_return) {
   ASSERT(!is_initialized_);
 
   is_initialized_ = true;
-
-  // TODO(vmoroz): default initialize args_.
 
   if (!optional_bits_.flags) {
     flags_ = node_embedding_platform_no_flags;
