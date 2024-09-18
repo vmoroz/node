@@ -67,6 +67,7 @@ It is mostly to catch all the work in progress notes.
 - [ ] libuv setup for the platform.
 - [ ] We must not exit the process on node::Environment errors.
 - [ ] Be explicit about the recoverable errors.
+- [ ] Store IsolateScope in TLS.
 
 ### Test TODOs
 
