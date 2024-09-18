@@ -79,7 +79,7 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
   CHECK(node_embedding_on_error(HandleTestError, argv[0]));
 
   node_embedding_platform platform;
-  CHECK(node_embedding_create_platform(NODE_EMBEDDING_VERSION, &platform));
+  CHECK(node_embedding_create_platform(&platform));
   CHECK(node_embedding_platform_set_args(platform, argc, argv));
   bool early_return = false;
   CHECK(node_embedding_platform_initialize(platform, &early_return));
@@ -89,7 +89,6 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
 
   node_embedding_runtime runtime;
   CHECK(node_embedding_create_runtime(platform, &runtime));
-  CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
 
   CHECK(node_embedding_runtime_on_preload(
       runtime,
@@ -116,7 +115,25 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
                                           &replicatorModuleInitCallCount,
                                           NAPI_VERSION));
 
-  CHECK(node_embedding_runtime_initialize(runtime, main_script));
+  CHECK(node_embedding_runtime_on_start_execution(
+      runtime,
+      [](node_embedding_runtime runtime,
+         void* cb_data,
+         napi_env env,
+         napi_value process,
+         napi_value require,
+         napi_value run_cjs) -> napi_value {
+        napi_value script, undefined, result;
+        NODE_API_OK(napi_create_string_utf8(
+            env, main_script, NAPI_AUTO_LENGTH, &script));
+        NODE_API_OK(napi_get_undefined(env, &undefined));
+        NODE_API_OK(
+            napi_call_function(env, undefined, run_cjs, 1, &script, &result));
+        return result;
+      },
+      nullptr));
+
+  CHECK(node_embedding_runtime_initialize(runtime));
 
   CHECK(node_embedding_runtime_complete_event_loop(runtime));
   CHECK(node_embedding_delete_runtime(runtime));
@@ -148,8 +165,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
 
   node_embedding_runtime runtime;
   CHECK(node_embedding_create_runtime(platform, &runtime));
-  CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-  CHECK(node_embedding_runtime_initialize_from_script(runtime, nullptr));
+  CHECK(node_embedding_runtime_initialize_from_script(runtime));
   int32_t exit_code = 0;
   CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
     napi_value global, import_name, require_name, import, require, cjs, es6,

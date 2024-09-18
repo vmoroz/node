@@ -246,8 +246,8 @@ NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_set_api_version(
     int32_t embedding_api_version, int32_t node_api_version);
 
 // Creates a new Node.js platform instance.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_create_platform(
-    node_embedding_platform* result);
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_create_platform(node_embedding_platform* result);
 
 // Deletes the Node.js platform instance.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
@@ -371,11 +371,6 @@ node_embedding_runtime_complete_event_loop(node_embedding_runtime runtime);
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
 //------------------------------------------------------------------------------
-
-// Sets the Node-API version for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_runtime_set_node_api_version(node_embedding_runtime runtime,
-                                            int32_t node_api_version);
 
 // Invokes Node-API code.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL

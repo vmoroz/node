@@ -15,7 +15,7 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
   CHECK(node_embedding_on_error(HandleTestError, argv[0]));
 
   node_embedding_platform platform;
-  CHECK(node_embedding_create_platform(NODE_EMBEDDING_VERSION, &platform));
+  CHECK(node_embedding_create_platform(&platform));
   CHECK(node_embedding_platform_set_args(platform, argc, argv));
   CHECK(node_embedding_platform_set_flags(
       platform, node_embedding_platform_disable_node_options_env));
@@ -265,8 +265,25 @@ int32_t waitMeWithCheese(node_embedding_runtime runtime) {
 int32_t RunNodeInstance(node_embedding_platform platform) {
   node_embedding_runtime runtime;
   CHECK(node_embedding_create_runtime(platform, &runtime));
-  CHECK(node_embedding_runtime_set_node_api_version(runtime, NAPI_VERSION));
-  CHECK(node_embedding_runtime_initialize(runtime, main_script));
+  CHECK(node_embedding_runtime_on_start_execution(
+      runtime,
+      [](node_embedding_runtime runtime,
+         void* cb_data,
+         napi_env env,
+         napi_value process,
+         napi_value require,
+         napi_value run_cjs) -> napi_value {
+        napi_value script, undefined, result;
+        NODE_API_OK(napi_create_string_utf8(
+            env, main_script, NAPI_AUTO_LENGTH, &script));
+        NODE_API_OK(napi_get_undefined(env, &undefined));
+        NODE_API_OK(
+            napi_call_function(env, undefined, run_cjs, 1, &script, &result));
+        return result;
+      },
+      nullptr));
+
+  CHECK(node_embedding_runtime_initialize(runtime));
 
   CHECK_EXIT_CODE(callMe(runtime));
   CHECK_EXIT_CODE(waitMe(runtime));

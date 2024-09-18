@@ -60,6 +60,13 @@ inline node_embedding_exit_code InvokeNodeApi(
     }                                                                          \
   } while (0)
 
+#define NODE_API_OK(expr)                                                      \
+  do {                                                                         \
+    if ((expr) != napi_ok) {                                                   \
+      return nullptr;                                                          \
+    }                                                                          \
+  } while (0)
+
 #define CHECK(expr)                                                            \
   do {                                                                         \
     if ((expr) != node_embedding_exit_code_ok) {                               \

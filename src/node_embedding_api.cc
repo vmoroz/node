@@ -189,6 +189,15 @@ class EmbeddedPlatform {
 
   node::MultiIsolatePlatform* get_v8_platform() { return v8_platform_.get(); }
 
+  static int32_t embedding_api_version() {
+    return embedding_api_version_ == 0 ? NODE_EMBEDDING_VERSION
+                                       : embedding_api_version_;
+  }
+
+  static int32_t node_api_version() {
+    return node_api_version_ == 0 ? NAPI_VERSION : node_api_version_;
+  }
+
  private:
   static node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
       node_embedding_platform_flags flags);
@@ -262,8 +271,8 @@ class EmbeddedRuntime {
                                    int32_t exec_argc,
                                    const char* exec_argv[]);
 
-  node_embedding_exit_code OnPreload(
-      node_embedding_preload_callback preload_cb, void* preload_cb_data);
+  node_embedding_exit_code OnPreload(node_embedding_preload_callback preload_cb,
+                                     void* preload_cb_data);
 
   node_embedding_exit_code OnStartExecution(
       node_embedding_start_execution_callback start_execution_cb,
@@ -286,18 +295,17 @@ class EmbeddedRuntime {
 
   node_embedding_exit_code CompleteEventLoop();
 
-  node_embedding_exit_code SetNodeApiVersion(int32_t node_api_version);
-
   node_embedding_exit_code InvokeNodeApi(
       node_embedding_node_api_callback node_api_cb, void* node_api_cb_data);
 
   bool IsScopeOpened() const;
 
   static napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
-                                        const std::string& module_filename,
-                                        int32_t node_api_version);
+                                        const std::string& module_filename);
 
  private:
+  static void TriggerFatalException(napi_env env,
+                                    v8::Local<v8::Value> local_err);
   static node::EnvironmentFlags::Flags GetEnvironmentFlags(
       node_embedding_runtime_flags flags);
 
@@ -341,7 +349,6 @@ class EmbeddedRuntime {
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
   node::StartExecutionCallback start_execution_cb_{};
-  int32_t node_api_version_{0};
   napi_env node_api_env_{};
 
   struct {
@@ -436,7 +443,14 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
 /*static*/ node_embedding_exit_code EmbeddedPlatform::SetApiVersion(
     int32_t embedding_api_version, int32_t node_api_version) {
   embedding_api_version_ = embedding_api_version;
+  ASSERT(embedding_api_version_ > 0 &&
+         embedding_api_version_ <= NODE_EMBEDDING_VERSION);
+
   node_api_version_ = node_api_version;
+  ASSERT(node_api_version_ >= NODE_API_DEFAULT_MODULE_API_VERSION &&
+         (node_api_version_ <= NAPI_VERSION ||
+          node_api_version_ == NAPI_VERSION_EXPERIMENTAL));
+
   return node_embedding_exit_code_ok;
 }
 
@@ -699,18 +713,23 @@ node_embedding_exit_code EmbeddedRuntime::OnPreload(
     preload_cb_ = node::EmbedderPreloadCallback(
         [runtime = reinterpret_cast<node_embedding_runtime>(this),
          preload_cb,
-         preload_cb_data,
-         node_api_version = node_api_version_](node::Environment* node_env,
-                                               v8::Local<v8::Value> process,
-                                               v8::Local<v8::Value> require) {
-          napi_env env = GetOrCreateNodeApiEnv(
-              node_env, "<worker thread>", node_api_version);
-          env->CallIntoModule([&](napi_env env) {
-            napi_value process_value = v8impl::JsValueFromV8LocalValue(process);
-            napi_value require_value = v8impl::JsValueFromV8LocalValue(require);
-            preload_cb(
-                runtime, preload_cb_data, env, process_value, require_value);
-          });
+         preload_cb_data](node::Environment* node_env,
+                          v8::Local<v8::Value> process,
+                          v8::Local<v8::Value> require) {
+          napi_env env = GetOrCreateNodeApiEnv(node_env, "<worker thread>");
+          env->CallIntoModule(
+              [&](napi_env env) {
+                napi_value process_value =
+                    v8impl::JsValueFromV8LocalValue(process);
+                napi_value require_value =
+                    v8impl::JsValueFromV8LocalValue(require);
+                preload_cb(runtime,
+                           preload_cb_data,
+                           env,
+                           process_value,
+                           require_value);
+              },
+              TriggerFatalException);
         });
   } else {
     preload_cb_ = {};
@@ -726,28 +745,27 @@ node_embedding_exit_code EmbeddedRuntime::OnStartExecution(
 
   if (start_execution_cb != nullptr) {
     start_execution_cb_ = node::StartExecutionCallback(
-        [this,
-         start_execution_cb,
-         start_execution_cb_data,
-         node_api_version =
-             node_api_version_](const node::StartExecutionCallbackInfo& info)
+        [this, start_execution_cb, start_execution_cb_data](
+            const node::StartExecutionCallbackInfo& info)
             -> v8::MaybeLocal<v8::Value> {
           napi_value result{};
-          node_api_env_->CallIntoModule([&](napi_env env) {
-            napi_value process_value =
-                v8impl::JsValueFromV8LocalValue(info.process_object);
-            napi_value require_value =
-                v8impl::JsValueFromV8LocalValue(info.native_require);
-            napi_value run_cjs_value =
-                v8impl::JsValueFromV8LocalValue(info.run_cjs);
-            result = start_execution_cb(
-                reinterpret_cast<node_embedding_runtime>(this),
-                start_execution_cb_data,
-                env,
-                process_value,
-                require_value,
-                run_cjs_value);
-          });
+          node_api_env_->CallIntoModule(
+              [&](napi_env env) {
+                napi_value process_value =
+                    v8impl::JsValueFromV8LocalValue(info.process_object);
+                napi_value require_value =
+                    v8impl::JsValueFromV8LocalValue(info.native_require);
+                napi_value run_cjs_value =
+                    v8impl::JsValueFromV8LocalValue(info.run_cjs);
+                result = start_execution_cb(
+                    reinterpret_cast<node_embedding_runtime>(this),
+                    start_execution_cb_data,
+                    env,
+                    process_value,
+                    require_value,
+                    run_cjs_value);
+              },
+              TriggerFatalException);
 
           if (result == nullptr)
             return {};
@@ -816,8 +834,7 @@ node_embedding_exit_code EmbeddedRuntime::Initialize() {
   v8impl::IsolateLocker isolate_locker(env_setup_.get());
 
   std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
-  node_api_env_ =
-      GetOrCreateNodeApiEnv(env_setup_->env(), filename, node_api_version_);
+  node_api_env_ = GetOrCreateNodeApiEnv(env_setup_->env(), filename);
 
   node::Environment* node_env = env_setup_->env();
 
@@ -825,6 +842,7 @@ node_embedding_exit_code EmbeddedRuntime::Initialize() {
 
   v8::MaybeLocal<v8::Value> ret =
       node::LoadEnvironment(node_env, start_execution_cb_, preload_cb_);
+
   if (ret.IsEmpty()) return node_embedding_exit_code_generic_user_error;
 
   InitializeEventLoopPollingThread();
@@ -952,11 +970,16 @@ node_embedding_exit_code EmbeddedRuntime::CompleteEventLoop() {
   return node_embedding_exit_code_ok;
 }
 
-node_embedding_exit_code EmbeddedRuntime::SetNodeApiVersion(
-    int32_t node_api_version) {
-  ASSERT(!is_initialized_);
-  node_api_version_ = node_api_version;
-  return node_embedding_exit_code_ok;
+/*static*/ void EmbeddedRuntime::TriggerFatalException(
+    napi_env env, v8::Local<v8::Value> local_err) {
+  node_napi_env__* node_napi_env = static_cast<node_napi_env__*>(env);
+  if (node_napi_env->terminatedOrTerminating()) {
+    return;
+  }
+  // If there was an unhandled exception while calling Node-API,
+  // report it as a fatal exception. (There is no JavaScript on the
+  // call stack that can possibly handle it.)
+  node_napi_env->trigger_fatal_exception(local_err);
 }
 
 node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
@@ -975,16 +998,7 @@ node_embedding_exit_code EmbeddedRuntime::InvokeNodeApi(
                     node_api_cb_data,
                     env);
       },
-      [](napi_env env, v8::Local<v8::Value> local_err) {
-        node_napi_env__* node_napi_env = static_cast<node_napi_env__*>(env);
-        if (node_napi_env->terminatedOrTerminating()) {
-          return;
-        }
-        // If there was an unhandled exception while calling Node-API,
-        // report it as a fatal exception. (There is no JavaScript on the
-        // call stack that can possibly handle it.)
-        node_napi_env->trigger_fatal_exception(local_err);
-      });
+      TriggerFatalException);
 
   if (isolate_locker_->DecrementLockCount()) isolate_locker_.reset();
   return node_embedding_exit_code_ok;
@@ -995,9 +1009,7 @@ bool EmbeddedRuntime::IsScopeOpened() const {
 }
 
 napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
-    node::Environment* node_env,
-    const std::string& module_filename,
-    int32_t node_api_version) {
+    node::Environment* node_env, const std::string& module_filename) {
   SharedData& shared_data = SharedData::Get();
 
   {
@@ -1007,7 +1019,9 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
   }
 
   // Avoid creating the environment under the lock.
-  napi_env env = NewEnv(node_env->context(), module_filename, node_api_version);
+  napi_env env = NewEnv(node_env->context(),
+                        module_filename,
+                        EmbeddedPlatform::node_api_version());
 
   std::scoped_lock<std::mutex> lock(shared_data.mutex);
   auto insert_result =
@@ -1124,14 +1138,16 @@ node_embedding_exit_code NAPI_CDECL node_embedding_run(
     void* configure_runtime_cb_data,
     node_embedding_run_callback run_cb,
     void* run_cb_data) {
-  return v8impl::EmbeddedRuntime::Run(argc,
-                                      argv,
-                                      configure_platform_cb,
-                                      configure_platform_cb_data,
-                                      configure_runtime_cb,
-                                      configure_runtime_cb_data,
-                                      run_cb,
-                                      run_cb_data);
+  return static_cast<node_embedding_exit_code>(node::Start(argc, argv));
+
+  // return v8impl::EmbeddedRuntime::Run(argc,
+  //                                     argv,
+  //                                     configure_platform_cb,
+  //                                     configure_platform_cb_data,
+  //                                     configure_runtime_cb,
+  //                                     configure_runtime_cb_data,
+  //                                     run_cb,
+  //                                     run_cb_data);
 }
 
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_set_api_version(
@@ -1215,16 +1231,15 @@ node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_preload(node_embedding_runtime runtime,
                                   node_embedding_preload_callback preload_cb,
                                   void* preload_cb_data) {
-  return EMBEDDED_RUNTIME(runtime)->OnPreload(preload_cb,
-                                                      preload_cb_data);
+  return EMBEDDED_RUNTIME(runtime)->OnPreload(preload_cb, preload_cb_data);
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_runtime_on_start_execution(
     node_embedding_runtime runtime,
     node_embedding_start_execution_callback start_execution_cb,
     void* start_execution_cb_data) {
-  return EMBEDDED_RUNTIME(runtime)->OnStartExecution(
-      start_execution_cb, start_execution_cb_data);
+  return EMBEDDED_RUNTIME(runtime)->OnStartExecution(start_execution_cb,
+                                                     start_execution_cb_data);
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_runtime_add_module(
@@ -1263,11 +1278,6 @@ node_embedding_exit_code NAPI_CDECL node_embedding_runtime_run_event_loop(
 node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_complete_event_loop(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->CompleteEventLoop();
-}
-
-node_embedding_exit_code NAPI_CDECL node_embedding_runtime_set_node_api_version(
-    node_embedding_runtime runtime, int32_t node_api_version) {
-  return EMBEDDED_RUNTIME(runtime)->SetNodeApiVersion(node_api_version);
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_runtime_invoke_node_api(
