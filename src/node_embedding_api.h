@@ -30,10 +30,36 @@ typedef struct node_embedding_platform__* node_embedding_platform;
 typedef struct node_embedding_runtime__* node_embedding_runtime;
 
 typedef enum {
-  node_embedding_status_ok = 0,
-  node_embedding_status_generic_error = 1,
-  node_embedding_status_early_return = 2,
-} node_embedding_status;
+  node_embedding_exit_code_ok = 0,
+  // 1 was intended for uncaught JS exceptions from the user land but we
+  // actually use this for all kinds of generic errors.
+  node_embedding_exit_code_generic_user_error = 1,
+  // 2 is unused
+  // 3 is actually unused because we pre-compile all builtins during
+  // snapshot building, when we exit with 1 if there's any error.
+  node_embedding_exit_code_internal_js_parse_error = 3,
+  // 4 is actually unused. We exit with 1 in this case.
+  node_embedding_exit_code_internal_js_evaluation_failure = 4,
+  // 5 is actually unused. We exit with 133 (128+SIGTRAP) or 134
+  // (128+SIGABRT) in this case.
+  node_embedding_exit_code_v8_fatal_error = 5,
+  node_embedding_exit_code_invalid_fatal_exception_monkey_patching = 6,
+  node_embedding_exit_code_exception_in_fatal_exception_handler = 7,
+  // 8 is unused
+  node_embedding_exit_code_invalid_command_line_argument = 9,
+  node_embedding_exit_code_bootstrap_failure = 10,
+  // 11 is unused
+  // This was intended for invalid inspector arguments but is actually now
+  // just a duplicate of node_embedding_exit_code_invalid_command_line_argument
+  node_embedding_exit_code_invalid_command_line_argument2 = 12,
+  node_embedding_exit_code_unsettled_top_level_await = 13,
+  node_embedding_exit_code_startup_snapshot_failure = 14,
+  // If the process exits from unhandled signals e.g. SIGABRT, SIGTRAP,
+  // typically the exit codes are 128 + signal number. We also exit with
+  // certain error codes directly for legacy reasons. Here we define those
+  // that are used to normalize the exit code on Windows.
+  node_embedding_exit_code_abort = 134,
+} node_embedding_exit_code;
 
 typedef enum {
   node_embedding_platform_no_flags = 0,
@@ -134,16 +160,18 @@ typedef enum {
 // Callbacks
 //==============================================================================
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_error_handler)(
+typedef node_embedding_exit_code(NAPI_CDECL* node_embedding_error_handler)(
     void* handler_data,
     const char* messages[],
     size_t messages_size,
-    int32_t exit_code);
+    node_embedding_exit_code exit_code);
 
-typedef void(NAPI_CDECL* node_embedding_configure_platform_callback)(
+typedef node_embedding_exit_code(
+    NAPI_CDECL* node_embedding_configure_platform_callback)(
     void* cb_data, node_embedding_platform platform);
 
-typedef void(NAPI_CDECL* node_embedding_configure_runtime_callback)(
+typedef node_embedding_exit_code(
+    NAPI_CDECL* node_embedding_configure_runtime_callback)(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime runtime);
@@ -189,7 +217,7 @@ typedef void(NAPI_CDECL* node_embedding_node_api_callback)(
 //------------------------------------------------------------------------------
 
 // Sets the global error handing for the Node.js embedding API.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_on_error(
     node_embedding_error_handler error_handler, void* error_handler_data);
 
 //------------------------------------------------------------------------------
@@ -197,11 +225,11 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
 //------------------------------------------------------------------------------
 
 // Sets the API version for the Node.js embedding API and the Node-API.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_set_api_version(
     int32_t embedding_api_version, int32_t node_api_version);
 
 // Runs Node.js main function as if it is invoked from Node.js CLI.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_run_main(
     int32_t argc,
     char* argv[],
     node_embedding_configure_platform_callback configure_platform_cb,
@@ -212,7 +240,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     void* node_api_cb_data);
 
 // Creates a new Node.js platform instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     char* argv[],
     node_embedding_configure_platform_callback configure_platform_cb,
@@ -220,19 +248,22 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
     node_embedding_platform* result);
 
 // Deletes the Node.js platform instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 
 // Sets the flags for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_platform_set_flags(
-    node_embedding_platform platform, node_embedding_platform_flags flags);
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_platform_set_flags(node_embedding_platform platform,
+                                  node_embedding_platform_flags flags);
 
 // Sets the CLI arguments for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_platform_set_args(
-    node_embedding_platform platform, int32_t argc, char* argv[]);
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_platform_set_args(node_embedding_platform platform,
+                                 int32_t argc,
+                                 char* argv[]);
 
 // Gets the parsed list of non-Node.js and Node.js arguments.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_get_parsed_args(
     node_embedding_platform platform,
     node_embedding_get_args_callback get_args_cb,
@@ -244,7 +275,7 @@ node_embedding_platform_get_parsed_args(
 // Node.js runtime functions.
 //------------------------------------------------------------------------------
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_run_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime_cb,
     void* configure_runtime_cb_data,
@@ -252,23 +283,24 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
     void* node_api_cb_data);
 
 // Creates a new Node.js runtime instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_create_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime_cb,
     void* configure_runtime_cb_data,
     node_embedding_runtime* result);
 
 // Deletes the Node.js runtime instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_delete_runtime(node_embedding_runtime runtime);
 
 // Sets the flags for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_set_flags(
-    node_embedding_runtime runtime, node_embedding_runtime_flags flags);
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_runtime_set_flags(node_embedding_runtime runtime,
+                                 node_embedding_runtime_flags flags);
 
 // Sets the non-Node.js and Node.js CLI arguments for the Node.js runtime
 // initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_set_args(node_embedding_runtime runtime,
                                 int32_t argc,
                                 const char* argv[],
@@ -276,13 +308,13 @@ node_embedding_runtime_set_args(node_embedding_runtime runtime,
                                 const char* exec_argv[]);
 
 // Sets the preload callback for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_preload(node_embedding_runtime runtime,
                                   node_embedding_preload_callback preload_cb,
                                   void* preload_cb_data);
 
 // Sets the start execution callback for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_runtime_on_start_execution(
     node_embedding_runtime runtime,
     node_embedding_start_execution_callback start_execution_cb,
@@ -291,7 +323,8 @@ node_embedding_runtime_on_start_execution(
 // Adds a new module to the Node.js runtime.
 // It is accessed as process._linkedBinding(module_name) in the main JS and in
 // the related worker threads.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_runtime_add_module(
     node_embedding_runtime runtime,
     const char* module_name,
     node_embedding_initialize_module_callback init_module_cb,
@@ -306,21 +339,21 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
 // loop has some work to do. It starts an observer thread that is stopped by the
 // `node_embedding_runtime_complete_event_loop` function call. This function
 // helps to integrate the Node.js runtime event loop with the host UI loop.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_on_wake_up_event_loop(
     node_embedding_runtime runtime,
     node_embedding_event_loop_handler event_loop_handler,
     void* event_loop_handler_data);
 
 // Runs the Node.js runtime event loop.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_run_event_loop(node_embedding_runtime runtime,
                               node_embedding_event_loop_run_mode run_mode,
                               bool* has_more_work);
 
 // Runs the Node.js runtime event loop in node_embedding_event_loop_run_default
 // mode and finishes it with emitting the beforeExit and exit process events.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_complete_event_loop(node_embedding_runtime runtime);
 
 //------------------------------------------------------------------------------
@@ -328,15 +361,16 @@ node_embedding_complete_event_loop(node_embedding_runtime runtime);
 //------------------------------------------------------------------------------
 
 // Invokes Node-API code.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_run_node_api(node_embedding_runtime runtime,
                             node_embedding_node_api_callback node_api_cb,
                             void* node_api_cb_data);
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(
-    node_embedding_runtime runtime, napi_env* env);
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
+node_embedding_open_node_api_scope(node_embedding_runtime runtime,
+                                   napi_env* env);
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL
+NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_close_node_api_scope(node_embedding_runtime runtime);
 
 EXTERN_C_END

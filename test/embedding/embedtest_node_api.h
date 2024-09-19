@@ -29,7 +29,7 @@ HandleTestError(void* handler_data,
   } else {
     for (size_t i = 0; i < messages_size; ++i) printf("%s\n", messages[i]);
   }
-  return exit_code;
+  return node_embedding_exit_code_ok;
 }
 
 #endif
@@ -40,15 +40,119 @@ napi_status AddUtf8String(std::string& str, napi_env env, napi_value value);
 
 void GetAndThrowLastErrorMessage(napi_env env);
 
-inline node_embedding_exit_code InvokeNodeApi(
-    node_embedding_runtime runtime, const std::function<void(napi_env)>& func) {
-  return node_embedding_runtime_invoke_node_api(
+void ThrowLastErrorMessage(napi_env env, const char* message);
+
+std::string FormatString(const char* format, ...);
+
+inline node_embedding_exit_code RunMain(
+    int32_t argc,
+    char* argv[],
+    const std::function<node_embedding_exit_code(node_embedding_platform)>&
+        configurePlatform,
+    const std::function<node_embedding_exit_code(
+        node_embedding_platform, node_embedding_runtime)>& configureRuntime,
+    const std::function<void(node_embedding_runtime, napi_env)>& runNodeApi) {
+  return node_embedding_run_main(
+      argc,
+      argv,
+      configurePlatform ?
+        [](void* cb_data, node_embedding_platform platform) {
+          auto configurePlatform = static_cast<
+              std::function<node_embedding_exit_code(node_embedding_platform)>*>(
+              cb_data);
+          return (*configurePlatform)(platform);
+        } : nullptr,
+      const_cast<
+          std::function<node_embedding_exit_code(node_embedding_platform)>*>(
+          &configurePlatform),
+      configureRuntime ?
+        [](void* cb_data,
+           node_embedding_platform platform,
+           node_embedding_runtime runtime) {
+          auto configureRuntime =
+              static_cast<std::function<node_embedding_exit_code(
+                  node_embedding_platform, node_embedding_runtime)>*>(cb_data);
+          return (*configureRuntime)(platform, runtime);
+        } : nullptr,
+      const_cast<std::function<node_embedding_exit_code(
+          node_embedding_platform, node_embedding_runtime)>*>(
+          &configureRuntime),
+      runNodeApi ?
+        [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
+          auto runNodeApi =
+              static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+                  cb_data);
+          (*runNodeApi)(runtime, env);
+        } : nullptr,
+      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+          &runNodeApi));
+}
+
+inline node_embedding_exit_code RunRuntime(
+    node_embedding_platform platform,
+    const std::function<node_embedding_exit_code(
+        node_embedding_platform, node_embedding_runtime)>& configureRuntime,
+    const std::function<void(node_embedding_runtime, napi_env)>& runNodeApi) {
+  return node_embedding_run_runtime(
+      platform,
+      configureRuntime ?
+        [](void* cb_data,
+           node_embedding_platform platform,
+           node_embedding_runtime runtime) {
+          auto configureRuntime =
+              static_cast<std::function<node_embedding_exit_code(
+                  node_embedding_platform, node_embedding_runtime)>*>(cb_data);
+          return (*configureRuntime)(platform, runtime);
+        } : nullptr,
+      const_cast<std::function<node_embedding_exit_code(
+          node_embedding_platform, node_embedding_runtime)>*>(
+          &configureRuntime),
+      runNodeApi ?
+        [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
+          auto runNodeApi =
+              static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+                  cb_data);
+          (*runNodeApi)(runtime, env);
+        } : nullptr,
+      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+          &runNodeApi));
+}
+
+inline node_embedding_exit_code CreateRuntime(
+    node_embedding_platform platform,
+    const std::function<node_embedding_exit_code(
+        node_embedding_platform, node_embedding_runtime)>& configureRuntime,
+    node_embedding_runtime* runtime) {
+  return node_embedding_create_runtime(
+      platform,
+      configureRuntime ?
+        [](void* cb_data,
+           node_embedding_platform platform,
+           node_embedding_runtime runtime) {
+          auto configureRuntime =
+              static_cast<std::function<node_embedding_exit_code(
+                  node_embedding_platform, node_embedding_runtime)>*>(cb_data);
+          return (*configureRuntime)(platform, runtime);
+        } : nullptr,
+      const_cast<std::function<node_embedding_exit_code(
+          node_embedding_platform, node_embedding_runtime)>*>(
+          &configureRuntime),
+      runtime);
+}
+
+inline node_embedding_exit_code RunNodeApi(
+    node_embedding_runtime runtime,
+    const std::function<void(node_embedding_runtime, napi_env)>& func) {
+  return node_embedding_run_node_api(
       runtime,
-      [](node_embedding_runtime runtime, void* cb_data, napi_env env) {
-        auto func = static_cast<std::function<void(napi_env)>*>(cb_data);
-        (*func)(env);
+      [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
+        auto func =
+            static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+                cb_data);
+        (*func)(runtime, env);
       },
-      const_cast<std::function<void(napi_env)>*>(&func));
+      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
+          &func));
 }
 
 #define NODE_API_CALL(expr)                                                    \
@@ -60,20 +164,26 @@ inline node_embedding_exit_code InvokeNodeApi(
     }                                                                          \
   } while (0)
 
-#define NODE_API_OK(expr)                                                      \
+#define CHECK_NAPI(expr)                                                       \
   do {                                                                         \
     if ((expr) != napi_ok) {                                                   \
-      return nullptr;                                                          \
+      goto fail;                                                               \
     }                                                                          \
   } while (0)
 
-#define CHECK(expr)                                                            \
+#define CHECK_STATUS_NAPI(expr)                                                \
   do {                                                                         \
     if ((expr) != node_embedding_exit_code_ok) {                               \
-      fprintf(stderr, "Failed: %s\n", #expr);                                  \
-      fprintf(stderr, "File: %s\n", __FILE__);                                 \
-      fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      return 1;                                                                \
+      ThrowLastErrorMessage(env, "Embedding API failed");                      \
+      goto fail;                                                               \
+    }                                                                          \
+  } while (0)
+
+#define CHECK_STATUS(expr)                                                     \
+  do {                                                                         \
+    exit_code = (expr);                                                        \
+    if (exit_code != node_embedding_exit_code_ok) {                            \
+      goto fail;                                                               \
     }                                                                          \
   } while (0)
 
@@ -83,7 +193,7 @@ inline node_embedding_exit_code InvokeNodeApi(
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit_code = 1;                                                           \
+      exit_code = node_embedding_exit_code_generic_user_error;                 \
       return;                                                                  \
     }                                                                          \
   } while (0)
@@ -104,7 +214,7 @@ inline node_embedding_exit_code InvokeNodeApi(
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit_code = 1;                                                           \
+      exit_code = node_embedding_exit_code_generic_user_error;                 \
       return;                                                                  \
     }                                                                          \
   } while (0)
@@ -115,11 +225,10 @@ inline node_embedding_exit_code InvokeNodeApi(
     return 1;                                                                  \
   } while (0)
 
-#define FAIL_RETURN_VOID(...)                                                  \
+#define FAIL_NAPI(...)                                                         \
   do {                                                                         \
-    fprintf(stderr, __VA_ARGS__);                                              \
-    exit_code = 1;                                                             \
-    return;                                                                    \
+    ThrowLastErrorMessage(env, FormatString(__VA_ARGS__).c_str());             \
+    goto fail;                                                                 \
   } while (0)
 
 #define CHECK_EXIT_CODE(code)                                                  \
