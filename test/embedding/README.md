@@ -14,12 +14,11 @@ It is mostly to catch all the work in progress notes.
 - `node_embedding_run_main`
 - `node_embedding_create_platform`
 - `node_embedding_delete_platform`
-- `node_embedding_platform_get_parsed_args`
 
 - `node_embedding_platform_set_flags`
-- [ ] consider to remove `node_embedding_platform_set_flags`
 - `node_embedding_platform_set_args`
-- [ ] consider to remove `node_embedding_platform_set_args`
+
+- `node_embedding_platform_get_parsed_args`
 
 ### Runtime API
 - `node_embedding_run_runtime`
@@ -30,22 +29,21 @@ It is mostly to catch all the work in progress notes.
 - `node_embedding_runtime_set_args`
 - `node_embedding_runtime_on_preload`
 - `node_embedding_runtime_on_start_execution`
-- `node_embedding_runtime_add_linked_module`
+- `node_embedding_runtime_add_module`
 - [ ] add API to handle unhandled exceptions
 
 ### Runtime API to run event loops
-- `node_embedding_runtime_on_event_loop_post`
-- `node_embedding_runtime_run_event_loop`
-- `node_embedding_runtime_complete_event_loop`
+- `node_embedding_on_wake_up_event_loop`
+- `node_embedding_run_event_loop`
+- `node_embedding_complete_event_loop`
 - [ ] add API for emitting `beforeExit` event
 - [ ] add API for emitting `exit` event
 - [ ] add API to stop the event loop
 
 ### Runtime API to interop with Node-API
-- `node_embedding_runtime_invoke_node_api`
-- [ ] consider renaming to `node_embedding_runtime_run_node_api`
-- [ ] add `node_embedding_runtime_open_node_api_scope`
-- [ ] add `node_embedding_runtime_close_node_api_scope`
+- `node_embedding_run_node_api`
+- `node_embedding_open_node_api_scope`
+- `node_embedding_close_node_api_scope`
 
 ### API TODOs
 
