@@ -209,22 +209,6 @@ inline node_embedding_exit_code RunNodeApi(
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
 
-#define CHECK_STATUS_NAPI(expr)                                                \
-  do {                                                                         \
-    if ((expr) != node_embedding_exit_code_ok) {                               \
-      ThrowLastErrorMessage(env, "Embedding API failed");                      \
-      goto fail;                                                               \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_STATUS(expr)                                                     \
-  do {                                                                         \
-    exit_code = (expr);                                                        \
-    if (exit_code != node_embedding_exit_code_ok) {                            \
-      goto fail;                                                               \
-    }                                                                          \
-  } while (0)
-
 #define CHECK_RETURN_VOID(expr)                                                \
   do {                                                                         \
     if ((expr) != node_embedding_exit_code_ok) {                               \
@@ -257,22 +241,10 @@ inline node_embedding_exit_code RunNodeApi(
     }                                                                          \
   } while (0)
 
-#define FAIL(...)                                                              \
+#define CHECK_EXIT_CODE(expr)                                                  \
   do {                                                                         \
-    fprintf(stderr, __VA_ARGS__);                                              \
-    return 1;                                                                  \
-  } while (0)
-
-#define FAIL_NAPI(...)                                                         \
-  do {                                                                         \
-    ThrowLastErrorMessage(env, FormatString(__VA_ARGS__).c_str());             \
-    goto fail;                                                                 \
-  } while (0)
-
-#define CHECK_EXIT_CODE(code)                                                  \
-  do {                                                                         \
-    int exit_code = (code);                                                    \
-    if (exit_code != 0) {                                                      \
+    node_embedding_exit_code exit_code = (expr);                               \
+    if (exit_code != node_embedding_exit_code_ok) {                            \
       return exit_code;                                                        \
     }                                                                          \
   } while (0)

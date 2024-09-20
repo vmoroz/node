@@ -71,8 +71,6 @@ InitReplicatorModule(void* cb_data,
 
 extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
                                                      char* argv[]) {
-  node_embedding_exit_code exit_code{};
-
   CHECK_TRUE(argc == 4);
   int32_t expectedGreeterModuleInitCallCount = atoi(argv[2]);
   int32_t expectedReplicatorModuleInitCallCount = atoi(argv[2]);
@@ -82,12 +80,12 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
 
   node_embedding_on_error(HandleTestError, argv[0]);
 
-  CHECK_STATUS(RunMain(
+  CHECK_EXIT_CODE(RunMain(
       argc,
       argv,
       nullptr,
       [&](node_embedding_platform platform, node_embedding_runtime runtime) {
-        CHECK_STATUS(node_embedding_runtime_on_preload(
+        CHECK_EXIT_CODE(node_embedding_runtime_on_preload(
             runtime,
             [](void* /*cb_data*/,
                node_embedding_runtime runtime,
@@ -101,20 +99,20 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
             },
             nullptr));
 
-        CHECK_STATUS(
+        CHECK_EXIT_CODE(
             node_embedding_runtime_add_module(runtime,
                                               "greeter_module",
                                               &InitGreeterModule,
                                               &greeterModuleInitCallCount,
                                               NAPI_VERSION));
-        CHECK_STATUS(
+        CHECK_EXIT_CODE(
             node_embedding_runtime_add_module(runtime,
                                               "replicator_module",
                                               &InitReplicatorModule,
                                               &replicatorModuleInitCallCount,
                                               NAPI_VERSION));
 
-        CHECK_STATUS(node_embedding_runtime_on_start_execution(
+        CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
             runtime,
             [](void* cb_data,
                node_embedding_runtime runtime,
@@ -131,8 +129,7 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
               return result;
             },
             nullptr));
-      fail:
-        return exit_code;
+        return node_embedding_exit_code_ok;
       },
       nullptr));
 
@@ -140,8 +137,7 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
   CHECK_TRUE(replicatorModuleInitCallCount ==
              expectedReplicatorModuleInitCallCount);
 
-fail:
-  return exit_code;
+  return node_embedding_exit_code_ok;
 }
 
 extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {

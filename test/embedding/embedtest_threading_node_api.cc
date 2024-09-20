@@ -10,34 +10,33 @@
 // own thread.
 extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
     int32_t argc, char* argv[]) {
-  node_embedding_exit_code exit_code{};
   node_embedding_platform platform;
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
   std::atomic<int32_t> global_count{0};
-  std::atomic<int32_t> global_exit_code{0};
+  std::atomic<node_embedding_exit_code> global_exit_code{};
 
-  CHECK_STATUS(
+  CHECK_EXIT_CODE(
       node_embedding_create_platform(argc, argv, nullptr, nullptr, &platform));
   if (!platform) {
-    return exit_code;  // early return
+    return node_embedding_exit_code_ok;  // early return
   }
 
   for (size_t i = 0; i < thread_count; i++) {
     threads.emplace_back([platform, &global_count, &global_exit_code] {
       node_embedding_exit_code exit_code = [&]() {
-        CHECK_STATUS(RunRuntime(
+        CHECK_EXIT_CODE(RunRuntime(
             platform,
             [&](node_embedding_platform platform,
                 node_embedding_runtime runtime) {
               // Inspector can be associated with only one runtime in the
               // process.
-              CHECK_STATUS(node_embedding_runtime_set_flags(
+              CHECK_EXIT_CODE(node_embedding_runtime_set_flags(
                   runtime,
                   node_embedding_runtime_default_flags |
                       node_embedding_runtime_no_create_inspector));
-              CHECK_STATUS(node_embedding_runtime_on_start_execution(
+              CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                   runtime,
                   [](void* cb_data,
                      node_embedding_runtime runtime,
@@ -54,8 +53,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                     return result;
                   },
                   nullptr));
-            fail:
-              return exit_code;
+              return node_embedding_exit_code_ok;
             },
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value global, my_count;
@@ -67,10 +65,9 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                   napi_get_value_int32(env, my_count, &count));
               global_count.fetch_add(count);
             }));
-      fail:
-        return exit_code;
+        return node_embedding_exit_code_ok;
       }();
-      if (exit_code != 0) {
+      if (exit_code != node_embedding_exit_code_ok) {
         global_exit_code.store(exit_code);
       }
     });
@@ -82,11 +79,11 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
 
   CHECK_EXIT_CODE(global_exit_code.load());
 
-  CHECK_STATUS(node_embedding_delete_platform(platform));
+  CHECK_EXIT_CODE(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", global_count.load());
-fail:
-  return exit_code;
+
+  return node_embedding_exit_code_ok;
 }
 
 // Tests that multiple runtimes can run in the same thread.
@@ -94,7 +91,6 @@ fail:
 // There are 12 runtimes that share the same main thread.
 extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     int32_t argc, char* argv[]) {
-  node_embedding_exit_code exit_code{};
   node_embedding_platform platform;
   const size_t runtime_count = 12;
   std::vector<node_embedding_runtime> runtimes;
@@ -102,23 +98,23 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
   bool more_work = false;
   int32_t global_count = 0;
 
-  CHECK_STATUS(
+  CHECK_EXIT_CODE(
       node_embedding_create_platform(argc, argv, nullptr, nullptr, &platform));
   if (!platform) {
-    return exit_code;  // early return
+    return node_embedding_exit_code_ok;  // early return
   }
 
   for (size_t i = 0; i < runtime_count; i++) {
     node_embedding_runtime runtime;
-    CHECK_STATUS(CreateRuntime(
+    CHECK_EXIT_CODE(CreateRuntime(
         platform,
         [&](node_embedding_platform platform, node_embedding_runtime runtime) {
           // Inspector can be associated with only one runtime in the process.
-          CHECK_STATUS(node_embedding_runtime_set_flags(
+          CHECK_EXIT_CODE(node_embedding_runtime_set_flags(
               runtime,
               node_embedding_runtime_default_flags |
                   node_embedding_runtime_no_create_inspector));
-          CHECK_STATUS(node_embedding_runtime_on_start_execution(
+          CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
               runtime,
               [](void* cb_data,
                  node_embedding_runtime runtime,
@@ -135,14 +131,13 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
                 return result;
               },
               nullptr));
-        fail:
-          return exit_code;
+
+          return node_embedding_exit_code_ok;
         },
         &runtime));
     runtimes.push_back(runtime);
 
-    node_embedding_exit_code exit_code{};
-    CHECK_STATUS(
+    CHECK_EXIT_CODE(
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value undefined, global, func;
           NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -156,22 +151,20 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
           NODE_API_CALL_RETURN_VOID(
               napi_call_function(env, undefined, func, 0, nullptr, nullptr));
         }));
-    CHECK_STATUS(exit_code);
   }
 
   do {
     more_work = false;
     for (node_embedding_runtime runtime : runtimes) {
       bool has_more_work = false;
-      CHECK_STATUS(node_embedding_run_event_loop(
+      CHECK_EXIT_CODE(node_embedding_run_event_loop(
           runtime, node_embedding_event_loop_run_nowait, &has_more_work));
       more_work |= has_more_work;
     }
   } while (more_work);
 
   for (node_embedding_runtime runtime : runtimes) {
-    node_embedding_exit_code exit_code{};
-    CHECK_STATUS(
+    CHECK_EXIT_CODE(
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value global, my_count;
           NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -187,23 +180,21 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
 
           global_count += count;
         }));
-    CHECK_STATUS(exit_code);
-    CHECK_STATUS(node_embedding_complete_event_loop(runtime));
-    CHECK_STATUS(node_embedding_delete_runtime(runtime));
+    CHECK_EXIT_CODE(node_embedding_complete_event_loop(runtime));
+    CHECK_EXIT_CODE(node_embedding_delete_runtime(runtime));
   }
 
-  CHECK_STATUS(node_embedding_delete_platform(platform));
+  CHECK_EXIT_CODE(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", global_count);
-fail:
-  return exit_code;
+
+  return node_embedding_exit_code_ok;
 }
 
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
 extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
     int32_t argc, char* argv[]) {
-  node_embedding_exit_code exit_code{};
   node_embedding_platform platform;
 
   // Use mutex to synchronize access to the runtime.
@@ -215,17 +206,17 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
 
-  CHECK_STATUS(
+  CHECK_EXIT_CODE(
       node_embedding_create_platform(argc, argv, nullptr, nullptr, &platform));
   if (!platform) {
-    return exit_code;  // early return
+    return node_embedding_exit_code_ok;  // early return
   }
 
   node_embedding_runtime runtime;
-  CHECK_STATUS(CreateRuntime(
+  CHECK_EXIT_CODE(CreateRuntime(
       platform,
       [&](node_embedding_platform platform, node_embedding_runtime runtime) {
-        CHECK_STATUS(node_embedding_runtime_on_start_execution(
+        CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
             runtime,
             [](void* cb_data,
                node_embedding_runtime runtime,
@@ -242,8 +233,8 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
               return result;
             },
             nullptr));
-      fail:
-        return exit_code;
+
+        return node_embedding_exit_code_ok;
       },
       &runtime));
 
@@ -286,20 +277,19 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
 
   CHECK_EXIT_CODE(result_exit_code.load());
 
-  CHECK_STATUS(node_embedding_complete_event_loop(runtime));
-  CHECK_STATUS(node_embedding_delete_runtime(runtime));
-  CHECK_STATUS(node_embedding_delete_platform(platform));
+  CHECK_EXIT_CODE(node_embedding_complete_event_loop(runtime));
+  CHECK_EXIT_CODE(node_embedding_delete_runtime(runtime));
+  CHECK_EXIT_CODE(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", result_count.load());
-fail:
-  return exit_code;
+
+  return node_embedding_exit_code_ok;
 }
 
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
 extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
     int32_t argc, char* argv[]) {
-  node_embedding_exit_code exit_code{};
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable
   // for the real apps.
@@ -343,19 +333,19 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
   } ui_queue;
 
   node_embedding_platform platform;
-  CHECK_STATUS(
+  CHECK_EXIT_CODE(
       node_embedding_create_platform(argc, argv, nullptr, nullptr, &platform));
   if (!platform) {
-    return exit_code;  // early return
+    return node_embedding_exit_code_ok;  // early return
   }
 
   node_embedding_runtime runtime;
-  CHECK_STATUS(CreateRuntime(
+  CHECK_EXIT_CODE(CreateRuntime(
       platform,
       [&](node_embedding_platform platform, node_embedding_runtime runtime) {
         // The callback will be invoked from the runtime's event loop observer
         // thread. It must schedule the work to the UI thread's event loop.
-        CHECK_STATUS(node_embedding_on_wake_up_event_loop(
+        CHECK_EXIT_CODE(node_embedding_on_wake_up_event_loop(
             runtime,
             [](void* data, node_embedding_runtime runtime) {
               auto ui_queue = static_cast<UIQueue*>(data);
@@ -389,7 +379,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             },
             &ui_queue));
 
-        CHECK_STATUS(node_embedding_runtime_on_start_execution(
+        CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
             runtime,
             [](void* cb_data,
                node_embedding_runtime runtime,
@@ -406,15 +396,15 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
               return result;
             },
             nullptr));
-      fail:
-        return exit_code;
+
+        return node_embedding_exit_code_ok;
       },
       &runtime));
 
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
   ui_queue.PostTask([runtime]() {
-    int32_t exit_code =
+    node_embedding_exit_code exit_code =
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value undefined, global, func;
           NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -436,8 +426,8 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
 
   ui_queue.Run();
 
-  CHECK_STATUS(node_embedding_delete_runtime(runtime));
-  CHECK_STATUS(node_embedding_delete_platform(platform));
-fail:
-  return exit_code;
+  CHECK_EXIT_CODE(node_embedding_delete_runtime(runtime));
+  CHECK_EXIT_CODE(node_embedding_delete_platform(platform));
+
+  return node_embedding_exit_code_ok;
 }

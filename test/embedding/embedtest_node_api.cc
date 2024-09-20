@@ -15,20 +15,18 @@ void WaitMe(node_embedding_runtime runtime, napi_env env);
 void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
 
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
-  node_embedding_exit_code exit_code{};
   node_embedding_on_error(HandleTestError, argv[0]);
 
-  CHECK_STATUS(RunMain(
+  CHECK_EXIT_CODE(RunMain(
       argc,
       argv,
       [&](node_embedding_platform platform) {
-        CHECK_STATUS(node_embedding_platform_set_flags(
+        CHECK_EXIT_CODE(node_embedding_platform_set_flags(
             platform, node_embedding_platform_disable_node_options_env));
-      fail:
-        return exit_code;
+        return node_embedding_exit_code_ok;
       },
       [&](node_embedding_platform platform, node_embedding_runtime runtime) {
-        CHECK_STATUS(node_embedding_runtime_on_start_execution(
+        CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
             runtime,
             [](void* cb_data,
                node_embedding_runtime runtime,
@@ -46,8 +44,7 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
               return result;
             },
             nullptr));
-      fail:
-        return exit_code;
+        return node_embedding_exit_code_ok;
       },
       [&](node_embedding_runtime runtime, napi_env env) {
         CallMe(runtime, env);
@@ -55,8 +52,7 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
         WaitMeWithCheese(runtime, env);
       }));
 
-fail:
-  return exit_code;
+  return node_embedding_exit_code_ok;
 }
 
 napi_status AddUtf8String(std::string& str, napi_env env, napi_value value) {
