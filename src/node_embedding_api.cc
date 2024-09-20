@@ -499,6 +499,10 @@ node_embedding_exit_code EmbeddedPlatform::RunMain(
     void* configure_platform_cb_data,
     node_embedding_platform* result) {
   ARG_IS_NOT_NULL(result);
+
+  // Hack around with the argv pointer. Used for process.title = "blah".
+  argv = uv_setup_args(argc, argv);
+
   auto platform_ptr = std::make_unique<EmbeddedPlatform>(argc, argv);
   bool early_return = false;
   CHECK_EXIT_CODE(platform_ptr->Initialize(

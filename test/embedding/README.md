@@ -62,7 +62,6 @@ It is mostly to catch all the work in progress notes.
 - [ ] Allow to provide custom thread pool from the app.
 - [ ] Consider adding a v-table for the API functions to simplify
       binding with other languages.
-- [ ] libuv setup for the platform.
 - [ ] We must not exit the process on node::Environment errors.
 - [ ] Be explicit about the recoverable errors.
 - [ ] Store IsolateScope in TLS.
