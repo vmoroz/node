@@ -46,14 +46,12 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                      napi_value require,
                      napi_value run_cjs) -> napi_value {
                     napi_value script, undefined, result;
-                    CHECK_NAPI(napi_create_string_utf8(
+                    NODE_API_CALL(napi_create_string_utf8(
                         env, main_script, NAPI_AUTO_LENGTH, &script));
-                    CHECK_NAPI(napi_get_undefined(env, &undefined));
-                    CHECK_NAPI(napi_call_function(
+                    NODE_API_CALL(napi_get_undefined(env, &undefined));
+                    NODE_API_CALL(napi_call_function(
                         env, undefined, run_cjs, 1, &script, &result));
                     return result;
-                  fail:
-                    return nullptr;
                   },
                   nullptr));
             fail:
@@ -61,14 +59,13 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
             },
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value global, my_count;
-              CHECK_NAPI(napi_get_global(env, &global));
-              CHECK_NAPI(
+              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+              NODE_API_CALL_RETURN_VOID(
                   napi_get_named_property(env, global, "myCount", &my_count));
               int32_t count;
-              CHECK_NAPI(napi_get_value_int32(env, my_count, &count));
+              NODE_API_CALL_RETURN_VOID(
+                  napi_get_value_int32(env, my_count, &count));
               global_count.fetch_add(count);
-            fail:
-              return;
             }));
       fail:
         return exit_code;
@@ -130,14 +127,12 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
                  napi_value require,
                  napi_value run_cjs) -> napi_value {
                 napi_value script, undefined, result;
-                CHECK_NAPI(napi_create_string_utf8(
+                NODE_API_CALL(napi_create_string_utf8(
                     env, main_script, NAPI_AUTO_LENGTH, &script));
-                CHECK_NAPI(napi_get_undefined(env, &undefined));
-                CHECK_NAPI(napi_call_function(
+                NODE_API_CALL(napi_get_undefined(env, &undefined));
+                NODE_API_CALL(napi_call_function(
                     env, undefined, run_cjs, 1, &script, &result));
                 return result;
-              fail:
-                return nullptr;
               },
               nullptr));
         fail:
@@ -150,17 +145,16 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     CHECK_STATUS(
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value undefined, global, func;
-          CHECK_NAPI(napi_get_undefined(env, &undefined));
-          CHECK_NAPI(napi_get_global(env, &global));
-          CHECK_NAPI(napi_get_named_property(env, global, "incMyCount", &func));
+          NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+          NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+          NODE_API_CALL_RETURN_VOID(
+              napi_get_named_property(env, global, "incMyCount", &func));
 
           napi_valuetype func_type;
-          CHECK_NAPI(napi_typeof(env, func, &func_type));
-          CHECK_TRUE_RETURN_VOID(func_type == napi_function);
-          CHECK_NAPI(
+          NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+          NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+          NODE_API_CALL_RETURN_VOID(
               napi_call_function(env, undefined, func, 0, nullptr, nullptr));
-        fail:
-          return;
         }));
     CHECK_STATUS(exit_code);
   }
@@ -180,19 +174,18 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     CHECK_STATUS(
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value global, my_count;
-          CHECK_NAPI(napi_get_global(env, &global));
-          CHECK_NAPI(
+          NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+          NODE_API_CALL_RETURN_VOID(
               napi_get_named_property(env, global, "myCount", &my_count));
 
           napi_valuetype my_count_type;
-          CHECK_NAPI(napi_typeof(env, my_count, &my_count_type));
-          CHECK_TRUE_RETURN_VOID(my_count_type == napi_number);
+          NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &my_count_type));
+          NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
           int32_t count;
-          CHECK_NAPI(napi_get_value_int32(env, my_count, &count));
+          NODE_API_CALL_RETURN_VOID(
+              napi_get_value_int32(env, my_count, &count));
 
           global_count += count;
-        fail:
-          return;
         }));
     CHECK_STATUS(exit_code);
     CHECK_STATUS(node_embedding_complete_event_loop(runtime));
@@ -241,14 +234,12 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
                napi_value require,
                napi_value run_cjs) -> napi_value {
               napi_value script, undefined, result;
-              CHECK_NAPI(napi_create_string_utf8(
+              NODE_API_CALL(napi_create_string_utf8(
                   env, main_script, NAPI_AUTO_LENGTH, &script));
-              CHECK_NAPI(napi_get_undefined(env, &undefined));
-              CHECK_NAPI(napi_call_function(
+              NODE_API_CALL(napi_get_undefined(env, &undefined));
+              NODE_API_CALL(napi_call_function(
                   env, undefined, run_cjs, 1, &script, &result));
               return result;
-            fail:
-              return nullptr;
             },
             nullptr));
       fail:
@@ -262,27 +253,26 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
       node_embedding_exit_code exit_code = RunNodeApi(
           runtime, [&](node_embedding_runtime runtime, napi_env env) {
             napi_value undefined, global, func, my_count;
-            CHECK_NAPI(napi_get_undefined(env, &undefined));
-            CHECK_NAPI(napi_get_global(env, &global));
-            CHECK_NAPI(
+            NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+            NODE_API_CALL_RETURN_VOID(
                 napi_get_named_property(env, global, "incMyCount", &func));
 
             napi_valuetype func_type;
-            CHECK_NAPI(napi_typeof(env, func, &func_type));
-            CHECK_TRUE_RETURN_VOID(func_type == napi_function);
-            CHECK_NAPI(
+            NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+            NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+            NODE_API_CALL_RETURN_VOID(
                 napi_call_function(env, undefined, func, 0, nullptr, nullptr));
 
-            CHECK_NAPI(
+            NODE_API_CALL_RETURN_VOID(
                 napi_get_named_property(env, global, "myCount", &my_count));
             napi_valuetype count_type;
-            CHECK_NAPI(napi_typeof(env, my_count, &count_type));
-            CHECK_TRUE_RETURN_VOID(count_type == napi_number);
+            NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
+            NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
             int32_t count;
-            CHECK_NAPI(napi_get_value_int32(env, my_count, &count));
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_value_int32(env, my_count, &count));
             result_count.store(count);
-          fail:
-            return;
           });
       if (exit_code != node_embedding_exit_code_ok) {
         result_exit_code.store(exit_code);
@@ -378,22 +368,21 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                 CHECK_RETURN_VOID(RunNodeApi(
                     runtime, [&](node_embedding_runtime runtime, napi_env env) {
                       napi_value global, my_count;
-                      CHECK_NAPI(napi_get_global(env, &global));
-                      CHECK_NAPI(napi_get_named_property(
+                      NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+                      NODE_API_CALL_RETURN_VOID(napi_get_named_property(
                           env, global, "myCount", &my_count));
                       napi_valuetype count_type;
-                      CHECK_NAPI(napi_typeof(env, my_count, &count_type));
-                      CHECK_TRUE_RETURN_VOID(count_type == napi_number);
+                      NODE_API_CALL_RETURN_VOID(
+                          napi_typeof(env, my_count, &count_type));
+                      NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
                       int32_t count;
-                      CHECK_NAPI(napi_get_value_int32(env, my_count, &count));
+                      NODE_API_CALL_RETURN_VOID(
+                          napi_get_value_int32(env, my_count, &count));
                       if (count == 5) {
-                        CHECK_RETURN_VOID(
-                            node_embedding_complete_event_loop(runtime));
+                        node_embedding_complete_event_loop(runtime);
                         fprintf(stdout, "%d\n", count);
                         ui_queue->Stop();
                       }
-                    fail:
-                      return;
                     }));
                 CHECK_RETURN_VOID(exit_code);
               });
@@ -409,14 +398,12 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                napi_value require,
                napi_value run_cjs) -> napi_value {
               napi_value script, undefined, result;
-              CHECK_NAPI(napi_create_string_utf8(
+              NODE_API_CALL(napi_create_string_utf8(
                   env, main_script, NAPI_AUTO_LENGTH, &script));
-              CHECK_NAPI(napi_get_undefined(env, &undefined));
-              CHECK_NAPI(napi_call_function(
+              NODE_API_CALL(napi_get_undefined(env, &undefined));
+              NODE_API_CALL(napi_call_function(
                   env, undefined, run_cjs, 1, &script, &result));
               return result;
-            fail:
-              return nullptr;
             },
             nullptr));
       fail:
@@ -430,20 +417,19 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
     int32_t exit_code =
         RunNodeApi(runtime, [&](node_embedding_runtime runtime, napi_env env) {
           napi_value undefined, global, func;
-          CHECK_NAPI(napi_get_undefined(env, &undefined));
-          CHECK_NAPI(napi_get_global(env, &global));
-          CHECK_NAPI(napi_get_named_property(env, global, "incMyCount", &func));
+          NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+          NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+          NODE_API_CALL_RETURN_VOID(
+              napi_get_named_property(env, global, "incMyCount", &func));
 
           napi_valuetype func_type;
-          NODE_API_CALL(napi_typeof(env, func, &func_type));
-          CHECK_TRUE_RETURN_VOID(func_type == napi_function);
-          CHECK_NAPI(
+          NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+          NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+          NODE_API_CALL_RETURN_VOID(
               napi_call_function(env, undefined, func, 0, nullptr, nullptr));
 
-          CHECK_RETURN_VOID(node_embedding_run_event_loop(
-              runtime, node_embedding_event_loop_run_nowait, nullptr));
-        fail:
-          return;
+          node_embedding_run_event_loop(
+              runtime, node_embedding_event_loop_run_nowait, nullptr);
         });
     CHECK_RETURN_VOID(exit_code);
   });

@@ -22,15 +22,13 @@ static napi_value NAPI_CDECL InitGreeterModule(void* cb_data,
         std::string greeting = "Hello, ";
         napi_value arg{};
         size_t arg_count = 1;
-        CHECK_NAPI(
+        NODE_API_CALL(
             napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-        CHECK_NAPI(AddUtf8String(greeting, env, arg));
+        NODE_API_CALL(AddUtf8String(greeting, env, arg));
         napi_value result;
-        CHECK_NAPI(napi_create_string_utf8(
+        NODE_API_CALL(napi_create_string_utf8(
             env, greeting.c_str(), greeting.size(), &result));
         return result;
-      fail:
-        return nullptr;
       },
       nullptr,
       &greet_func);
@@ -57,15 +55,13 @@ InitReplicatorModule(void* cb_data,
         std::string str;
         napi_value arg{};
         size_t arg_count = 1;
-        CHECK_NAPI(
+        NODE_API_CALL(
             napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-        CHECK_NAPI(AddUtf8String(str, env, arg));
+        NODE_API_CALL(AddUtf8String(str, env, arg));
         str += " " + str;
         napi_value result;
         napi_create_string_utf8(env, str.c_str(), str.size(), &result);
         return result;
-      fail:
-        return nullptr;
       },
       nullptr,
       &greet_func);
@@ -127,14 +123,12 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
                napi_value require,
                napi_value run_cjs) -> napi_value {
               napi_value script, undefined, result;
-              CHECK_NAPI(napi_create_string_utf8(
+              NODE_API_CALL(napi_create_string_utf8(
                   env, main_script, NAPI_AUTO_LENGTH, &script));
-              CHECK_NAPI(napi_get_undefined(env, &undefined));
-              CHECK_NAPI(napi_call_function(
+              NODE_API_CALL(napi_get_undefined(env, &undefined));
+              NODE_API_CALL(napi_call_function(
                   env, undefined, run_cjs, 1, &script, &result));
               return result;
-            fail:
-              return nullptr;
             },
             nullptr));
       fail:

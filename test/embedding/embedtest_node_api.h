@@ -155,21 +155,59 @@ inline node_embedding_exit_code RunNodeApi(
           &func));
 }
 
-#define NODE_API_CALL(expr)                                                    \
+//
+// Error handling macros copied from test/js_native_api/common.h
+//
+
+// Empty value so that macros here are able to return NULL or void
+#define NODE_API_RETVAL_NOTHING  // Intentionally blank #define
+
+#define NODE_API_FAIL_BASE(ret_val, ...)                                       \
   do {                                                                         \
-    if ((expr) != napi_ok) {                                                   \
-      GetAndThrowLastErrorMessage(env);                                        \
-      exit_code = 1;                                                           \
-      return;                                                                  \
+    ThrowLastErrorMessage(env, FormatString(__VA_ARGS__).c_str());             \
+    return ret_val;                                                            \
+  } while (0)
+
+// Returns NULL on failed assertion.
+// This is meant to be used inside napi_callback methods.
+#define NODE_API_FAIL(...) NODE_API_FAIL_BASE(NULL, __VA_ARGS__)
+
+// Returns empty on failed assertion.
+// This is meant to be used inside functions with void return type.
+#define NODE_API_FAIL_RETURN_VOID(...)                                         \
+  NODE_API_FAIL_BASE(NODE_API_RETVAL_NOTHING, __VA_ARGS__)
+
+#define NODE_API_ASSERT_BASE(expr, ret_val)                                    \
+  do {                                                                         \
+    if (!(expr)) {                                                             \
+      napi_throw_error(env, NULL, "Failed: (" #expr ")");                      \
+      return ret_val;                                                          \
     }                                                                          \
   } while (0)
 
-#define CHECK_NAPI(expr)                                                       \
+// Returns NULL on failed assertion.
+// This is meant to be used inside napi_callback methods.
+#define NODE_API_ASSERT(expr) NODE_API_ASSERT_BASE(expr, NULL)
+
+// Returns empty on failed assertion.
+// This is meant to be used inside functions with void return type.
+#define NODE_API_ASSERT_RETURN_VOID(expr)                                      \
+  NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
+
+#define NODE_API_CALL_BASE(expr, ret_val)                                      \
   do {                                                                         \
     if ((expr) != napi_ok) {                                                   \
-      goto fail;                                                               \
+      GetAndThrowLastErrorMessage(env);                                        \
+      return ret_val;                                                          \
     }                                                                          \
   } while (0)
+
+// Returns NULL if the_call doesn't return napi_ok.
+#define NODE_API_CALL(expr) NODE_API_CALL_BASE(expr, NULL)
+
+// Returns empty if the_call doesn't return napi_ok.
+#define NODE_API_CALL_RETURN_VOID(expr)                                        \
+  NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
 
 #define CHECK_STATUS_NAPI(expr)                                                \
   do {                                                                         \

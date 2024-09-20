@@ -21,12 +21,10 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
                napi_value /*require*/
             ) {
               napi_value global, value;
-              CHECK_NAPI(napi_get_global(env, &global));
-              CHECK_NAPI(napi_create_int32(env, 42, &value));
-              CHECK_NAPI(
+              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+              NODE_API_CALL_RETURN_VOID(napi_create_int32(env, 42, &value));
+              NODE_API_CALL_RETURN_VOID(
                   napi_set_named_property(env, global, "preloadValue", value));
-            fail:
-              return;
             },
             nullptr));
         CHECK_STATUS(node_embedding_runtime_on_start_execution(
@@ -38,14 +36,12 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
                napi_value require,
                napi_value run_cjs) -> napi_value {
               napi_value script, undefined, result;
-              CHECK_NAPI(napi_create_string_utf8(
+              NODE_API_CALL(napi_create_string_utf8(
                   env, main_script, NAPI_AUTO_LENGTH, &script));
-              CHECK_NAPI(napi_get_undefined(env, &undefined));
-              CHECK_NAPI(napi_call_function(
+              NODE_API_CALL(napi_get_undefined(env, &undefined));
+              NODE_API_CALL(napi_call_function(
                   env, undefined, run_cjs, 1, &script, &result));
               return result;
-            fail:
-              return nullptr;
             },
             nullptr));
       fail:
