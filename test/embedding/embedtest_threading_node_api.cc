@@ -350,12 +350,11 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             [](void* data, node_embedding_runtime runtime) {
               auto ui_queue = static_cast<UIQueue*>(data);
               ui_queue->PostTask([runtime, ui_queue]() {
-                node_embedding_exit_code exit_code{};
-                CHECK_RETURN_VOID(node_embedding_run_event_loop(
+                CHECK_EXIT_CODE_RETURN_VOID(node_embedding_run_event_loop(
                     runtime, node_embedding_event_loop_run_nowait, nullptr));
 
                 // Check myCount and stop the processing when it reaches 5.
-                CHECK_RETURN_VOID(RunNodeApi(
+                CHECK_EXIT_CODE_RETURN_VOID(RunNodeApi(
                     runtime, [&](node_embedding_runtime runtime, napi_env env) {
                       napi_value global, my_count;
                       NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -374,7 +373,6 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                         ui_queue->Stop();
                       }
                     }));
-                CHECK_RETURN_VOID(exit_code);
               });
             },
             &ui_queue));
@@ -421,7 +419,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
           node_embedding_run_event_loop(
               runtime, node_embedding_event_loop_run_nowait, nullptr);
         });
-    CHECK_RETURN_VOID(exit_code);
+    CHECK_EXIT_CODE_RETURN_VOID(exit_code);
   });
 
   ui_queue.Run();

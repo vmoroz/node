@@ -209,13 +209,22 @@ inline node_embedding_exit_code RunNodeApi(
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
 
-#define CHECK_RETURN_VOID(expr)                                                \
+#define CHECK_EXIT_CODE(expr)                                                  \
   do {                                                                         \
-    if ((expr) != node_embedding_exit_code_ok) {                               \
+    node_embedding_exit_code exit_code = (expr);                               \
+    if (exit_code != node_embedding_exit_code_ok) {                            \
+      return exit_code;                                                        \
+    }                                                                          \
+  } while (0)
+
+#define CHECK_EXIT_CODE_RETURN_VOID(expr)                                      \
+  do {                                                                         \
+    node_embedding_exit_code exit_code_ = (expr);                              \
+    if (exit_code_ != node_embedding_exit_code_ok) {                           \
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit_code = node_embedding_exit_code_generic_user_error;                 \
+      exit(exit_code_);                                                        \
       return;                                                                  \
     }                                                                          \
   } while (0)
@@ -226,26 +235,7 @@ inline node_embedding_exit_code RunNodeApi(
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      return 1;                                                                \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_TRUE_RETURN_VOID(expr)                                           \
-  do {                                                                         \
-    if (!(expr)) {                                                             \
-      fprintf(stderr, "Failed: %s\n", #expr);                                  \
-      fprintf(stderr, "File: %s\n", __FILE__);                                 \
-      fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit_code = node_embedding_exit_code_generic_user_error;                 \
-      return;                                                                  \
-    }                                                                          \
-  } while (0)
-
-#define CHECK_EXIT_CODE(expr)                                                  \
-  do {                                                                         \
-    node_embedding_exit_code exit_code = (expr);                               \
-    if (exit_code != node_embedding_exit_code_ok) {                            \
-      return exit_code;                                                        \
+      return node_embedding_exit_code_generic_user_error;                      \
     }                                                                          \
   } while (0)
 
