@@ -557,13 +557,14 @@ node_embedding_exit_code EmbeddedPlatform::Initialize(
     void* configure_platform_cb_data,
     bool* early_return) {
   ASSERT(!is_initialized_);
-  is_initialized_ = true;
 
   node_embedding_platform platform =
       reinterpret_cast<node_embedding_platform>(this);
   if (configure_platform_cb != nullptr) {
     CHECK_STATUS(configure_platform_cb(configure_platform_cb_data, platform));
   }
+
+  is_initialized_ = true;
 
   if (!optional_bits_.flags) {
     flags_ = node_embedding_platform_no_flags;
@@ -846,7 +847,6 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(
     node_embedding_configure_runtime_callback configure_runtime_cb,
     void* configure_runtime_cb_data) {
   ASSERT(!is_initialized_);
-  is_initialized_ = true;
 
   if (configure_runtime_cb != nullptr) {
     CHECK_STATUS(configure_runtime_cb(
@@ -854,6 +854,8 @@ node_embedding_exit_code EmbeddedRuntime::Initialize(
         reinterpret_cast<node_embedding_platform>(platform_),
         reinterpret_cast<node_embedding_runtime>(this)));
   }
+
+  is_initialized_ = true;
 
   node::MultiIsolatePlatform* v8_platform = platform_->get_v8_platform();
 
