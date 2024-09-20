@@ -176,8 +176,6 @@ class EmbeddedPlatform {
 
   node_embedding_exit_code SetFlags(node_embedding_platform_flags flags);
 
-  node_embedding_exit_code SetArgs(int32_t argc, char* argv[]);
-
   node_embedding_exit_code Initialize(
       node_embedding_configure_platform_callback configure_platform_cb,
       void* configure_platform_cb_data,
@@ -535,16 +533,6 @@ node_embedding_exit_code EmbeddedPlatform::SetFlags(
   ASSERT(!is_initialized_);
   flags_ = flags;
   optional_bits_.flags = true;
-  return node_embedding_exit_code_ok;
-}
-
-node_embedding_exit_code EmbeddedPlatform::SetArgs(int32_t argc, char* argv[]) {
-  ASSERT(!is_initialized_);
-  if (argc > 0 && argv != nullptr) {
-    args_.assign(argv, argv + argc);
-  } else {
-    args_.clear();
-  }
   return node_embedding_exit_code_ok;
 }
 
@@ -1229,11 +1217,6 @@ node_embedding_delete_platform(node_embedding_platform platform) {
 node_embedding_exit_code NAPI_CDECL node_embedding_platform_set_flags(
     node_embedding_platform platform, node_embedding_platform_flags flags) {
   return EMBEDDED_PLATFORM(platform)->SetFlags(flags);
-}
-
-node_embedding_exit_code NAPI_CDECL node_embedding_platform_set_args(
-    node_embedding_platform platform, int32_t argc, char* argv[]) {
-  return EMBEDDED_PLATFORM(platform)->SetArgs(argc, argv);
 }
 
 node_embedding_exit_code NAPI_CDECL node_embedding_platform_get_parsed_args(

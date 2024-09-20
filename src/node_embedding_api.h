@@ -239,7 +239,7 @@ NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_run_main(
     node_embedding_node_api_callback node_api_cb,
     void* node_api_cb_data);
 
-// Creates a new Node.js platform instance.
+// Creates and configures a new Node.js platform instance.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     char* argv[],
@@ -256,12 +256,6 @@ NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_set_flags(node_embedding_platform platform,
                                   node_embedding_platform_flags flags);
 
-// Sets the CLI arguments for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
-node_embedding_platform_set_args(node_embedding_platform platform,
-                                 int32_t argc,
-                                 char* argv[]);
-
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_platform_get_parsed_args(
@@ -275,6 +269,7 @@ node_embedding_platform_get_parsed_args(
 // Node.js runtime functions.
 //------------------------------------------------------------------------------
 
+// Runs the Node.js runtime with the provided configuration.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL node_embedding_run_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime_cb,
@@ -366,10 +361,12 @@ node_embedding_run_node_api(node_embedding_runtime runtime,
                             node_embedding_node_api_callback node_api_cb,
                             void* node_api_cb_data);
 
+// Opens a new Node-API scope.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_open_node_api_scope(node_embedding_runtime runtime,
                                    napi_env* env);
 
+// Closes the current Node-API scope.
 NAPI_EXTERN node_embedding_exit_code NAPI_CDECL
 node_embedding_close_node_api_scope(node_embedding_runtime runtime);
 
