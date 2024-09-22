@@ -95,12 +95,12 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
       argc,
       argv,
       {},
-      AsFunctor<node_embedding_configure_runtime_functor>(
+      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
             CHECK_EXIT_CODE(node_embedding_runtime_on_preload(
                 runtime_config,
-                AsFunctor2<node_embedding_preload_functor>(
+                AsFunctor<node_embedding_preload_functor>(
                     [](node_embedding_runtime runtime,
                        napi_env env,
                        napi_value process,
@@ -114,19 +114,19 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
             CHECK_EXIT_CODE(node_embedding_runtime_add_module(
                 runtime_config,
                 "greeter_module",
-                AsFunctor2<node_embedding_initialize_module_functor>(
+                AsFunctor<node_embedding_initialize_module_functor>(
                     GreeterModule(&greeterModuleInitCallCount)),
                 NAPI_VERSION));
             CHECK_EXIT_CODE(node_embedding_runtime_add_module(
                 runtime_config,
                 "replicator_module",
-                AsFunctor2<node_embedding_initialize_module_functor>(
+                AsFunctor<node_embedding_initialize_module_functor>(
                     ReplicatorModule(&replicatorModuleInitCallCount)),
                 NAPI_VERSION));
 
             CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                 runtime_config,
-                AsFunctor2<node_embedding_start_execution_functor>(
+                AsFunctor<node_embedding_start_execution_functor>(
                     [](node_embedding_runtime runtime,
                        napi_env env,
                        napi_value process,

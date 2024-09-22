@@ -27,7 +27,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
       node_embedding_exit_code exit_code = [&]() {
         CHECK_EXIT_CODE(node_embedding_run_runtime(
             platform,
-            AsFunctor<node_embedding_configure_runtime_functor>(
+            AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
                 [&](node_embedding_platform platform,
                     node_embedding_runtime_config runtime_config) {
                   // Inspector can be associated with only one runtime in the
@@ -38,7 +38,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                           node_embedding_runtime_no_create_inspector));
                   CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                       runtime_config,
-                      AsFunctor2<node_embedding_start_execution_functor>(
+                      AsFunctor<node_embedding_start_execution_functor>(
                           [](node_embedding_runtime runtime,
                              napi_env env,
                              napi_value process,
@@ -54,7 +54,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                           })));
                   return node_embedding_exit_code_ok;
                 }),
-            AsFunctor<node_embedding_node_api_functor>(
+            AsFunctorRef<node_embedding_node_api_functor_ref>(
                 [&](node_embedding_runtime runtime, napi_env env) {
                   napi_value global, my_count;
                   NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -107,7 +107,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     node_embedding_runtime runtime;
     CHECK_EXIT_CODE(node_embedding_create_runtime(
         platform,
-        AsFunctor<node_embedding_configure_runtime_functor>(
+        AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
             [&](node_embedding_platform platform,
                 node_embedding_runtime_config runtime_config) {
               // Inspector can be associated with only one runtime in the
@@ -118,7 +118,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
                       node_embedding_runtime_no_create_inspector));
               CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                   runtime_config,
-                  AsFunctor2<node_embedding_start_execution_functor>(
+                  AsFunctor<node_embedding_start_execution_functor>(
                       [](node_embedding_runtime runtime,
                          napi_env env,
                          napi_value process,
@@ -140,7 +140,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
 
     CHECK_EXIT_CODE(node_embedding_run_node_api(
         runtime,
-        AsFunctor<node_embedding_node_api_functor>(
+        AsFunctorRef<node_embedding_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -169,7 +169,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
   for (node_embedding_runtime runtime : runtimes) {
     CHECK_EXIT_CODE(node_embedding_run_node_api(
         runtime,
-        AsFunctor<node_embedding_node_api_functor>(
+        AsFunctorRef<node_embedding_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value global, my_count;
               NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -220,12 +220,12 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
   node_embedding_runtime runtime;
   CHECK_EXIT_CODE(node_embedding_create_runtime(
       platform,
-      AsFunctor<node_embedding_configure_runtime_functor>(
+      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
             CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                 runtime_config,
-                AsFunctor2<node_embedding_start_execution_functor>(
+                AsFunctor<node_embedding_start_execution_functor>(
                     [](node_embedding_runtime runtime,
                        napi_env env,
                        napi_value process,
@@ -249,7 +249,7 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
       std::scoped_lock lock(mutex);
       node_embedding_exit_code exit_code = node_embedding_run_node_api(
           runtime,
-          AsFunctor<node_embedding_node_api_functor>(
+          AsFunctorRef<node_embedding_node_api_functor_ref>(
               [&](node_embedding_runtime runtime, napi_env env) {
                 napi_value undefined, global, func, my_count;
                 NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -350,7 +350,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
   node_embedding_runtime runtime;
   CHECK_EXIT_CODE(node_embedding_create_runtime(
       platform,
-      AsFunctor<node_embedding_configure_runtime_functor>(
+      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
             // The callback will be invoked from the runtime's event loop
@@ -358,7 +358,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             // event loop.
             CHECK_EXIT_CODE(node_embedding_on_wake_up_event_loop(
                 runtime_config,
-                AsFunctor2<node_embedding_event_loop_functor>(
+                AsFunctor<node_embedding_event_loop_functor>(
                     [&ui_queue](node_embedding_runtime runtime) {
                       ui_queue.PostTask([runtime, &ui_queue]() {
                         CHECK_EXIT_CODE_RETURN_VOID(
@@ -371,7 +371,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                         // reaches 5.
                         CHECK_EXIT_CODE_RETURN_VOID(node_embedding_run_node_api(
                             runtime,
-                            AsFunctor<node_embedding_node_api_functor>(
+                            AsFunctorRef<node_embedding_node_api_functor_ref>(
                                 [&](node_embedding_runtime runtime,
                                     napi_env env) {
                                   napi_value global, my_count;
@@ -400,7 +400,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
 
             CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
                 runtime_config,
-                AsFunctor2<node_embedding_start_execution_functor>(
+                AsFunctor<node_embedding_start_execution_functor>(
                     [](node_embedding_runtime runtime,
                        napi_env env,
                        napi_value process,
@@ -424,7 +424,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
   ui_queue.PostTask([runtime]() {
     node_embedding_exit_code exit_code = node_embedding_run_node_api(
         runtime,
-        AsFunctor<node_embedding_node_api_functor>(
+        AsFunctorRef<node_embedding_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));

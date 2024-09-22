@@ -57,7 +57,7 @@ struct Adapter<TLambda, TResult(void*, TArgs...)> {
 };
 
 template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctor(TLambda&& lambda) {
+inline TFunctor AsFunctorRef(TLambda&& lambda) {
   using TLambdaType = std::remove_reference_t<TLambda>;
   using TAdapter =
       Adapter<TLambdaType,
@@ -67,7 +67,7 @@ inline TFunctor AsFunctor(TLambda&& lambda) {
 }
 
 template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctor2(TLambda&& lambda) {
+inline TFunctor AsFunctor(TLambda&& lambda) {
   using TLambdaType = std::remove_reference_t<TLambda>;
   using TAdapter =
       Adapter<TLambdaType,
