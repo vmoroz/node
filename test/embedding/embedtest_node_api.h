@@ -44,118 +44,39 @@ void ThrowLastErrorMessage(napi_env env, const char* message);
 
 std::string FormatString(const char* format, ...);
 
-inline node_embedding_exit_code RunMain(
-    int32_t argc,
-    char* argv[],
-    const std::function<node_embedding_exit_code(
-        node_embedding_platform_config)>& configurePlatform,
-    const std::function<node_embedding_exit_code(
-        node_embedding_platform, node_embedding_runtime_config)>&
-        configureRuntime,
-    const std::function<void(node_embedding_runtime, napi_env)>& runNodeApi) {
-  return node_embedding_run_main(
-      argc,
-      argv,
-      configurePlatform ?
-        [](void* cb_data, node_embedding_platform_config platform_config) {
-          auto configurePlatform = static_cast<
-              std::function<node_embedding_exit_code(node_embedding_platform_config)>*>(
-              cb_data);
-          return (*configurePlatform)(platform_config);
-        } : nullptr,
-      const_cast<
-          std::function<node_embedding_exit_code(node_embedding_platform_config)>*>(
-          &configurePlatform),
-      configureRuntime ?
-        [](void* cb_data,
-           node_embedding_platform platform,
-           node_embedding_runtime_config runtime_config) {
-          auto configureRuntime =
-              static_cast<std::function<node_embedding_exit_code(
-                  node_embedding_platform, node_embedding_runtime_config)>*>(cb_data);
-          return (*configureRuntime)(platform, runtime_config);
-        } : nullptr,
-      const_cast<std::function<node_embedding_exit_code(
-          node_embedding_platform, node_embedding_runtime_config)>*>(
-          &configureRuntime),
-      runNodeApi ?
-        [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
-          auto runNodeApi =
-              static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-                  cb_data);
-          (*runNodeApi)(runtime, env);
-        } : nullptr,
-      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-          &runNodeApi));
+template <typename TLambda, typename TFunctor>
+struct Adapter {
+  static_assert(sizeof(TLambda) == -1, "Unsupported signature");
+};
+
+template <typename TLambda, typename TResult, typename... TArgs>
+struct Adapter<TLambda, TResult(void*, TArgs...)> {
+  static TResult Invoke(void* data, TArgs... args) {
+    return reinterpret_cast<TLambda*>(data)->operator()(args...);
+  }
+};
+
+template <typename TFunctor, typename TLambda>
+inline TFunctor AsFunctor(TLambda&& lambda) {
+  using TLambdaType = std::remove_reference_t<TLambda>;
+  using TAdapter =
+      Adapter<TLambdaType,
+              std::remove_pointer_t<
+                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
+  return TFunctor{static_cast<void*>(&lambda), &TAdapter::Invoke};
 }
 
-inline node_embedding_exit_code RunRuntime(
-    node_embedding_platform platform,
-    const std::function<node_embedding_exit_code(
-        node_embedding_platform, node_embedding_runtime_config)>&
-        configureRuntime,
-    const std::function<void(node_embedding_runtime, napi_env)>& runNodeApi) {
-  return node_embedding_run_runtime(
-      platform,
-      configureRuntime ?
-        [](void* cb_data,
-           node_embedding_platform platform,
-           node_embedding_runtime_config runtime_config) {
-          auto configureRuntime =
-              static_cast<std::function<node_embedding_exit_code(
-                  node_embedding_platform, node_embedding_runtime_config)>*>(cb_data);
-          return (*configureRuntime)(platform, runtime_config);
-        } : nullptr,
-      const_cast<std::function<node_embedding_exit_code(
-          node_embedding_platform, node_embedding_runtime_config)>*>(
-          &configureRuntime),
-      runNodeApi ?
-        [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
-          auto runNodeApi =
-              static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-                  cb_data);
-          (*runNodeApi)(runtime, env);
-        } : nullptr,
-      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-          &runNodeApi));
-}
-
-inline node_embedding_exit_code CreateRuntime(
-    node_embedding_platform platform,
-    const std::function<node_embedding_exit_code(
-        node_embedding_platform, node_embedding_runtime_config)>&
-        configureRuntime,
-    node_embedding_runtime* runtime) {
-  return node_embedding_create_runtime(
-      platform,
-      configureRuntime ?
-        [](void* cb_data,
-           node_embedding_platform platform,
-           node_embedding_runtime_config runtime_config) {
-          auto configureRuntime =
-              static_cast<std::function<node_embedding_exit_code(
-                  node_embedding_platform, node_embedding_runtime_config)>*>(cb_data);
-          return (*configureRuntime)(platform, runtime_config);
-        } : nullptr,
-      const_cast<std::function<node_embedding_exit_code(
-          node_embedding_platform, node_embedding_runtime_config)>*>(
-          &configureRuntime),
-      runtime);
-}
-
-inline node_embedding_exit_code RunNodeApi(
-    node_embedding_runtime runtime,
-    const std::function<void(node_embedding_runtime, napi_env)>& func) {
-  return node_embedding_run_node_api(
-      runtime,
-      [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
-        auto func =
-            static_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-                cb_data);
-        (*func)(runtime, env);
-      },
-      const_cast<std::function<void(node_embedding_runtime, napi_env)>*>(
-          &func));
+template <typename TFunctor, typename TLambda>
+inline TFunctor AsFunctor2(TLambda&& lambda) {
+  using TLambdaType = std::remove_reference_t<TLambda>;
+  using TAdapter =
+      Adapter<TLambdaType,
+              std::remove_pointer_t<
+                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
+  return TFunctor{
+      static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
+      &TAdapter::Invoke,
+      [](void* data) { delete static_cast<TLambdaType*>(data); }};
 }
 
 //

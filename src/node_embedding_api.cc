@@ -65,9 +65,7 @@ namespace {
 
 template <typename T>
 struct Deleter {
-  void operator()(T* ptr) {
-    ptr->delete_data.invoke(ptr->delete_data.data, ptr->data);
-  }
+  void operator()(T* ptr) { ptr->release(ptr->data); }
 };
 
 template <typename T>

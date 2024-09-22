@@ -210,8 +210,8 @@ typedef void(NAPI_CDECL* node_embedding_event_loop_handler)(
 typedef void(NAPI_CDECL* node_embedding_node_api_callback)(
     void* cb_data, node_embedding_runtime runtime, napi_env env);
 
-typedef void(NAPI_CDECL* node_embedding_delete_callback)(
-    void* cb_data, void* data_to_delete);
+typedef void(NAPI_CDECL* node_embedding_release_callback)(
+    void* data_to_release);
 
 typedef struct {
   void* data;
@@ -235,31 +235,26 @@ typedef struct {
 
 typedef struct {
   void* data;
-  node_embedding_delete_callback invoke;
-} node_embedding_delete_functor;
-
-typedef struct {
-  void* data;
   node_embedding_preload_callback invoke;
-  node_embedding_delete_functor delete_data;
+  node_embedding_release_callback release;
 } node_embedding_preload_functor;
 
 typedef struct {
   void* data;
   node_embedding_start_execution_callback invoke;
-  node_embedding_delete_functor delete_data;
+  node_embedding_release_callback release;
 } node_embedding_start_execution_functor;
 
 typedef struct {
   void* data;
   node_embedding_initialize_module_callback invoke;
-  node_embedding_delete_functor delete_data;
+  node_embedding_release_callback release;
 } node_embedding_initialize_module_functor;
 
 typedef struct {
   void* data;
   node_embedding_event_loop_handler invoke;
-  node_embedding_delete_functor delete_data;
+  node_embedding_release_callback release;
 } node_embedding_event_loop_functor;
 
 //==============================================================================
