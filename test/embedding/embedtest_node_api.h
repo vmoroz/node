@@ -16,20 +16,26 @@ extern "C" inline void NAPI_CDECL GetArgsVector(void* data,
   static_cast<std::vector<std::string>*>(data)->assign(argv, argv + argc);
 }
 
-extern "C" inline node_embedding_exit_code NAPI_CDECL
+extern "C" inline node_embedding_status NAPI_CDECL
 HandleTestError(void* handler_data,
                 const char* messages[],
                 size_t messages_size,
-                node_embedding_exit_code exit_code) {
-  auto exe_name = static_cast<const char*>(handler_data);
-  if (exit_code != 0) {
-    for (size_t i = 0; i < messages_size; ++i)
+                node_embedding_status status) {
+  const char* exe_name = static_cast<const char*>(handler_data);
+  if (status != node_embedding_status_ok) {
+    for (size_t i = 0; i < messages_size; ++i) {
       fprintf(stderr, "%s: %s\n", exe_name, messages[i]);
-    exit(static_cast<int32_t>(exit_code));
+    }
+    int32_t exit_code = ((status & node_embedding_status_error_exit_code) != 0)
+                            ? status & ~node_embedding_status_error_exit_code
+                            : 1;
+    exit(exit_code);
   } else {
-    for (size_t i = 0; i < messages_size; ++i) printf("%s\n", messages[i]);
+    for (size_t i = 0; i < messages_size; ++i) {
+      printf("%s\n", messages[i]);
+    }
   }
-  return node_embedding_exit_code_ok;
+  return node_embedding_status_ok;
 }
 
 #endif
@@ -133,33 +139,33 @@ inline TFunctor AsFunctor(TLambda&& lambda) {
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
 
-#define CHECK_EXIT_CODE(expr)                                                  \
+#define CHECK_STATUS(expr)                                                     \
   do {                                                                         \
-    node_embedding_exit_code exit_code = (expr);                               \
-    if (exit_code != node_embedding_exit_code_ok) {                            \
-      return exit_code;                                                        \
+    node_embedding_status status_ = (expr);                                    \
+    if (status_ != node_embedding_status_ok) {                                 \
+      return status_;                                                          \
     }                                                                          \
   } while (0)
 
-#define CHECK_EXIT_CODE_RETURN_VOID(expr)                                      \
+#define CHECK_STATUS_OR_EXIT(expr)                                             \
   do {                                                                         \
-    node_embedding_exit_code exit_code_ = (expr);                              \
-    if (exit_code_ != node_embedding_exit_code_ok) {                           \
-      fprintf(stderr, "Failed: %s\n", #expr);                                  \
-      fprintf(stderr, "File: %s\n", __FILE__);                                 \
-      fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit(exit_code_);                                                        \
-      return;                                                                  \
+    node_embedding_status status_ = (expr);                                    \
+    if (status_ != node_embedding_status_ok) {                                 \
+      int32_t exit_code =                                                      \
+          ((status_ & node_embedding_status_error_exit_code) != 0)             \
+              ? status_ & ~node_embedding_status_error_exit_code               \
+              : 1;                                                             \
+      exit(exit_code);                                                         \
     }                                                                          \
   } while (0)
 
-#define CHECK_TRUE(expr)                                                       \
+#define ASSERT_OR_EXIT(expr)                                                   \
   do {                                                                         \
     if (!(expr)) {                                                             \
       fprintf(stderr, "Failed: %s\n", #expr);                                  \
       fprintf(stderr, "File: %s\n", __FILE__);                                 \
       fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      return node_embedding_exit_code_generic_user_error;                      \
+      exit(1);                                                                 \
     }                                                                          \
   } while (0)
 

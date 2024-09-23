@@ -6,14 +6,14 @@
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
 extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
-  CHECK_EXIT_CODE(node_embedding_run_main(
+  CHECK_STATUS_OR_EXIT(node_embedding_run_main(
       argc,
       argv,
       {},
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_EXIT_CODE(node_embedding_runtime_on_preload(
+            CHECK_STATUS(node_embedding_runtime_on_preload(
                 runtime_config,
                 AsFunctor<node_embedding_preload_functor>(
                     [](node_embedding_runtime runtime,
@@ -28,7 +28,7 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
                       NODE_API_CALL_RETURN_VOID(napi_set_named_property(
                           env, global, "preloadValue", value));
                     })));
-            CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
+            CHECK_STATUS(node_embedding_runtime_on_start_execution(
                 runtime_config,
                 AsFunctor<node_embedding_start_execution_functor>(
                     [](node_embedding_runtime runtime,
@@ -45,9 +45,9 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
                       return result;
                     })));
 
-            return node_embedding_exit_code_ok;
+            return node_embedding_status_ok;
           }),
       {}));
 
-  return node_embedding_exit_code_ok;
+  return 0;
 }

@@ -17,20 +17,20 @@ void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
   node_embedding_on_error(HandleTestError, argv[0]);
 
-  CHECK_EXIT_CODE(node_embedding_run_main(
+  CHECK_STATUS_OR_EXIT(node_embedding_run_main(
       argc,
       argv,
       AsFunctorRef<node_embedding_configure_platform_functor_ref>(
           [&](node_embedding_platform_config platform_config) {
-            CHECK_EXIT_CODE(node_embedding_platform_set_flags(
+            CHECK_STATUS(node_embedding_platform_set_flags(
                 platform_config,
                 node_embedding_platform_disable_node_options_env));
-            return node_embedding_exit_code_ok;
+            return node_embedding_status_ok;
           }),
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_EXIT_CODE(node_embedding_runtime_on_start_execution(
+            CHECK_STATUS(node_embedding_runtime_on_start_execution(
                 runtime_config,
                 AsFunctor<node_embedding_start_execution_functor>(
                     [](node_embedding_runtime runtime,
@@ -47,7 +47,7 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
                           env, undefined, run_cjs, 1, &script, &result));
                       return result;
                     })));
-            return node_embedding_exit_code_ok;
+            return node_embedding_status_ok;
           }),
       AsFunctorRef<node_embedding_node_api_functor_ref>(
           [&](node_embedding_runtime runtime, napi_env env) {
@@ -56,7 +56,7 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
             WaitMeWithCheese(runtime, env);
           })));
 
-  return node_embedding_exit_code_ok;
+  return node_embedding_status_ok;
 }
 
 napi_status AddUtf8String(std::string& str, napi_env env, napi_value value) {
