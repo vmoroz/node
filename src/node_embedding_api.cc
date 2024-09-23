@@ -1062,7 +1062,8 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
                         module_filename,
                         EmbeddedPlatform::node_api_version());
 
-  // TODO(vmoroz): delete the environment if the insertion fails.
+  // In case if we cannot insert the new env, we are just going to have an
+  // unused env which will be deleted in the end with other environments.
   std::scoped_lock<std::mutex> lock(shared_data.mutex);
   auto insert_result =
       shared_data.node_env_to_node_api_env.try_emplace(node_env, env);
