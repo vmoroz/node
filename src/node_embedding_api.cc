@@ -84,7 +84,7 @@ napi_env NewEnv(v8::Local<v8::Context> context,
 namespace {
 
 template <typename T>
-struct Deleter {
+struct FunctorDeleter {
   void operator()(T* ptr) {
     ptr->release(ptr->data);
     delete ptr;
@@ -92,7 +92,17 @@ struct Deleter {
 };
 
 template <typename T>
-using UniquePtr = std::unique_ptr<T, Deleter<T>>;
+using FunctorPtr = std::unique_ptr<T, FunctorDeleter<T>>;
+
+template <typename T>
+FunctorPtr<T> MakeUniqueFunctor(const T& functor) {
+  return FunctorPtr<T>(new T(functor));
+}
+
+template <typename T>
+std::shared_ptr<T> MakeSharedFunctor(const T& functor) {
+  return std::shared_ptr<T>(new T(functor), FunctorDeleter<T>());
+}
 
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
@@ -346,7 +356,7 @@ class EmbeddedRuntime {
   struct ModuleInfo {
     node_embedding_runtime runtime;
     std::string module_name;
-    UniquePtr<node_embedding_initialize_module_functor> init_module;
+    FunctorPtr<node_embedding_initialize_module_functor> init_module;
     int32_t module_node_api_version;
   };
 
@@ -381,7 +391,7 @@ class EmbeddedRuntime {
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<IsolateLocker> isolate_locker_;
 
-  UniquePtr<node_embedding_event_loop_functor> event_loop_handler_{};
+  FunctorPtr<node_embedding_event_loop_functor> event_loop_handler_{};
   uv_async_t dummy_async_polling_handle_{};
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
@@ -721,9 +731,7 @@ node_embedding_status EmbeddedRuntime::OnPreload(
   if (run_preload.invoke != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
         [runtime = reinterpret_cast<node_embedding_runtime>(this),
-         run_preload = std::shared_ptr<node_embedding_preload_functor>(
-             new node_embedding_preload_functor(run_preload),
-             Deleter<node_embedding_preload_functor>())](
+         run_preload_ptr = MakeSharedFunctor(run_preload)](
             node::Environment* node_env,
             v8::Local<v8::Value> process,
             v8::Local<v8::Value> require) {
@@ -734,11 +742,11 @@ node_embedding_status EmbeddedRuntime::OnPreload(
                     v8impl::JsValueFromV8LocalValue(process);
                 napi_value require_value =
                     v8impl::JsValueFromV8LocalValue(require);
-                run_preload->invoke(run_preload->data,
-                                    runtime,
-                                    env,
-                                    process_value,
-                                    require_value);
+                run_preload_ptr->invoke(run_preload_ptr->data,
+                                        runtime,
+                                        env,
+                                        process_value,
+                                        require_value);
               },
               TriggerFatalException);
         });
@@ -755,11 +763,7 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
 
   if (start_execution.invoke != nullptr) {
     start_execution_cb_ = node::StartExecutionCallback(
-        [this,
-         start_execution =
-             std::shared_ptr<node_embedding_start_execution_functor>(
-                 new node_embedding_start_execution_functor(start_execution),
-                 Deleter<node_embedding_start_execution_functor>())](
+        [this, start_execution_ptr = MakeSharedFunctor(start_execution)](
             const node::StartExecutionCallbackInfo& info)
             -> v8::MaybeLocal<v8::Value> {
           napi_value result{};
@@ -771,8 +775,8 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
                     v8impl::JsValueFromV8LocalValue(info.native_require);
                 napi_value run_cjs_value =
                     v8impl::JsValueFromV8LocalValue(info.run_cjs);
-                result = start_execution->invoke(
-                    start_execution->data,
+                result = start_execution_ptr->invoke(
+                    start_execution_ptr->data,
                     reinterpret_cast<node_embedding_runtime>(this),
                     env,
                     process_value,
@@ -801,13 +805,12 @@ node_embedding_status EmbeddedRuntime::AddModule(
   CHECK_ARG_NOT_NULL(init_module.invoke);
   ASSERT(!is_initialized_);
 
-  auto insert_result = modules_.try_emplace(
-      module_name,
-      reinterpret_cast<node_embedding_runtime>(this),
-      module_name,
-      UniquePtr<node_embedding_initialize_module_functor>(
-          new node_embedding_initialize_module_functor(init_module)),
-      module_node_api_version);
+  auto insert_result =
+      modules_.try_emplace(module_name,
+                           reinterpret_cast<node_embedding_runtime>(this),
+                           module_name,
+                           MakeUniqueFunctor(init_module),
+                           module_node_api_version);
   if (!insert_result.second) {
     return EmbeddedErrorHandling::HandleError(
         EmbeddedErrorHandling::FormatString(
