@@ -508,6 +508,9 @@
             },
           ],
         }],
+        ['OS in "aix os400"', {
+          'dependencies': ['fp16'],
+        }],
       ],
     },  # v8_snapshot
     {
@@ -2233,6 +2236,7 @@
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.h',
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_alloc.cc',
         '<(ABSEIL_ROOT)/absl/base/internal/low_level_scheduling.h',
+        '<(ABSEIL_ROOT)/absl/base/internal/nullability_impl.h',
         '<(ABSEIL_ROOT)/absl/base/internal/per_thread_tls.h',
         '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.h',
         '<(ABSEIL_ROOT)/absl/base/internal/raw_logging.cc',
@@ -2260,7 +2264,6 @@
         '<(ABSEIL_ROOT)/absl/base/log_severity.cc',
         '<(ABSEIL_ROOT)/absl/base/macros.h',
         '<(ABSEIL_ROOT)/absl/base/nullability.h',
-        '<(ABSEIL_ROOT)/absl/base/nullability_impl.h',
         '<(ABSEIL_ROOT)/absl/base/optimization.h',
         '<(ABSEIL_ROOT)/absl/base/options.h',
         '<(ABSEIL_ROOT)/absl/base/policy_checks.h',

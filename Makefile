@@ -1388,11 +1388,11 @@ run-lint-js = tools/eslint/node_modules/eslint/bin/eslint.js --cache \
 	--max-warnings=0 --report-unused-disable-directives $(LINT_JS_TARGETS)
 run-lint-js-fix = $(run-lint-js) --fix
 
-tools/eslint/node_modules: tools/eslint/package-lock.json
+tools/eslint/node_modules/eslint/bin/eslint.js: tools/eslint/package-lock.json
 	-cd tools/eslint && $(call available-node,$(run-npm-ci))
 
 .PHONY: lint-js-fix
-lint-js-fix: tools/eslint/node_modules
+lint-js-fix: tools/eslint/node_modules/eslint/bin/eslint.js
 	@$(call available-node,$(run-lint-js-fix))
 
 .PHONY: lint-js
@@ -1400,7 +1400,7 @@ lint-js-fix: tools/eslint/node_modules
 # Note that on the CI `lint-js-ci` is run instead.
 # Lints the JavaScript code with eslint.
 lint-js-doc: LINT_JS_TARGETS=doc
-lint-js lint-js-doc: tools/eslint/node_modules
+lint-js lint-js-doc: tools/eslint/node_modules/eslint/bin/eslint.js
 	@if [ "$(shell $(node_use_openssl))" != "true" ]; then \
 		echo "Skipping $@ (no crypto)"; \
 	else \
@@ -1417,7 +1417,7 @@ run-lint-js-ci = tools/eslint/node_modules/eslint/bin/eslint.js \
 
 .PHONY: lint-js-ci
 # On the CI the output is emitted in the TAP format.
-lint-js-ci: tools/eslint/node_modules
+lint-js-ci: tools/eslint/node_modules/eslint/bin/eslint.js
 	$(info Running JS linter...)
 	@$(call available-node,$(run-lint-js-ci))
 
@@ -1536,17 +1536,22 @@ cpplint: lint-cpp
 # Try with '--system' if it fails without; the system may have set '--user'
 lint-py-build:
 	$(info Pip installing ruff on $(shell $(PYTHON) --version)...)
-	$(PYTHON) -m pip install --upgrade --target tools/pip/site-packages ruff==0.5.2 || \
-		$(PYTHON) -m pip install --upgrade --system --target tools/pip/site-packages ruff==0.5.2
+	$(PYTHON) -m pip install --upgrade --target tools/pip/site-packages ruff==0.6.5 || \
+		$(PYTHON) -m pip install --upgrade --system --target tools/pip/site-packages ruff==0.6.5
 
-.PHONY: lint-py
+.PHONY: lint-py lint-py-fix lint-py-fix-unsafe
 ifneq ("","$(wildcard tools/pip/site-packages/ruff)")
 # Lint the Python code with ruff.
 lint-py:
-	tools/pip/site-packages/bin/ruff --version
+	$(info Running Python linter...)
 	tools/pip/site-packages/bin/ruff check .
+lint-py-fix:
+	tools/pip/site-packages/bin/ruff check . --fix
+
+lint-py-fix-unsafe:
+	tools/pip/site-packages/bin/ruff check . --fix --unsafe-fixes
 else
-lint-py:
+lint-py lint-py-fix lint-py-fix-unsafe:
 	$(warning Python linting with ruff is not available)
 	$(warning Run 'make lint-py-build')
 endif
@@ -1563,6 +1568,7 @@ lint-yaml-build:
 # Lints the YAML files with yamllint.
 lint-yaml:
 	@if [ -d "tools/pip/site-packages/yamllint" ]; then \
+			$(info Running YAML linter...) \
 			PYTHONPATH=tools/pip $(PYTHON) -m yamllint .; \
 	else \
 		echo 'YAML linting with yamllint is not available'; \
@@ -1603,6 +1609,7 @@ lint-clean:
 	$(RM) tools/.*lintstamp
 	$(RM) .eslintcache
 	$(RM) -r tools/eslint/node_modules
+	$(RM) tools/pip/site_packages
 
 HAS_DOCKER ?= $(shell command -v docker > /dev/null 2>&1; [ $$? -eq 0 ] && echo 1 || echo 0)
 

@@ -369,7 +369,7 @@ util.formatWithOptions({ colors: true }, 'See object %O', { foo: 42 });
 > Stability: 1.1 - Active development
 
 <!-- YAML
-added: REPLACEME
+added: v22.9.0
 -->
 
 * `frames` {number} Number of frames returned in the stacktrace.
@@ -395,7 +395,7 @@ function exampleFunction() {
     console.log(`CallSite ${index + 1}:`);
     console.log(`Function Name: ${callSite.functionName}`);
     console.log(`Script Name: ${callSite.scriptName}`);
-    console.log(`Line Number: ${callSite.lineNumer}`);
+    console.log(`Line Number: ${callSite.lineNumber}`);
     console.log(`Column Number: ${callSite.column}`);
   });
   // CallSite 1:
