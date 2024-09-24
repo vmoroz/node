@@ -476,7 +476,7 @@ added:
   - v12.19.0
 changes:
   - version:
-    - REPLACEME
+    - v22.9.0
     pr-url: https://github.com/nodejs/node/pull/54209
     description: The flag is no longer experimental.
 -->
@@ -828,6 +828,8 @@ in the file, the value from the environment takes precedence.
 You can pass multiple `--env-file` arguments. Subsequent files override
 pre-existing variables defined in previous files.
 
+An error is thrown if the file does not exist.
+
 ```bash
 node --env-file=.env --env-file=.development.env index.js
 ```
@@ -866,6 +868,9 @@ Export keyword before a key is ignored:
 ```text
 export USERNAME="nodejs" # will result in `nodejs` as the value.
 ```
+
+If you want to load environment variables from a file that may not exist, you
+can use the [`--env-file-if-exists`][] flag instead.
 
 ### `-e`, `--eval "script"`
 
@@ -1761,6 +1766,15 @@ is being linked to Node.js. Sharing the OpenSSL configuration may have unwanted
 implications and it is recommended to use a configuration section specific to
 Node.js which is `nodejs_conf` and is default when this option is not used.
 
+### `--env-file-if-exists=config`
+
+<!-- YAML
+added: v22.9.0
+-->
+
+Behavior is the same as [`--env-file`][], but an error is not thrown if the file
+does not exist.
+
 ### `--pending-deprecation`
 
 <!-- YAML
@@ -2083,7 +2097,7 @@ changes:
                  `PATH` environment variable accordingly.
 -->
 
-> Stability: 1.2 - Release candidate
+> Stability: 2 - Stable
 
 This runs a specified command from a package.json's `"scripts"` object.
 If a missing `"command"` is provided, it will list the available scripts.
@@ -2095,6 +2109,8 @@ file to run the command from.
 the current directory, to the `PATH` in order to execute the binaries from
 different folders where multiple `node_modules` directories are present, if
 `ancestor-folder/node_modules/.bin` is a directory.
+
+`--run` executes the command in the directory containing the related `package.json`.
 
 For example, the following command will run the `test` script of
 the `package.json` in the current folder:
@@ -3106,7 +3122,6 @@ V8 options that are allowed are:
 * `--disallow-code-generation-from-strings`
 * `--enable-etw-stack-walking`
 * `--expose-gc`
-* `--huge-max-old-generation-size`
 * `--interpreted-frames-native-stack`
 * `--jitless`
 * `--max-old-space-size`
@@ -3440,8 +3455,6 @@ documented here:
 
 ### `--harmony-shadow-realm`
 
-### `--huge-max-old-generation-size`
-
 ### `--jitless`
 
 ### `--interpreted-frames-native-stack`
@@ -3548,6 +3561,8 @@ node --stack-trace-limit=12 -p -e "Error.stackTraceLimit" # prints 12
 [`--build-snapshot`]: #--build-snapshot
 [`--cpu-prof-dir`]: #--cpu-prof-dir
 [`--diagnostic-dir`]: #--diagnostic-dirdirectory
+[`--env-file-if-exists`]: #--env-file-if-existsconfig
+[`--env-file`]: #--env-fileconfig
 [`--experimental-default-type=module`]: #--experimental-default-typetype
 [`--experimental-sea-config`]: single-executable-applications.md#generating-single-executable-preparation-blobs
 [`--experimental-strip-types`]: #--experimental-strip-types

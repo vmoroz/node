@@ -640,6 +640,10 @@ EnvironmentOptionsParser::EnvironmentOptionsParser() {
             "set environment variables from supplied file",
             &EnvironmentOptions::env_file);
   Implies("--env-file", "[has_env_file_string]");
+  AddOption("--env-file-if-exists",
+            "set environment variables from supplied file",
+            &EnvironmentOptions::optional_env_file);
+  Implies("--env-file-if-exists", "[has_env_file_string]");
   AddOption("--test",
             "launch test runner on startup",
             &EnvironmentOptions::test_runner);
@@ -900,11 +904,6 @@ PerIsolateOptionsParser::PerIsolateOptionsParser(
             "disallow eval and friends",
             V8Option{},
             kAllowedInEnvvar);
-  AddOption("--huge-max-old-generation-size",
-            "increase default maximum heap size on machines with 16GB memory "
-            "or more",
-            V8Option{},
-            kAllowedInEnvvar);
   AddOption("--jitless",
             "disable runtime allocation of executable memory",
             V8Option{},
@@ -1161,7 +1160,7 @@ inline uint16_t ParseAndValidatePort(const std::string_view port,
 
   if (r.ec == std::errc::result_out_of_range ||
       (result != 0 && result < 1024)) {
-    errors->push_back(" must be 0 or in range 1024 to 65535.");
+    errors->push_back("must be 0 or in range 1024 to 65535.");
   }
 
   return result;
