@@ -364,6 +364,9 @@ node_embedding_run_event_loop(node_embedding_runtime runtime,
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_complete_event_loop(node_embedding_runtime runtime);
 
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_stop(node_embedding_runtime runtime);
+
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
 //------------------------------------------------------------------------------

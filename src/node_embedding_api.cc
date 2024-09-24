@@ -322,6 +322,7 @@ class EmbeddedRuntime {
       node_embedding_event_loop_run_mode run_mode, bool* has_more_work);
 
   node_embedding_status CompleteEventLoop();
+  node_embedding_status Stop();
 
   node_embedding_status RunNodeApi(
       const node_embedding_node_api_functor_ref& run_node_api);
@@ -999,6 +1000,15 @@ node_embedding_status EmbeddedRuntime::CompleteEventLoop() {
   return node_embedding_status_ok;
 }
 
+node_embedding_status EmbeddedRuntime::Stop() {
+  ASSERT(is_initialized_);
+
+  IsolateLocker isolate_locker(env_setup_.get());
+  node::Stop();
+
+  return node_embedding_status_ok;
+}
+
 /*static*/ void EmbeddedRuntime::TriggerFatalException(
     napi_env env, v8::Local<v8::Value> local_err) {
   node_napi_env__* node_napi_env = static_cast<node_napi_env__*>(env);
@@ -1289,6 +1299,11 @@ node_embedding_run_event_loop(node_embedding_runtime runtime,
 node_embedding_status NAPI_CDECL
 node_embedding_complete_event_loop(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->CompleteEventLoop();
+}
+
+node_embedding_status NAPI_CDECL
+node_embedding_runtime_stop(node_embedding_runtime runtime) {
+  return EMBEDDED_RUNTIME(runtime)->Stop();
 }
 
 node_embedding_status NAPI_CDECL
