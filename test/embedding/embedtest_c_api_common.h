@@ -38,7 +38,7 @@ HandleTestError(void* handler_data,
   return node_embedding_status_ok;
 }
 
-#endif
+#endif // __cplusplus
 
 extern const char* main_script;
 

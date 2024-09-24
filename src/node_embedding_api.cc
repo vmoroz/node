@@ -1004,8 +1004,13 @@ node_embedding_status EmbeddedRuntime::Stop() {
   ASSERT(is_initialized_);
 
   IsolateLocker isolate_locker(env_setup_.get());
-  node::Stop();
-
+  int32_t exit_code = node::Stop(env_setup_->env(), node::StopFlags::kNoFlags);
+  if (exit_code != 0) {
+    return EmbeddedErrorHandling::HandleError(
+        "Failed while stopping the runtime",
+        static_cast<node_embedding_status>(
+            node_embedding_status_error_exit_code + exit_code));
+  }
   return node_embedding_status_ok;
 }
 

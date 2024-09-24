@@ -1,4 +1,4 @@
-#include "embedtest_node_api.h"
+#include "embedtest_c_api_common.h"
 
 #include <condition_variable>
 #include <deque>
