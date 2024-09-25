@@ -59,10 +59,8 @@ extern "C" int32_t test_main_c_api_env_with_esm_loader(int32_t argc,
                                   R"JS(
 globalThis.require = require('module').createRequire(process.execPath);
 const { SourceTextModule } = require('node:vm');
-console.log(typeof SourceTextModule);
 (async () => {
   const stmString = 'globalThis.importResult = import("")';
-console.log(typeof SourceTextModule);
   const m = new SourceTextModule(stmString, {
     importModuleDynamically: (async () => {
       const m = new SourceTextModule('');
@@ -75,6 +73,39 @@ console.log(typeof SourceTextModule);
   await m.evaluate();
   delete globalThis.importResult;
   process.exit(0);
+})();
+)JS");
+          }),
+      {});
+}
+
+// Test ESM loaded
+extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
+                                                       char* argv[]) {
+  return node_embedding_run_main(
+      argc,
+      argv,
+      {},
+      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
+          [](node_embedding_platform platform,
+             node_embedding_runtime_config runtime_config) {
+            return LoadUtf8Script(runtime_config,
+                                  R"JS(
+globalThis.require = require('module').createRequire(process.execPath);
+const { SourceTextModule } = require('node:vm');
+(async () => {
+  const stmString = 'globalThis.importResult = import("")';
+  const m = new SourceTextModule(stmString, {
+    importModuleDynamically: (async () => {
+      const m = new SourceTextModule('');
+      await m.link(() => 0);
+      await m.evaluate();
+      return m.namespace;
+    }),
+  });
+  await m.link(() => 0);
+  await m.evaluate();
+  delete globalThis.importResult;
 })();
 )JS");
           }),

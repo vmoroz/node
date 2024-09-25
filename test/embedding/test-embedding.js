@@ -397,6 +397,16 @@ function runEnvTests(apiType) {
     [`${apiType}-env-with-esm-loader`],
     {}
   );
+
+  runTest(
+    `${apiType}: Env With No ESM Loader`,
+    spawnSyncAndExit,
+    [`${apiType}-env-with-no-esm-loader`],
+    {
+      status: 1,
+      signal: null,
+    }
+  );
 }
 
 runEnvTests('c-api');

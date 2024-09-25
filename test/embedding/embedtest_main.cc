@@ -20,6 +20,8 @@ extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
                                                           char* argv[]);
 extern "C" int32_t test_main_c_api_env_with_esm_loader(int32_t argc,
                                                        char* argv[]);
+extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
+                                                          char* argv[]);
 
 typedef int32_t (*main_callback)(int32_t argc, char* argv[]);
 
@@ -68,6 +70,9 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
           test_main_c_api_env_no_browser_globals, argc, argv);
     } else if (strcmp(arg1, "c-api-env-with-esm-loader") == 0) {
       return CallWithoutArg1(test_main_c_api_env_with_esm_loader, argc, argv);
+    } else if (strcmp(arg1, "c-api-env-with-no-esm-loader") == 0) {
+      return CallWithoutArg1(
+          test_main_c_api_env_with_no_esm_loader, argc, argv);
     }
   }
   return test_main_cpp_api(argc, argv);
