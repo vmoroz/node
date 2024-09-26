@@ -86,6 +86,8 @@ It is mostly to catch all the work in progress.
 - [ ] Runtime destructor to clean up all related resources including the
       pending tasks.
 - [ ] Exit process only for unhandled main runtime errors.
+- [ ] Have an internal list of all runtimes in the system.
+      It is a list of all secondary runtimes attached to the main runtime.
 
 ### Event Loop API
 
