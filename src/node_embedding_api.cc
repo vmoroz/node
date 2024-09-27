@@ -86,7 +86,9 @@ namespace {
 template <typename T>
 struct FunctorDeleter {
   void operator()(T* ptr) {
-    ptr->release(ptr->data);
+    if (ptr->release != nullptr) {
+      ptr->release(ptr->data);
+    }
     delete ptr;
   }
 };
@@ -96,12 +98,14 @@ using FunctorPtr = std::unique_ptr<T, FunctorDeleter<T>>;
 
 template <typename T>
 FunctorPtr<T> MakeUniqueFunctor(const T& functor) {
-  return FunctorPtr<T>(new T(functor));
+  return functor.invoke ? FunctorPtr<T>(new T(functor)) : nullptr;
 }
 
 template <typename T>
 std::shared_ptr<T> MakeSharedFunctor(const T& functor) {
-  return std::shared_ptr<T>(new T(functor), FunctorDeleter<T>());
+  return functor.invoke
+             ? std::shared_ptr<T>(new T(functor), FunctorDeleter<T>())
+             : nullptr;
 }
 
 // A helper class to convert std::vector<std::string> to an array of C strings.
@@ -143,10 +147,68 @@ class CStringArray {
   std::unique_ptr<const char*[]> allocated_buffer_;
 };
 
+// Stack implementation that works only with trivially constructible,
+// destructible, and copyable types. It uses the small value optimization where
+// several elements are stored in the in-place array.
+template <typename T, size_t kInplaceEntryCount = 8>
+class SmallTrivialStack {
+  static_assert(std::is_trivially_constructible_v<T>,
+                "T must be trivially constructible");
+  static_assert(std::is_trivially_destructible_v<T>,
+                "T must be trivially destructible");
+  static_assert(std::is_trivially_copyable_v<T>,
+                "T must be trivially copyable");
+
+ public:
+  SmallTrivialStack() noexcept : stack_(inplace_entries_.data()) {}
+
+  void Push(T&& value) {
+    EnsureCapacity(size_ + 1);
+    stack_[size_++] = std::move(value);
+  }
+
+  void Pop() {
+    CHECK_GT(size_, 0);
+    --size_;
+  }
+
+  size_t size() const { return size_; }
+
+  const T& top() const {
+    CHECK_GT(size_, 0);
+    return stack_[size_ - 1];
+  }
+
+  SmallTrivialStack(const SmallTrivialStack&) = delete;
+  SmallTrivialStack& operator=(const SmallTrivialStack&) = delete;
+
+ private:
+  void EnsureCapacity(size_t new_size) {
+    if (new_size <= capacity_) {
+      return;
+    }
+
+    size_t new_capacity = capacity_ + capacity_ / 2;
+    std::unique_ptr<T[]> new_allocated_entries =
+        std::make_unique<T[]>(new_capacity);
+    std::memcpy(new_allocated_entries.get(), stack_, size_ * sizeof(T));
+    allocated_entries_ = std::move(new_allocated_entries);
+    stack_ = allocated_entries_.get();
+    capacity_ = new_capacity;
+  }
+
+ private:
+  T* stack_{};     // Points to either inplace_entries_ or allocated_entries_.
+  size_t size_{};  // Number of elements in the stack.
+  size_t capacity_{kInplaceEntryCount};
+  std::array<T, kInplaceEntryCount> inplace_entries_;
+  std::unique_ptr<T[]> allocated_entries_;
+};
+
 class EmbeddedErrorHandling {
  public:
   static node_embedding_status SetErrorHandler(
-      node_embedding_error_handler error_handler, void* error_handler_data);
+      const node_embedding_error_functor& error_handler);
 
   static node_embedding_status HandleError(const std::string& message,
                                            node_embedding_status status);
@@ -168,16 +230,16 @@ class EmbeddedErrorHandling {
       node_embedding_status status);
 
   static node_embedding_error_handler error_handler() {
-    return error_handler_ ? error_handler_ : DefaultErrorHandler;
+    return error_handler_ && error_handler_->invoke ? error_handler_->invoke
+                                                    : DefaultErrorHandler;
   }
 
  private:
-  static node_embedding_error_handler error_handler_;
-  static void* error_handler_data_;
+  static FunctorPtr<node_embedding_error_functor> error_handler_;
 };
 
-node_embedding_error_handler EmbeddedErrorHandling::error_handler_{};
-void* EmbeddedErrorHandling::error_handler_data_{};
+FunctorPtr<node_embedding_error_functor>
+    EmbeddedErrorHandling::error_handler_{};
 
 class EmbeddedPlatform {
  public:
@@ -252,29 +314,6 @@ class EmbeddedPlatform {
 int32_t EmbeddedPlatform::embedding_api_version_{};
 int32_t EmbeddedPlatform::node_api_version_{};
 
-struct IsolateLocker {
-  IsolateLocker(node::CommonEnvironmentSetup* env_setup)
-      : v8_locker_(env_setup->isolate()),
-        isolate_scope_(env_setup->isolate()),
-        handle_scope_(env_setup->isolate()),
-        context_scope_(env_setup->context()) {}
-
-  bool IsLocked() const {
-    return v8::Locker::IsLocked(v8::Isolate::GetCurrent());
-  }
-
-  void IncrementLockCount() { ++lock_count_; }
-
-  bool DecrementLockCount() { return --lock_count_ == 0; }
-
- private:
-  int32_t lock_count_ = 1;
-  v8::Locker v8_locker_;
-  v8::Isolate::Scope isolate_scope_;
-  v8::HandleScope handle_scope_;
-  v8::Context::Scope context_scope_;
-};
-
 class EmbeddedRuntime {
  public:
   explicit EmbeddedRuntime(EmbeddedPlatform* platform);
@@ -305,12 +344,16 @@ class EmbeddedRuntime {
       const node_embedding_preload_functor& run_preload);
 
   node_embedding_status OnStartExecution(
-      node_embedding_start_execution_functor start_execution);
+      const node_embedding_start_execution_functor& start_execution,
+      const node_embedding_start_result_functor& handle_result);
 
   node_embedding_status AddModule(
       const char* module_name,
       const node_embedding_initialize_module_functor& init_module,
       int32_t module_node_api_version);
+
+  node_embedding_status OnJSError(
+      const node_embedding_node_api_error_functor& handle_error);
 
   node_embedding_status Initialize(
       const node_embedding_configure_runtime_functor_ref& configure_runtime);
@@ -327,12 +370,17 @@ class EmbeddedRuntime {
   node_embedding_status RunNodeApi(
       const node_embedding_node_api_functor_ref& run_node_api);
 
-  node_embedding_status OpenNodeApiScope(napi_env* env);
-  node_embedding_status CloseNodeApiScope();
+  node_embedding_status OpenNodeApiScope(
+      node_embedding_node_api_scope* node_api_scope, napi_env* env);
+  node_embedding_status CloseNodeApiScope(
+      node_embedding_node_api_scope node_api_scope);
   bool IsNodeApiScopeOpened() const;
 
   static napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
                                         const std::string& module_filename);
+
+  size_t OpenV8Scope();
+  void CloseV8Scope(size_t nest_level);
 
  private:
   static void TriggerFatalException(napi_env env,
@@ -371,6 +419,50 @@ class EmbeddedRuntime {
     }
   };
 
+  struct V8ScopeLocker {
+    explicit V8ScopeLocker(EmbeddedRuntime& runtime)
+        : runtime_(runtime), nest_level_(runtime_.OpenV8Scope()) {}
+
+    ~V8ScopeLocker() { runtime_.CloseV8Scope(nest_level_); }
+
+    V8ScopeLocker(const V8ScopeLocker&) = delete;
+    V8ScopeLocker& operator=(const V8ScopeLocker&) = delete;
+
+   private:
+    EmbeddedRuntime& runtime_;
+    size_t nest_level_;
+  };
+
+  struct V8ScopeData {
+    V8ScopeData(node::CommonEnvironmentSetup* env_setup)
+        : isolate_(env_setup->isolate()),
+          v8_locker_(env_setup->isolate()),
+          isolate_scope_(env_setup->isolate()),
+          handle_scope_(env_setup->isolate()),
+          context_scope_(env_setup->context()) {}
+
+    bool IsLocked() const { return v8::Locker::IsLocked(isolate_); }
+
+    size_t IncrementNestLevel() { return ++nest_level_; }
+
+    bool DecrementNestLevel() { return --nest_level_ == 0; }
+
+    size_t nest_level() const { return nest_level_; }
+
+   private:
+    int32_t nest_level_{1};
+    v8::Isolate* isolate_;
+    v8::Locker v8_locker_;  // TODO(vmoroz): can we remove it?
+    v8::Isolate::Scope isolate_scope_;
+    v8::HandleScope handle_scope_;
+    v8::Context::Scope context_scope_;
+  };
+
+  struct NodeApiScopeData {
+    napi_env__::CallModuleScopeData module_scope_data_;
+    size_t v8_scope_nest_level_;
+  };
+
  private:
   EmbeddedPlatform* platform_;
   bool is_initialized_{false};
@@ -379,6 +471,8 @@ class EmbeddedRuntime {
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
   node::StartExecutionCallback start_execution_cb_{};
+  FunctorPtr<node_embedding_start_result_functor> handle_result_cb_{};
+  FunctorPtr<node_embedding_node_api_error_functor> handle_js_error_cb_{};
   napi_env node_api_env_{};
 
   struct {
@@ -390,7 +484,7 @@ class EmbeddedRuntime {
   std::unordered_map<std::string, ModuleInfo> modules_;
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
-  std::optional<IsolateLocker> isolate_locker_;
+  std::optional<V8ScopeData> v8_scope_data_;
 
   FunctorPtr<node_embedding_event_loop_functor> event_loop_handler_{};
   uv_async_t dummy_async_polling_handle_{};
@@ -398,7 +492,7 @@ class EmbeddedRuntime {
   uv_thread_t polling_thread_{};
   bool polling_thread_closed_{false};
 
-  napi_env__::CallModuleScope module_scope_{};
+  SmallTrivialStack<NodeApiScopeData> node_api_scope_data_{};
 };
 
 //-----------------------------------------------------------------------------
@@ -406,23 +500,22 @@ class EmbeddedRuntime {
 //-----------------------------------------------------------------------------
 
 node_embedding_status EmbeddedErrorHandling::SetErrorHandler(
-    node_embedding_error_handler error_handler, void* error_handler_data) {
-  error_handler_ = error_handler;
-  error_handler_data_ = error_handler_data;
+    const node_embedding_error_functor& error_handler) {
+  error_handler_ = MakeUniqueFunctor(error_handler);
   return node_embedding_status_ok;
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::string& message, node_embedding_status status) {
   const char* message_c_str = message.c_str();
-  return error_handler()(error_handler_data_, &message_c_str, 1, status);
+  return error_handler()(error_handler_->data, &message_c_str, 1, status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::vector<std::string>& messages, node_embedding_status status) {
   CStringArray message_arr(messages);
   return error_handler()(
-      error_handler_data_, message_arr.c_strs(), message_arr.size(), status);
+      error_handler_->data, message_arr.c_strs(), message_arr.size(), status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
@@ -759,7 +852,8 @@ node_embedding_status EmbeddedRuntime::OnPreload(
 }
 
 node_embedding_status EmbeddedRuntime::OnStartExecution(
-    node_embedding_start_execution_functor start_execution) {
+    const node_embedding_start_execution_functor& start_execution,
+    const node_embedding_start_result_functor& handle_result) {
   ASSERT(!is_initialized_);
 
   if (start_execution.invoke != nullptr) {
@@ -795,6 +889,8 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
     start_execution_cb_ = {};
   }
 
+  handle_result_cb_ = MakeUniqueFunctor(handle_result);
+
   return node_embedding_status_ok;
 }
 
@@ -819,6 +915,12 @@ node_embedding_status EmbeddedRuntime::AddModule(
         node_embedding_status_bad_arg);
   }
 
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::OnJSError(
+    const node_embedding_node_api_error_functor& handle_error) {
+  handle_js_error_cb_ = MakeUniqueFunctor(handle_error);
   return node_embedding_status_ok;
 }
 
@@ -856,7 +958,7 @@ node_embedding_status EmbeddedRuntime::Initialize(
         errors, node_embedding_status_generic_error);
   }
 
-  v8impl::IsolateLocker isolate_locker(env_setup_.get());
+  V8ScopeLocker v8_scope_locker(*this);
 
   std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
   node_api_env_ = GetOrCreateNodeApiEnv(env_setup_->env(), filename);
@@ -959,7 +1061,7 @@ node_embedding_status EmbeddedRuntime::RunEventLoop(
     node_embedding_event_loop_run_mode run_mode, bool* has_more_work) {
   ASSERT(is_initialized_);
 
-  IsolateLocker isolate_locker(env_setup_.get());
+  V8ScopeLocker v8_scope_locker(*this);
 
   node::ExitCode exit_code =
       node::SpinEventLoopWithoutCleanup(env_setup_->env(),
@@ -985,7 +1087,7 @@ node_embedding_status EmbeddedRuntime::RunEventLoop(
 node_embedding_status EmbeddedRuntime::CompleteEventLoop() {
   ASSERT(is_initialized_);
 
-  IsolateLocker isolate_locker(env_setup_.get());
+  V8ScopeLocker v8_scope_locker(*this);
 
   DestroyEventLoopPollingThread();
 
@@ -1000,10 +1102,11 @@ node_embedding_status EmbeddedRuntime::CompleteEventLoop() {
   return node_embedding_status_ok;
 }
 
+// TODO(vmoroz): replace with a simple uv loop stop.
 node_embedding_status EmbeddedRuntime::Stop() {
   ASSERT(is_initialized_);
 
-  IsolateLocker isolate_locker(env_setup_.get());
+  V8ScopeLocker v8_scope_locker(*this);
   int32_t exit_code = node::Stop(env_setup_->env(), node::StopFlags::kNoFlags);
   if (exit_code != 0) {
     return EmbeddedErrorHandling::HandleError(
@@ -1026,43 +1129,71 @@ node_embedding_status EmbeddedRuntime::Stop() {
   node_napi_env->trigger_fatal_exception(local_err);
 }
 
+size_t EmbeddedRuntime::OpenV8Scope() {
+  if (v8_scope_data_.has_value()) {
+    CHECK(v8_scope_data_->IsLocked());
+    return v8_scope_data_->IncrementNestLevel();
+  }
+
+  v8_scope_data_.emplace(env_setup_.get());
+  return 1;
+}
+
+void EmbeddedRuntime::CloseV8Scope(size_t nest_level) {
+  CHECK(v8_scope_data_.has_value());
+  CHECK_EQ(v8_scope_data_->nest_level(), nest_level);
+  if (v8_scope_data_->DecrementNestLevel()) {
+    v8_scope_data_.reset();
+  }
+}
+
 node_embedding_status EmbeddedRuntime::RunNodeApi(
     const node_embedding_node_api_functor_ref& run_node_api) {
   CHECK_ARG_NOT_NULL(run_node_api.invoke);
+
+  node_embedding_node_api_scope node_api_scope{};
   napi_env env{};
-  CHECK_STATUS(OpenNodeApiScope(&env));
+  CHECK_STATUS(OpenNodeApiScope(&node_api_scope, &env));
+  auto nodeApiScopeLeave =
+      node::OnScopeLeave([&]() { CloseNodeApiScope(node_api_scope); });
+
   run_node_api.invoke(
       run_node_api.data, reinterpret_cast<node_embedding_runtime>(this), env);
-  CHECK_STATUS(CloseNodeApiScope());
+
   return node_embedding_status_ok;
 }
 
-node_embedding_status EmbeddedRuntime::OpenNodeApiScope(napi_env* env) {
+node_embedding_status EmbeddedRuntime::OpenNodeApiScope(
+    node_embedding_node_api_scope* node_api_scope, napi_env* env) {
+  CHECK_ARG_NOT_NULL(node_api_scope);
   CHECK_ARG_NOT_NULL(env);
-  if (isolate_locker_.has_value()) {
-    ASSERT(isolate_locker_->IsLocked());
-    isolate_locker_->IncrementLockCount();
-  } else {
-    isolate_locker_.emplace(env_setup_.get());
-    module_scope_ = node_api_env_->OpenCallModuleScope();
-  }
 
+  size_t v8_scope_nest_level = OpenV8Scope();
+  node_api_scope_data_.Push(
+      {node_api_env_->OpenCallModuleScope(), v8_scope_nest_level});
+
+  *node_api_scope = reinterpret_cast<node_embedding_node_api_scope>(
+      node_api_scope_data_.size());
   *env = node_api_env_;
-
   return node_embedding_status_ok;
 }
 
-node_embedding_status EmbeddedRuntime::CloseNodeApiScope() {
-  ASSERT(IsNodeApiScopeOpened());
-  if (isolate_locker_->DecrementLockCount()) {
-    node_api_env_->CloseCallModuleScope(module_scope_, TriggerFatalException);
-    isolate_locker_.reset();
-  }
+node_embedding_status EmbeddedRuntime::CloseNodeApiScope(
+    node_embedding_node_api_scope node_api_scope) {
+  CHECK_EQ(node_api_scope_data_.size(),
+           reinterpret_cast<size_t>(node_api_scope));
+  size_t v8_scope_nest_level = node_api_scope_data_.top().v8_scope_nest_level_;
+
+  node_api_env_->CloseCallModuleScope(
+      node_api_scope_data_.top().module_scope_data_);
+  node_api_scope_data_.Pop();
+  CloseV8Scope(v8_scope_nest_level);
+
   return node_embedding_status_ok;
 }
 
 bool EmbeddedRuntime::IsNodeApiScopeOpened() const {
-  return isolate_locker_.has_value();
+  return node_api_scope_data_.size() > 0;
 }
 
 napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
@@ -1182,10 +1313,9 @@ void EmbeddedRuntime::RegisterModules() {
 }  // end of anonymous namespace
 }  // end of namespace v8impl
 
-node_embedding_status NAPI_CDECL node_embedding_on_error(
-    node_embedding_error_handler error_handler, void* error_handler_data) {
-  return v8impl::EmbeddedErrorHandling::SetErrorHandler(error_handler,
-                                                        error_handler_data);
+node_embedding_status NAPI_CDECL
+node_embedding_on_error(node_embedding_error_functor error_handler) {
+  return v8impl::EmbeddedErrorHandling::SetErrorHandler(error_handler);
 }
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
@@ -1275,8 +1405,10 @@ node_embedding_runtime_on_preload(node_embedding_runtime_config runtime_config,
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_on_start_execution(
     node_embedding_runtime_config runtime_config,
-    node_embedding_start_execution_functor start_execution) {
-  return EMBEDDED_RUNTIME(runtime_config)->OnStartExecution(start_execution);
+    node_embedding_start_execution_functor start_execution,
+    node_embedding_start_result_functor handle_result) {
+  return EMBEDDED_RUNTIME(runtime_config)
+      ->OnStartExecution(start_execution, handle_result);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
@@ -1286,6 +1418,12 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
     int32_t module_node_api_version) {
   return EMBEDDED_RUNTIME(runtime_config)
       ->AddModule(module_name, init_module, module_node_api_version);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_on_js_error(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_node_api_error_functor handle_error) {
+  return EMBEDDED_RUNTIME(runtime_config)->OnJSError(handle_error);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_on_wake_up_event_loop(
@@ -1318,11 +1456,14 @@ node_embedding_run_node_api(node_embedding_runtime runtime,
 }
 
 node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(
-    node_embedding_runtime runtime, napi_env* env) {
-  return EMBEDDED_RUNTIME(runtime)->OpenNodeApiScope(env);
+    node_embedding_runtime runtime,
+    node_embedding_node_api_scope* node_api_scope,
+    napi_env* env) {
+  return EMBEDDED_RUNTIME(runtime)->OpenNodeApiScope(node_api_scope, env);
 }
 
-node_embedding_status NAPI_CDECL
-node_embedding_close_node_api_scope(node_embedding_runtime runtime) {
-  return EMBEDDED_RUNTIME(runtime)->CloseNodeApiScope();
+node_embedding_status NAPI_CDECL node_embedding_close_node_api_scope(
+    node_embedding_runtime runtime,
+    node_embedding_node_api_scope node_api_scope) {
+  return EMBEDDED_RUNTIME(runtime)->CloseNodeApiScope(node_api_scope);
 }

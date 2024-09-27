@@ -109,8 +109,8 @@ It is mostly to catch all the work in progress.
 
 ### Node-API integration
 
-- [ ] Make sure that no scope can be opened if the thread already has a scope.
-      Store IsolateScope in TLS.
+- Run Node-API code as a lambda
+- Explicitly open and close the Node-API scope
 - [ ] Handle JS errors
 
 ### Test TODOs

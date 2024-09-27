@@ -127,8 +127,8 @@ function runCommonApiTests(apiType) {
   );
 }
 
-//runCommonApiTests('cpp-api');
-//runCommonApiTests('node-api');
+runCommonApiTests('cpp-api');
+runCommonApiTests('node-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -232,7 +232,7 @@ function runSnapshotTests(apiType) {
     );
   }
 }
-/*
+
 runSnapshotTests('cpp-api');
 
 // Node-API specific tests
@@ -382,14 +382,14 @@ runSnapshotTests('cpp-api');
     }
   );
 }
-*/
+
 function runEnvTests(apiType) {
-  // runTest(
-  //   `${apiType}: Env No Browser Globals`,
-  //   spawnSyncAndExitWithoutError,
-  //   [`${apiType}-env-no-browser-globals`],
-  //   {}
-  // );
+  runTest(
+    `${apiType}: Env No Browser Globals`,
+    spawnSyncAndExitWithoutError,
+    [`${apiType}-env-no-browser-globals`],
+    {}
+  );
 
   runTest(
     `${apiType}: Env With ESM Loader`,

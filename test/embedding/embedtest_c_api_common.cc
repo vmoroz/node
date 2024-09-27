@@ -78,5 +78,6 @@ node_embedding_status LoadUtf8Script(
             NODE_API_CALL(napi_call_function(
                 env, null_value, run_cjs, 1, &script_value, &result));
             return result;
-          }));
+          }),
+      {});
 }
