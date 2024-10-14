@@ -69,9 +69,11 @@ struct TemplateHashMapEntry<Address, Value> {
   TemplateHashMapEntry(Address key, Value value, uint32_t hash)
       : key(key), value(value), hash(hash) {}
 
-  bool exists() const { return key != -1u; }
+  bool exists() const {
+    return key != std::numeric_limits<uint32_t>::max();
+  }
 
-  void clear() { key = -1u; }
+  void clear() { key = std::numeric_limits<uint32_t>::max(); }
 };
 
 // Specialization for no value.

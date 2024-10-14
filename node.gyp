@@ -916,6 +916,13 @@
               '@rpath/lib<(node_core_target_name).<(shlib_suffix)'
           },
         }],
+        [ 'node_shared=="true" and node_module_version!="" and OS=="win"', {
+          'msvs_settings': {
+            'VCLinkerTool': {
+              'AdditionalOptions': [ '/CETCOMPAT' ]
+            },
+          },
+        }],
         [ 'node_use_node_code_cache=="true"', {
           'defines': [
             'NODE_USE_NODE_CODE_CACHE=1',

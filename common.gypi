@@ -307,6 +307,8 @@
               '-std:c++20',
               # The following option reduces the "error C1060: compiler is out of heap space"
               '/Zm2000',
+              # Enable additional security development lifecycle (SDL) recommended checks
+              '/sdl',
             ],
           }],
         ],

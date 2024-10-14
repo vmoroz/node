@@ -137,7 +137,7 @@ namespace v8::internal::compiler::turboshaft {
 using MapMask = uint64_t;
 struct MapMaskAndOr {
   MapMask or_ = 0;
-  MapMask and_ = -1ull;
+  MapMask and_ = std::numeric_limits<uint64_t>::max();
 
   bool operator==(const MapMaskAndOr& other) const {
     return or_ == other.or_ && and_ == other.and_;
@@ -146,7 +146,7 @@ struct MapMaskAndOr {
   bool operator!=(const MapMaskAndOr& other) const { return !(*this == other); }
 };
 inline bool is_empty(MapMaskAndOr minmax) {
-  return minmax.or_ == 0 && minmax.and_ == -1ull;
+  return minmax.or_ == 0 && minmax.and_ == std::numeric_limits<uint64_t>::max();
 }
 inline MapMask ComputeMapHash(MapRef map) {
   // `map.hash_value()` is probably not a good enough hash, since most user maps

@@ -3506,6 +3506,7 @@ void BytecodeGraphBuilder::VisitTestTypeOf() {
                            jsgraph()->NullConstant()));
       break;
     case interpreter::TestTypeOfFlags::LiteralFlag::kOther:
+    default:
       UNREACHABLE();  // Should never be emitted.
   }
   environment()->BindAccumulator(result);

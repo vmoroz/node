@@ -1,0 +1,1 @@
+call e:\3\tools\netcoreapp3.1\win-x64\BinSkim.exe analyze --config default --ignorePdbLoadError --hashes --statistics --force --sarif-output-version OneZeroZero --output e:\GitHub\nodejs\node\out\Release\binskim.sarif e:\GitHub\nodejs\node\out\Release\libnode.dll

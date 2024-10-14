@@ -96,7 +96,7 @@ class StructuralOptimizationReducer : public Next {
     base::SmallVector<const Block*, 16> false_blocks;
 
     Block* current_if_true;
-    Block* current_if_false;
+    Block* current_if_false = nullptr;
     const BranchOp* current_branch = &branch;
     BranchHint current_branch_hint;
     BranchHint next_hint = BranchHint::kNone;
