@@ -309,6 +309,11 @@
               '/Zm2000',
               # Enable additional security development lifecycle (SDL) recommended checks
               '/sdl',
+              '/guard:cf',
+              '/Qspectre',
+              '/w34146', # unary minus operator applied to unsigned type, result still unsigned
+              '/w34703', # potentially uninitialized local pointer variable 'name' used
+              '/w34996', # use of deprecated function
             ],
           }],
         ],
@@ -340,6 +345,9 @@
         ],
         'GenerateDebugInformation': 'true',
         'SuppressStartupBanner': 'true',
+        'AdditionalOptions': [
+          '/guard:cf',
+        ],
       },
     },
     # Disable warnings:
@@ -355,7 +363,7 @@
     #   drowns out other, more legitimate warnings.
     # - "C4244: conversion from 'type1' to 'type2', possible loss of data"
     #   Ususaly safe. Disable for `dep`, enable for `src`
-    'msvs_disabled_warnings': [4351, 4355, 4800, 4251, 4275, 4244, 4267],
+    'msvs_disabled_warnings': [4351, 4355, 4800, 4251, 4275],
     'msvs_cygwin_shell': 0, # prevent actions from trying to use cygwin
 
     'conditions': [
