@@ -922,6 +922,9 @@
               'AdditionalOptions': [ '/CETCOMPAT' ]
             },
           },
+          'msvs_configuration_attributes': {
+            'SpectreMitigation': 'Spectre',
+          },
         }],
         [ 'node_use_node_code_cache=="true"', {
           'defines': [
