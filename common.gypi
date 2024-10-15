@@ -286,13 +286,13 @@
         'AdditionalOptions': [
           '/Zc:__cplusplus',
           '-std:c++17',
-              # Enable additional security development lifecycle (SDL) recommended checks
-              '/sdl',
-              '/guard:cf',
-              '/Qspectre',
-              '/w34146', # unary minus operator applied to unsigned type, result still unsigned
-              '/w34703', # potentially uninitialized local pointer variable 'name' used
-              '/w34996', # use of deprecated function
+          # Enable additional security development lifecycle (SDL) recommended checks
+          '/sdl',
+          '/guard:cf',
+          '/Qspectre',
+          '/w34146', # unary minus operator applied to unsigned type, result still unsigned
+          '/w34703', # potentially uninitialized local pointer variable 'name' used
+          '/w34996', # use of deprecated function
         ],
         'BufferSecurityCheck': 'true',
         'DebugInformationFormat': 1,          # /Z7 embed info in .obj files
