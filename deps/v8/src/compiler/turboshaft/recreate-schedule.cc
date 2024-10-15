@@ -168,8 +168,6 @@ void ScheduleBuilder::ProcessOperation(const Operation& op) {
     break;
     TURBOSHAFT_OPERATION_LIST(SWITCH_CASE)
 #undef SWITCH_CASE
-    default:
-      UNIMPLEMENTED();
   }
   OpIndex index = input_graph.Index(op);
   DCHECK_LT(index.id(), nodes.size());
@@ -238,8 +236,6 @@ Node* ScheduleBuilder::ProcessOperation(const WordBinopOp& op) {
         case Kind::kBitwiseXor:
           o = machine.Word32Xor();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     case WordRepresentation::Word64():
@@ -280,8 +276,6 @@ Node* ScheduleBuilder::ProcessOperation(const WordBinopOp& op) {
         case Kind::kUnsignedMulOverflownBits:
           o = machine.Uint64MulHigh();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     default:
@@ -316,7 +310,6 @@ Node* ScheduleBuilder::ProcessOperation(const FloatBinopOp& op) {
         case Kind::kPower:
         case Kind::kAtan2:
         case Kind::kMod:
-        default:
           UNREACHABLE();
       }
       break;
@@ -349,8 +342,6 @@ Node* ScheduleBuilder::ProcessOperation(const FloatBinopOp& op) {
         case Kind::kAtan2:
           o = machine.Float64Atan2();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     default:
@@ -373,8 +364,6 @@ Node* ScheduleBuilder::ProcessOperation(const OverflowCheckedBinopOp& op) {
         case OverflowCheckedBinopOp::Kind::kSignedMul:
           o = machine.Int32MulWithOverflow();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     case WordRepresentation::Word64():
@@ -388,8 +377,6 @@ Node* ScheduleBuilder::ProcessOperation(const OverflowCheckedBinopOp& op) {
         case OverflowCheckedBinopOp::Kind::kSignedMul:
           o = machine.Int64MulWithOverflow();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     default:
@@ -421,8 +408,6 @@ Node* ScheduleBuilder::ProcessOperation(const WordUnaryOp& op) {
       o = word64 ? machine.SignExtendWord16ToInt64()
                  : machine.SignExtendWord16ToInt32();
       break;
-    default:
-      UNREACHABLE();
   }
   return AddNode(o, {GetNode(op.input())});
 }
@@ -434,9 +419,6 @@ Node* ScheduleBuilder::ProcessOperation(const OverflowCheckedUnaryOp& op) {
     case OverflowCheckedUnaryOp::Kind::kAbs:
       o = word64 ? machine.Int64AbsWithOverflow().op()
                  : machine.Int32AbsWithOverflow().op();
-      break;
-    default:
-      UNREACHABLE();
   }
   return AddNode(o, {GetNode(op.input())});
 }
@@ -551,8 +533,6 @@ Node* ScheduleBuilder::ProcessOperation(const FloatUnaryOp& op) {
       DCHECK_EQ(op.rep, FloatRepresentation::Float64());
       o = machine.Float64Cbrt();
       break;
-    default:
-      UNIMPLEMENTED();
   }
   return AddNode(o, {GetNode(op.input())});
 }
@@ -594,8 +574,6 @@ Node* ScheduleBuilder::ProcessOperation(const ShiftOp& op) {
     case ShiftOp::Kind::kRotateRight:
       o = word64 ? machine.Word64Ror() : machine.Word32Ror();
       break;
-    default:
-      UNREACHABLE();
   }
   return AddNode(o, {GetNode(op.left()), right});
 }
@@ -619,8 +597,6 @@ Node* ScheduleBuilder::ProcessOperation(const ComparisonOp& op) {
         case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
           o = machine.Uint32LessThanOrEqual();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     case RegisterRepresentation::Word64():
@@ -640,8 +616,6 @@ Node* ScheduleBuilder::ProcessOperation(const ComparisonOp& op) {
         case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
           o = machine.Uint64LessThanOrEqual();
           break;
-        default:
-          UNREACHABLE();
       }
       break;
     case RegisterRepresentation::Float32():
@@ -657,7 +631,6 @@ Node* ScheduleBuilder::ProcessOperation(const ComparisonOp& op) {
           break;
         case ComparisonOp::Kind::kUnsignedLessThan:
         case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
-        default:
           UNREACHABLE();
       }
       break;
@@ -674,7 +647,6 @@ Node* ScheduleBuilder::ProcessOperation(const ComparisonOp& op) {
           break;
         case ComparisonOp::Kind::kUnsignedLessThan:
         case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
-        default:
           UNREACHABLE();
       }
       break;
@@ -687,7 +659,6 @@ Node* ScheduleBuilder::ProcessOperation(const ComparisonOp& op) {
         case ComparisonOp::Kind::kSignedLessThanOrEqual:
         case ComparisonOp::Kind::kUnsignedLessThan:
         case ComparisonOp::Kind::kUnsignedLessThanOrEqual:
-        default:
           UNREACHABLE();
       }
       break;
@@ -859,8 +830,6 @@ Node* ScheduleBuilder::ProcessOperation(const ChangeOp& op) {
       } else {
         UNIMPLEMENTED();
       }
-    default:
-      UNIMPLEMENTED();
   }
   return AddNode(o, {GetNode(op.input())});
 }
@@ -896,8 +865,6 @@ Node* ScheduleBuilder::ProcessOperation(const TryChangeOp& op) {
         UNREACHABLE();
       }
       break;
-    default:
-      UNREACHABLE();
   }
   return AddNode(o, {GetNode(op.input())});
 }
@@ -1048,8 +1015,6 @@ Node* ScheduleBuilder::ProcessOperation(const AtomicRMWOp& op) {
     break;
       ATOMIC_BINOPS(CASE)
 #undef CASE
-      default:
-        UNREACHABLE();
     }
   } else {
     DCHECK_EQ(op.in_out_rep, RegisterRepresentation::Word64());
@@ -1060,8 +1025,6 @@ Node* ScheduleBuilder::ProcessOperation(const AtomicRMWOp& op) {
     break;
       ATOMIC_BINOPS(CASE)
 #undef CASE
-      default:
-        UNREACHABLE();
     }
   }
 #undef ATOMIC_BINOPS

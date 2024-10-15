@@ -861,11 +861,7 @@ class MachineOptimizationReducer : public Next {
       switch (kind) {
         case Kind::kSub:
           // left - k  =>  left + -k
-          return ReduceWordBinop(
-              left,
-              __ WordConstant(
-                  static_cast<uint64_t>(-static_cast<int64_t>(right_value)),
-                  rep),
+          return ReduceWordBinop(left, __ WordConstant(-right_value, rep),
                                  Kind::kAdd, rep);
         case Kind::kAdd:
           // left + 0  =>  left

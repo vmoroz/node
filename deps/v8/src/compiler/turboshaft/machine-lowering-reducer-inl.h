@@ -1223,11 +1223,8 @@ class MachineLoweringReducer : public Next {
                     __ IntPtrLessThan(i64, kMaxSafeIntegerUint64), frame_state,
                     DeoptimizeReason::kNotAnArrayIndex, feedback);
                 __ DeoptimizeIfNot(
-                    __ IntPtrLessThan(
-                        static_cast<uint64_t>(
-                            -static_cast<int64_t>(kMaxSafeIntegerUint64)),
-                        i64),
-                    frame_state, DeoptimizeReason::kNotAnArrayIndex, feedback);
+                    __ IntPtrLessThan(-kMaxSafeIntegerUint64, i64), frame_state,
+                    DeoptimizeReason::kNotAnArrayIndex, feedback);
                 GOTO(done, i64);
               } else {
                 V<Word32> i32 = __ TruncateFloat64ToInt32OverflowUndefined(
@@ -2773,7 +2770,7 @@ class MachineLoweringReducer : public Next {
           } ELSE IF (UNLIKELY(__ Float64Equal(input_f64, 0.0))) {
             GOTO(done, input_f64);
           } ELSE IF (UNLIKELY(
-                         __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
+                        __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
             GOTO(done, input_f64);
           } ELSE {
             V<Float64> temp1 = __ Float64Sub(-0.0, input_f64);
@@ -2824,7 +2821,7 @@ class MachineLoweringReducer : public Next {
           } ELSE IF (UNLIKELY(__ Float64Equal(input_f64, 0.0))) {
             GOTO(done, input_f64);
           } ELSE IF (UNLIKELY(
-                         __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
+                        __ Float64LessThanOrEqual(input_f64, minus_two_52))) {
             GOTO(done, input_f64);
           } ELSE {
             V<Float64> temp1 = __ Float64Sub(-0.0, input_f64);
@@ -3180,8 +3177,8 @@ class MachineLoweringReducer : public Next {
                 __ Word32Equal(__ UntagSmi(V<Smi>::Cast(candidate_key)), key),
                 done, candidate);
           } ELSE IF (__ TaggedEqual(
-                         __ LoadMapField(candidate_key),
-                         __ HeapConstant(factory_->heap_number_map()))) {
+                        __ LoadMapField(candidate_key),
+                        __ HeapConstant(factory_->heap_number_map()))) {
             GOTO_IF(__ Float64Equal(__ LoadHeapNumberValue(
                                         V<HeapNumber>::Cast(candidate_key)),
                                     __ ChangeInt32ToFloat64(key)),
@@ -3679,9 +3676,9 @@ class MachineLoweringReducer : public Next {
     return *undetectable_objects_protector_;
   }
 
-  Isolate* isolate_ = __ data()->isolate();
+  Isolate* isolate_ = __ data() -> isolate();
   Factory* factory_ = isolate_ ? isolate_->factory() : nullptr;
-  JSHeapBroker* broker_ = __ data()->broker();
+  JSHeapBroker* broker_ = __ data() -> broker();
   std::optional<bool> undetectable_objects_protector_ = {};
 };
 

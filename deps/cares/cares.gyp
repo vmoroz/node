@@ -178,7 +178,6 @@
       'sources': [
         '<@(cares_sources_common)',
       ],
-      'defines': [ 'CARES_NO_DEPRECATED' ],
       'conditions': [
         [ 'library=="static_library"', {
           'defines': [ 'CARES_STATICLIB' ]

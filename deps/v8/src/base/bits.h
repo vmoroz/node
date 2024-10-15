@@ -474,7 +474,7 @@ inline int32_t WraparoundAdd32(int32_t lhs, int32_t rhs) {
 }
 
 inline int32_t WraparoundNeg32(int32_t x) {
-  return -x;
+  return static_cast<int32_t>(-static_cast<uint32_t>(x));
 }
 
 // SignedSaturatedAdd64(lhs, rhs) adds |lhs| and |rhs|,

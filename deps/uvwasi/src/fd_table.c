@@ -75,10 +75,10 @@ uvwasi_errno_t uvwasi_fd_table_insert(uvwasi_t* uvwasi,
   uint32_t i;
   int r;
   size_t mp_len;
-  char* mp_copy = NULL;
+  char* mp_copy;
   size_t rp_len;
-  char* rp_copy = NULL;
-  char* np_copy = NULL;
+  char* rp_copy;
+  char* np_copy;
 
   if (type != UVWASI_FILETYPE_SOCKET_STREAM) {
     mp_len = strlen(mapped_path);

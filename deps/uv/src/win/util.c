@@ -1533,14 +1533,14 @@ int uv_os_uname(uv_utsname_t* buffer) {
   if (pRtlGetVersion) {
     pRtlGetVersion(&os_info);
   } else {
-    ///* Silence GetVersionEx() deprecation warning. */
-    //#ifdef _MSC_VER
-    //#pragma warning(suppress : 4996)
-    //#endif
-    //if (GetVersionExW(&os_info) == 0) {
-    //  r = uv_translate_sys_error(GetLastError());
+    /* Silence GetVersionEx() deprecation warning. */
+    #ifdef _MSC_VER
+    #pragma warning(suppress : 4996)
+    #endif
+    if (GetVersionExW(&os_info) == 0) {
+      r = uv_translate_sys_error(GetLastError());
       goto error;
-    //}
+    }
   }
 
   /* Populate the version field. */

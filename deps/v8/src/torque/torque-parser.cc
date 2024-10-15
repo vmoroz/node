@@ -1678,7 +1678,7 @@ std::optional<ParseResult> MakeTypeswitchStatement(
         true, MakeNode<Identifier>("__value"), std::nullopt, expression));
   }
 
-  TypeExpression* accumulated_types = nullptr;
+  TypeExpression* accumulated_types;
   for (size_t i = 0; i < cases.size(); ++i) {
     CurrentSourcePosition::Scope current_source_position(cases[i].pos);
     Expression* value =

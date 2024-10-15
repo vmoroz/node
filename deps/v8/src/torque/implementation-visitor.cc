@@ -364,7 +364,6 @@ VisitResult ImplementationVisitor::InlineMacro(
                               LocalLabel{macro_end, {return_type}});
   } else {
     SetReturnValue(VisitResult::NeverResult());
-    macro_end = nullptr;
   }
 
   const Type* result = Visit(*macro->body());
@@ -1197,8 +1196,6 @@ const Type* ImplementationVisitor::Visit(DebugStatement* stmt) {
       return_type = TypeOracle::GetVoidType();
       kind = AbortInstruction::Kind::kDebugBreak;
       break;
-    default:
-      UNREACHABLE();
   }
 #if defined(DEBUG)
   assembler().Emit(PrintErrorInstruction{"halting because of " + reason +
@@ -1254,8 +1251,6 @@ const Type* ImplementationVisitor::Visit(AssertStatement* stmt) {
     resume_block = assembler().NewBlock(assembler().CurrentStack());
     assembler().Goto(resume_block);
     assembler().Bind(unreachable_block);
-  } else {
-    resume_block = nullptr;
   }
 
   // CSA_DCHECK & co. are not used here on purpose for two reasons. First,
@@ -4658,8 +4653,6 @@ void CppClassGenerator::EmitLoadFieldStatement(
       case FieldSynchronization::kAcquireRelease:
         load = "Acquire_Load";
         break;
-      default:
-        UNREACHABLE();
     }
     bool is_smi = field_type->IsSubtypeOf(TypeOracle::GetSmiType());
     const std::string load_type = is_smi ? "Smi" : type_name;
@@ -4728,8 +4721,6 @@ void CppClassGenerator::EmitStoreFieldStatement(
         case FieldSynchronization::kAcquireRelease:
           write_macro = "RELEASE_WRITE_FIELD";
           break;
-        default:
-          UNREACHABLE();
       }
     }
     const std::string value_to_write = is_smi ? "Smi::FromInt(value)" : "value";

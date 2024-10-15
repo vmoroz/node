@@ -6162,8 +6162,6 @@ void v8::String::VerifyExternalStringResource(
           str, raw_hash_field, &is_one_byte);
       if (!is_one_byte) {
         expected = reinterpret_cast<const ExternalStringResource*>(resource);
-      } else {
-        expected = nullptr;
       }
     } else {
       expected = nullptr;
