@@ -898,12 +898,17 @@
               '@rpath/lib<(node_core_target_name).<(shlib_suffix)'
           },
         }],
-        [ 'node_shared=="true" and node_module_version!="" and OS=="win"', {
+        [ 'node_shared=="true" and node_module_version!="" and OS=="win" and target_arch!="arm64"', {
           'msvs_settings': {
             'VCLinkerTool': {
               'AdditionalOptions': [ '/CETCOMPAT' ]
             },
           },
+          'msvs_configuration_attributes': {
+            'SpectreMitigation': 'Spectre',
+          },
+        }],
+        [ 'node_shared=="true" and node_module_version!="" and OS=="win" and target_arch=="arm64"', {
           'msvs_configuration_attributes': {
             'SpectreMitigation': 'Spectre',
           },
