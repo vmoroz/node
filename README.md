@@ -357,6 +357,8 @@ For information about the governance of the Node.js project, see
   **Jacob Smith** <<jacob@frende.me>> (he/him)
 * [jasnell](https://github.com/jasnell) -
   **James M Snell** <<jasnell@gmail.com>> (he/him)
+* [jazelly](https://github.com/jazelly) -
+  **Jason Zhang** <<xzha4350@gmail.com>> (he/him)
 * [jkrems](https://github.com/jkrems) -
   **Jan Krems** <<jan.krems@gmail.com>> (he/him)
 * [joyeecheung](https://github.com/joyeecheung) -
@@ -875,7 +877,7 @@ releases on a rotation basis as outlined in the
 ## License
 
 Node.js is available under the
-[MIT license](https://opensource.org/licenses/MIT). Node.js also includes
+[MIT License](https://opensource.org/licenses/MIT). Node.js also includes
 external libraries that are available under a variety of licenses.  See
 [LICENSE](https://github.com/nodejs/node/blob/HEAD/LICENSE) for the full
 license text.
