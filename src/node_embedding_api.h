@@ -32,6 +32,7 @@ typedef struct node_embedding_platform_config__* node_embedding_platform_config;
 typedef struct node_embedding_runtime_config__* node_embedding_runtime_config;
 typedef struct node_embedding_node_api_scope__* node_embedding_node_api_scope;
 
+// The status returned by the Node.js embedding API functions.
 typedef enum {
   node_embedding_status_ok = 0,
   node_embedding_status_generic_error = 1,
@@ -42,6 +43,8 @@ typedef enum {
   node_embedding_status_error_exit_code = 512,
 } node_embedding_status;
 
+// The flags for the Node.js platform initialization.
+// They match the internal ProcessInitializationFlags::Flags enum.
 typedef enum {
   node_embedding_platform_no_flags = 0,
   // Enable stdio inheritance, which is disabled by default.
@@ -73,6 +76,8 @@ typedef enum {
   node_embedding_platform_generate_predictable_snapshot = 1 << 14,
 } node_embedding_platform_flags;
 
+// The flags for the Node.js runtime initialization.
+// They match the internal EnvironmentFlags::Flags enum.
 typedef enum {
   node_embedding_runtime_no_flags = 0,
   // Use the default behavior for Node.js instances.
@@ -189,6 +194,20 @@ typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     const char* module_name,
     napi_value exports);
 
+typedef napi_value(NAPI_CDECL* node_embedding_task_callback)(
+    void* cb_data, node_embedding_runtime runtime);
+
+typedef struct {
+  void* data;
+  node_embedding_task_callback invoke;
+  node_embedding_release_callback release;
+} node_embedding_task_functor;
+
+typedef napi_value(NAPI_CDECL* node_embedding_post_task_callback)(
+    void* cb_data,
+    node_embedding_runtime runtime,
+    node_embedding_task_functor task);
+
 typedef void(NAPI_CDECL* node_embedding_event_loop_handler)(
     void* handler_data, node_embedding_runtime runtime);
 
@@ -265,6 +284,12 @@ typedef struct {
   node_embedding_event_loop_handler invoke;
   node_embedding_release_callback release;
 } node_embedding_event_loop_functor;
+
+typedef struct {
+  void* data;
+  node_embedding_post_task_callback invoke;
+  node_embedding_release_callback release;
+} node_embedding_post_task_functor;
 
 //==============================================================================
 // Functions
@@ -372,6 +397,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
     node_embedding_initialize_module_functor init_module,
     int32_t module_node_api_version);
 
+// TODO: delete?
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_on_js_error(
     node_embedding_runtime_config runtime_config,
     node_embedding_node_api_error_functor handle_error);
@@ -380,28 +406,26 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_on_js_error(
 // Node.js runtime functions for the event loop.
 //------------------------------------------------------------------------------
 
-// Initializes the runtime to call the provided handler when the runtime event
-// loop has some work to do. It starts an observer thread that is stopped by the
-// `node_embedding_runtime_complete_event_loop` function call. This function
-// helps to integrate the Node.js runtime event loop with the host UI loop.
+// Sets the task runner for the Node.js runtime.
+// This is an alternative way to run the Node.js runtime event loop that helps
+// running it inside of an existing task scheduler.
+// E.g. it enables running Node.js event loop inside of the application UI event
+// loop or UI dispatcher queue.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_wake_up_event_loop(
+node_embedding_runtime_set_task_runner(
     node_embedding_runtime_config runtime_config,
-    node_embedding_event_loop_functor run_event_loop);
-
-// Runs the Node.js runtime event loop.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop(node_embedding_runtime runtime,
-                              node_embedding_event_loop_run_mode run_mode,
-                              bool* has_more_work);
+    // node_embedding_post_task_functor post_task);
+    std::function<void(std::function<void()>)> post_task);
 
 // Runs the Node.js runtime event loop in node_embedding_event_loop_run_default
 // mode and finishes it with emitting the beforeExit and exit process events.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_complete_event_loop(node_embedding_runtime runtime);
+node_embedding_run_event_loop(node_embedding_runtime runtime);
 
+// Stops the Node.js runtime event loop that runs in
+// node_embedding_event_loop_run_default mode.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_stop(node_embedding_runtime runtime);
+node_embedding_stop_runtime(node_embedding_runtime runtime);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
