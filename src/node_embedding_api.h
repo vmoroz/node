@@ -168,7 +168,6 @@ typedef void(NAPI_CDECL* node_embedding_get_args_callback)(void* cb_data,
                                                            int32_t argc,
                                                            const char* argv[]);
 
-// TODO: what is a better term for runtime/node::Environment/worker_thread here?
 typedef void(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
