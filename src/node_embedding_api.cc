@@ -955,6 +955,18 @@ node_embedding_status EmbeddedRuntime::Initialize(
     return EmbeddedErrorHandling::HandleError(
         "Failed to load environment", node_embedding_status_generic_error);
 
+  if (handle_result_ != nullptr && handle_result_->invoke != nullptr) {
+    node_api_env_->CallIntoModule(
+        [&](napi_env env) {
+          handle_result_->invoke(
+              handle_result_->data,
+              reinterpret_cast<node_embedding_runtime>(this),
+              env,
+              v8impl::JsValueFromV8LocalValue(ret.ToLocalChecked()));
+        },
+        TriggerFatalException);
+  }
+
   InitializeEventLoopPollingThread();
 
   return node_embedding_status_ok;
