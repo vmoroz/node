@@ -32,8 +32,7 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
             CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
 
             return node_embedding_status_ok;
-          }),
-      {}));
+          })));
 
   return 0;
 }

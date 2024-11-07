@@ -36,8 +36,7 @@ for (const item of items) {
 }
 assert.deepStrictEqual(leaks, []);
 )JS");
-          }),
-      {});
+          }));
 }
 
 // Test ESM loaded
@@ -75,8 +74,7 @@ const { SourceTextModule } = require('node:vm');
   process.exit(0);
 })();
 )JS");
-          }),
-      {});
+          }));
 }
 
 // Test ESM loaded
@@ -108,6 +106,5 @@ const { SourceTextModule } = require('node:vm');
   delete globalThis.importResult;
 })();
 )JS");
-          }),
-      {});
+          }));
 }

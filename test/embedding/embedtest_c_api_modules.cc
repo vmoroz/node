@@ -127,8 +127,7 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
             CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
 
             return node_embedding_status_ok;
-          }),
-      {}));
+          })));
 
   ASSERT_OR_EXIT(greeterModuleInitCallCount ==
                  expectedGreeterModuleInitCallCount);

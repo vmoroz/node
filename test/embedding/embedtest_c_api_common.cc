@@ -62,7 +62,9 @@ std::string FormatString(const char* format, ...) {
 }
 
 node_embedding_status LoadUtf8Script(
-    node_embedding_runtime_config runtime_config, std::string script) {
+    node_embedding_runtime_config runtime_config,
+    std::string script,
+    const node_embedding_handle_result_functor& handle_result) {
   return node_embedding_runtime_on_start_execution(
       runtime_config,
       AsFunctor<node_embedding_start_execution_functor>(
@@ -79,5 +81,5 @@ node_embedding_status LoadUtf8Script(
                 env, null_value, run_cjs, 1, &script_value, &result));
             return result;
           }),
-      {});
+      handle_result);
 }

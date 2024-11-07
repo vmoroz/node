@@ -183,7 +183,7 @@ typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
     napi_value require,
     napi_value run_cjs);
 
-typedef napi_value(NAPI_CDECL* node_embedding_handle_result_callback)(
+typedef void(NAPI_CDECL* node_embedding_handle_result_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
@@ -196,7 +196,7 @@ typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     const char* module_name,
     napi_value exports);
 
-typedef napi_value(NAPI_CDECL* node_embedding_run_task_callback)(
+typedef void(NAPI_CDECL* node_embedding_run_task_callback)(
     void* cb_data, node_embedding_runtime runtime);
 
 typedef struct {
@@ -205,7 +205,7 @@ typedef struct {
   node_embedding_release_data_callback release;
 } node_embedding_run_task_functor;
 
-typedef napi_value(NAPI_CDECL* node_embedding_post_task_callback)(
+typedef void(NAPI_CDECL* node_embedding_post_task_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     node_embedding_run_task_functor run_task);

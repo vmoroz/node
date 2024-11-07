@@ -25,14 +25,18 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
+            CHECK_STATUS(LoadUtf8Script(
+                runtime_config,
+                main_script,
+                AsFunctor<node_embedding_handle_result_functor>(
+                    [&](node_embedding_runtime runtime,
+                        napi_env env,
+                        napi_value /*value*/) {
+                      CallMe(runtime, env);
+                      WaitMe(runtime, env);
+                      WaitMeWithCheese(runtime, env);
+                    })));
             return node_embedding_status_ok;
-          }),
-      AsFunctorRef<node_embedding_node_api_functor_ref>(
-          [&](node_embedding_runtime runtime, napi_env env) {
-            CallMe(runtime, env);
-            WaitMe(runtime, env);
-            WaitMeWithCheese(runtime, env);
           })));
 
   return node_embedding_status_ok;

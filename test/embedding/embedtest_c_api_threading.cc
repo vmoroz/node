@@ -37,19 +37,24 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                       runtime_config,
                       node_embedding_runtime_default_flags |
                           node_embedding_runtime_no_create_inspector));
-                  CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
+                  CHECK_STATUS(LoadUtf8Script(
+                      runtime_config,
+                      main_script,
+                      AsFunctor<node_embedding_handle_result_functor>(
+                          [&](node_embedding_runtime runtime,
+                              napi_env env,
+                              napi_value /*value*/) {
+                            napi_value global, my_count;
+                            NODE_API_CALL_RETURN_VOID(
+                                napi_get_global(env, &global));
+                            NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                                env, global, "myCount", &my_count));
+                            int32_t count;
+                            NODE_API_CALL_RETURN_VOID(
+                                napi_get_value_int32(env, my_count, &count));
+                            global_count.fetch_add(count);
+                          })));
                   return node_embedding_status_ok;
-                }),
-            AsFunctorRef<node_embedding_node_api_functor_ref>(
-                [&](node_embedding_runtime runtime, napi_env env) {
-                  napi_value global, my_count;
-                  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                  NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                      env, global, "myCount", &my_count));
-                  int32_t count;
-                  NODE_API_CALL_RETURN_VOID(
-                      napi_get_value_int32(env, my_count, &count));
-                  global_count.fetch_add(count);
                 })));
         return node_embedding_status_ok;
       }();
@@ -111,7 +116,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
 
     CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -140,7 +145,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
   for (node_embedding_runtime runtime : runtimes) {
     CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value global, my_count;
               NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -204,7 +209,7 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
       std::scoped_lock lock(mutex);
       node_embedding_status status = node_embedding_run_node_api(
           runtime,
-          AsFunctorRef<node_embedding_node_api_functor_ref>(
+          AsFunctorRef<node_embedding_run_node_api_functor_ref>(
               [&](node_embedding_runtime runtime, napi_env env) {
                 napi_value undefined, global, func, my_count;
                 NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -312,44 +317,20 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             // The callback will be invoked from the runtime's event loop
             // observer thread. It must schedule the work to the UI thread's
             // event loop.
-            CHECK_STATUS(node_embedding_on_wake_up_event_loop(
+            CHECK_STATUS(node_embedding_runtime_set_task_runner(
                 runtime_config,
-                AsFunctor<node_embedding_event_loop_functor>(
-                    [&ui_queue](node_embedding_runtime runtime) {
-                      ui_queue.PostTask([runtime, &ui_queue]() {
-                        CHECK_STATUS_OR_EXIT(node_embedding_run_event_loop(
-                            runtime,
-                            node_embedding_event_loop_run_nowait,
-                            nullptr));
-
-                        // Check myCount and stop the processing when it
-                        // reaches 5.
-                        CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
-                            runtime,
-                            AsFunctorRef<node_embedding_node_api_functor_ref>(
-                                [&](node_embedding_runtime runtime,
-                                    napi_env env) {
-                                  napi_value global, my_count;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_global(env, &global));
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_named_property(
-                                          env, global, "myCount", &my_count));
-                                  napi_valuetype count_type;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_typeof(env, my_count, &count_type));
-                                  NODE_API_ASSERT_RETURN_VOID(count_type ==
-                                                              napi_number);
-                                  int32_t count;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_value_int32(
-                                          env, my_count, &count));
-                                  if (count == 5) {
-                                    node_embedding_complete_event_loop(runtime);
-                                    fprintf(stdout, "%d\n", count);
-                                    ui_queue.Stop();
-                                  }
-                                })));
+                AsFunctor<node_embedding_post_task_functor>(
+                    [&ui_queue](node_embedding_runtime runtime,
+                                node_embedding_run_task_functor run_task) {
+                      // TODO: use a safer way to call release.
+                      // TODO: figure out the termination scenario.
+                      ui_queue.PostTask([runtime, run_task]() {
+                        if (run_task.invoke != nullptr) {
+                          run_task.invoke(run_task.data, runtime);
+                        }
+                        if (run_task.release != nullptr) {
+                          run_task.release(run_task.data);
+                        }
                       });
                     })));
 
@@ -364,7 +345,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
   ui_queue.PostTask([runtime]() {
     node_embedding_status status = node_embedding_run_node_api(
         runtime,
-        AsFunctorRef<node_embedding_node_api_functor_ref>(
+        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
             [&](node_embedding_runtime runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));

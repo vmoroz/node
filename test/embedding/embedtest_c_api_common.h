@@ -77,7 +77,9 @@ void ThrowLastErrorMessage(napi_env env, const char* message);
 std::string FormatString(const char* format, ...);
 
 node_embedding_status LoadUtf8Script(
-    node_embedding_runtime_config runtime_config, std::string script);
+    node_embedding_runtime_config runtime_config,
+    std::string script,
+    const node_embedding_handle_result_functor& handle_result = {});
 
 template <typename TLambda, typename TFunctor>
 struct Adapter {
@@ -88,6 +90,13 @@ template <typename TLambda, typename TResult, typename... TArgs>
 struct Adapter<TLambda, TResult(void*, TArgs...)> {
   static TResult Invoke(void* data, TArgs... args) {
     return reinterpret_cast<TLambda*>(data)->operator()(args...);
+  }
+};
+
+template <typename TLambda, typename... TArgs>
+struct Adapter<TLambda, void(void*, TArgs...)> {
+  static void Invoke(void* data, TArgs... args) {
+    reinterpret_cast<TLambda*>(data)->operator()(args...);
   }
 };
 
