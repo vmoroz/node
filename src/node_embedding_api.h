@@ -427,6 +427,8 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
+namespace node {
+
 //------------------------------------------------------------------------------
 // Convenience union operator for the Node.js flags.
 //------------------------------------------------------------------------------
@@ -442,6 +444,58 @@ inline constexpr node_embedding_runtime_flags operator|(
   return static_cast<node_embedding_runtime_flags>(static_cast<int32_t>(lhs) |
                                                    static_cast<int32_t>(rhs));
 }
+
+//------------------------------------------------------------------------------
+// Convenience functor struct adapter for C++ function object or lambdas.
+//------------------------------------------------------------------------------
+
+namespace details {
+
+template <typename TLambda, typename TFunctor>
+struct FunctorAdapter {
+  static_assert(sizeof(TLambda) == -1, "Unsupported signature");
+};
+
+template <typename TLambda, typename TResult, typename... TArgs>
+struct FunctorAdapter<TLambda, TResult(void*, TArgs...)> {
+  static TResult Invoke(void* data, TArgs... args) {
+    return reinterpret_cast<TLambda*>(data)->operator()(args...);
+  }
+};
+
+template <typename TLambda, typename... TArgs>
+struct FunctorAdapter<TLambda, void(void*, TArgs...)> {
+  static void Invoke(void* data, TArgs... args) {
+    reinterpret_cast<TLambda*>(data)->operator()(args...);
+  }
+};
+
+}  // namespace details
+
+template <typename TFunctor, typename TLambda>
+inline TFunctor AsFunctorRef(TLambda&& lambda) {
+  using TLambdaType = std::remove_reference_t<TLambda>;
+  using TAdapter = details::FunctorAdapter<
+      TLambdaType,
+      std::remove_pointer_t<
+          decltype(std::remove_reference_t<TFunctor>::invoke)>>;
+  return TFunctor{static_cast<void*>(&lambda), &TAdapter::Invoke};
+}
+
+template <typename TFunctor, typename TLambda>
+inline TFunctor AsFunctor(TLambda&& lambda) {
+  using TLambdaType = std::remove_reference_t<TLambda>;
+  using TAdapter = details::FunctorAdapter<
+      TLambdaType,
+      std::remove_pointer_t<
+          decltype(std::remove_reference_t<TFunctor>::invoke)>>;
+  return TFunctor{
+      static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
+      &TAdapter::Invoke,
+      [](void* data) { delete static_cast<TLambdaType*>(data); }};
+}
+
+}  // namespace node
 
 #endif
 

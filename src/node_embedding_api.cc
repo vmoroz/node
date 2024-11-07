@@ -390,11 +390,11 @@ class EmbeddedRuntime {
                              v8::Local<v8::Context> context,
                              void* priv);
 
-  void InitializeEventLoopPollingThread();
-  void DestroyEventLoopPollingThread();
-  void WakeupEventLoopPollingThread();
+  uv_loop_t* EventLoop();
+  void InitializePollingThread();
+  void DestroyPollingThread();
+  void WakeupPollingThread();
   static void RunPollingThread(void* data);
-  void InitPoolEvents();
   void PollEvents();
 
  private:
@@ -482,7 +482,7 @@ class EmbeddedRuntime {
   std::optional<V8ScopeData> v8_scope_data_;
 
   FunctorPtr<node_embedding_post_task_functor> post_task_{};
-  uv_async_t dummy_async_polling_handle_{};
+  uv_async_t polling_async_handle_{};
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
   bool polling_thread_closed_{false};
@@ -968,41 +968,85 @@ node_embedding_status EmbeddedRuntime::Initialize(
         TriggerFatalException);
   }
 
-  InitializeEventLoopPollingThread();
+  InitializePollingThread();
+  WakeupPollingThread();
 
   return node_embedding_status_ok;
 }
 
-void EmbeddedRuntime::InitializeEventLoopPollingThread() {
-  if (post_task_ == nullptr) return;
-
-  uv_loop_t* event_loop = env_setup_->env()->event_loop();
-
-  // keep the loop alive and allow waking up the polling thread
-  uv_async_init(event_loop, &dummy_async_polling_handle_, nullptr);
-
-  uv_sem_init(&polling_sem_, 0);
-  uv_thread_create(&polling_thread_, RunPollingThread, this);
-  polling_thread_closed_ = false;
+uv_loop_t* EmbeddedRuntime::EventLoop() {
+  return env_setup_->env()->event_loop();
 }
 
-void EmbeddedRuntime::DestroyEventLoopPollingThread() {
+void EmbeddedRuntime::InitializePollingThread() {
+  if (post_task_ == nullptr) return;
+
+  uv_loop_t* event_loop = EventLoop();
+
+  {
+#if defined(_WIN32)
+
+    SYSTEM_INFO system_info = {};
+    ::GetNativeSystemInfo(&system_info);
+
+    // on single-core the IO completion port NumberOfConcurrentThreads needs to
+    // be 2 to avoid CPU pegging likely caused by a busy loop in PollEvents
+    if (system_info.dwNumberOfProcessors == 1) {
+      // the expectation is the event_loop has just been initialized
+      // which makes IOCP replacement safe
+      CHECK_EQ(0u, event_loop->active_handles);
+      CHECK_EQ(0u, event_loop->active_reqs.count);
+
+      if (event_loop->iocp && event_loop->iocp != INVALID_HANDLE_VALUE)
+        ::CloseHandle(event_loop->iocp);
+      event_loop->iocp =
+          ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 2);
+    }
+
+#elif defined(__APPLE__)
+
+    // Do nothing
+
+#elif defined(__linux)
+
+    int backend_fd = uv_backend_fd(event_loop);
+    struct epoll_event ev = {0};
+    ev.events = EPOLLIN;
+    ev.data.fd = backend_fd;
+    epoll_ctl(epoll_, EPOLL_CTL_ADD, backend_fd, &ev);
+
+#else
+    ERROR_AND_ABORT("The platform is not supported yet.");
+#endif
+  }
+
+  // keep the loop alive and allow waking up the polling thread
+  uv_async_init(event_loop, &polling_async_handle_, nullptr);
+
+  // Start worker thread that will post to the task runner when new uv events
+  // arrive.
+  polling_thread_closed_ = false;
+  uv_sem_init(&polling_sem_, 0);
+  uv_thread_create(&polling_thread_, RunPollingThread, this);
+}
+
+void EmbeddedRuntime::DestroyPollingThread() {
   if (post_task_ == nullptr) return;
   if (polling_thread_closed_) return;
 
   polling_thread_closed_ = true;
   uv_sem_post(&polling_sem_);
-  // wake up polling thread
-  uv_async_send(&dummy_async_polling_handle_);
-
+  // Wake up polling thread.
+  uv_async_send(&polling_async_handle_);
+  // Wait for polling thread to complete.
   uv_thread_join(&polling_thread_);
 
+  // Clear uv.
   uv_sem_destroy(&polling_sem_);
-  uv_close(reinterpret_cast<uv_handle_t*>(&dummy_async_polling_handle_),
-           nullptr);
+  uv_close(reinterpret_cast<uv_handle_t*>(&polling_async_handle_), nullptr);
 }
 
-void EmbeddedRuntime::WakeupEventLoopPollingThread() {
+void EmbeddedRuntime::WakeupPollingThread() {
   if (post_task_ == nullptr) return;
   if (polling_thread_closed_) return;
 
@@ -1012,61 +1056,28 @@ void EmbeddedRuntime::WakeupEventLoopPollingThread() {
 void EmbeddedRuntime::RunPollingThread(void* data) {
   EmbeddedRuntime* runtime = static_cast<EmbeddedRuntime*>(data);
   for (;;) {
+    // Wait for the task runner to deal with events.
     uv_sem_wait(&runtime->polling_sem_);
     if (runtime->polling_thread_closed_) break;
 
+    // Wait for something to happen in uv loop.
     runtime->PollEvents();
     if (runtime->polling_thread_closed_) break;
 
+    // Deal with event in the task runner thread.
     runtime->post_task_->invoke(
         runtime->post_task_->data,
         reinterpret_cast<node_embedding_runtime>(runtime),
-        // TODO: Create real run task functor here
-        node_embedding_run_task_functor{});
+        node::AsFunctor<node_embedding_run_task_functor>(
+            [](node_embedding_runtime runtime) {
+              reinterpret_cast<EmbeddedRuntime*>(runtime)->RunEventLoop(
+                  node_embedding_event_loop_run_nowait, nullptr);
+            }));
   }
-}
-
-void EmbeddedRuntime::InitPoolEvents() {
-  uv_loop_t* event_loop = env_setup_->env()->event_loop();
-
-#if defined(_WIN32)
-
-  SYSTEM_INFO system_info = {};
-  ::GetNativeSystemInfo(&system_info);
-
-  // on single-core the io comp port NumberOfConcurrentThreads needs to be 2
-  // to avoid cpu pegging likely caused by a busy loop in PollEvents
-  if (system_info.dwNumberOfProcessors == 1) {
-    // the expectation is the event_loop has just been initialized
-    // which makes iocp replacement safe
-    CHECK_EQ(0u, event_loop->active_handles);
-    CHECK_EQ(0u, event_loop->active_reqs.count);
-
-    if (event_loop->iocp && event_loop->iocp != INVALID_HANDLE_VALUE)
-      ::CloseHandle(event_loop->iocp);
-    event_loop->iocp =
-        ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 2);
-  }
-
-#elif defined(__APPLE__)
-
-  (void)event_loop;
-
-#elif defined(__linux)
-
-  int backend_fd = uv_backend_fd(event_loop);
-  struct epoll_event ev = {0};
-  ev.events = EPOLLIN;
-  ev.data.fd = backend_fd;
-  epoll_ctl(epoll_, EPOLL_CTL_ADD, backend_fd, &ev);
-
-#else
-  ERROR_AND_ABORT("The platform is not supported yet.");
-#endif
 }
 
 void EmbeddedRuntime::PollEvents() {
-  uv_loop_t* event_loop = env_setup_->env()->event_loop();
+  uv_loop_t* event_loop = EventLoop();
 
   // If there are other kinds of events pending, uv_backend_timeout will
   // instruct us not to wait.
@@ -1152,7 +1163,7 @@ node_embedding_status EmbeddedRuntime::RunEventLoop(
     *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
   }
 
-  WakeupEventLoopPollingThread();
+  WakeupPollingThread();
 
   return node_embedding_status_ok;
 }
@@ -1162,7 +1173,7 @@ node_embedding_status EmbeddedRuntime::CompleteEventLoop() {
 
   V8ScopeLocker v8_scope_locker(*this);
 
-  DestroyEventLoopPollingThread();
+  DestroyPollingThread();
 
   int32_t exit_code = node::SpinEventLoop(env_setup_->env()).FromMaybe(1);
   if (exit_code != 0) {

@@ -81,48 +81,6 @@ node_embedding_status LoadUtf8Script(
     std::string script,
     const node_embedding_handle_result_functor& handle_result = {});
 
-template <typename TLambda, typename TFunctor>
-struct Adapter {
-  static_assert(sizeof(TLambda) == -1, "Unsupported signature");
-};
-
-template <typename TLambda, typename TResult, typename... TArgs>
-struct Adapter<TLambda, TResult(void*, TArgs...)> {
-  static TResult Invoke(void* data, TArgs... args) {
-    return reinterpret_cast<TLambda*>(data)->operator()(args...);
-  }
-};
-
-template <typename TLambda, typename... TArgs>
-struct Adapter<TLambda, void(void*, TArgs...)> {
-  static void Invoke(void* data, TArgs... args) {
-    reinterpret_cast<TLambda*>(data)->operator()(args...);
-  }
-};
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctorRef(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter =
-      Adapter<TLambdaType,
-              std::remove_pointer_t<
-                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{static_cast<void*>(&lambda), &TAdapter::Invoke};
-}
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctor(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter =
-      Adapter<TLambdaType,
-              std::remove_pointer_t<
-                  decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{
-      static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
-      &TAdapter::Invoke,
-      [](void* data) { delete static_cast<TLambdaType*>(data); }};
-}
-
 //
 // Error handling macros copied from test/js_native_api/common.h
 //
