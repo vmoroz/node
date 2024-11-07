@@ -394,7 +394,8 @@ class EmbeddedRuntime {
   void DestroyEventLoopPollingThread();
   void WakeupEventLoopPollingThread();
   static void RunPollingThread(void* data);
-  void PollWin32();
+  void InitPoolEvents();
+  void PollEvents();
 
  private:
   struct ModuleInfo {
@@ -1014,7 +1015,7 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     uv_sem_wait(&runtime->polling_sem_);
     if (runtime->polling_thread_closed_) break;
 
-    runtime->PollWin32();
+    runtime->PollEvents();
     if (runtime->polling_thread_closed_) break;
 
     runtime->post_task_->invoke(
@@ -1025,23 +1026,101 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
   }
 }
 
-void EmbeddedRuntime::PollWin32() {
+void EmbeddedRuntime::InitPoolEvents() {
+  uv_loop_t* event_loop = env_setup_->env()->event_loop();
+
+#if defined(_WIN32)
+
+  SYSTEM_INFO system_info = {};
+  ::GetNativeSystemInfo(&system_info);
+
+  // on single-core the io comp port NumberOfConcurrentThreads needs to be 2
+  // to avoid cpu pegging likely caused by a busy loop in PollEvents
+  if (system_info.dwNumberOfProcessors == 1) {
+    // the expectation is the event_loop has just been initialized
+    // which makes iocp replacement safe
+    CHECK_EQ(0u, event_loop->active_handles);
+    CHECK_EQ(0u, event_loop->active_reqs.count);
+
+    if (event_loop->iocp && event_loop->iocp != INVALID_HANDLE_VALUE)
+      ::CloseHandle(event_loop->iocp);
+    event_loop->iocp =
+        ::CreateIoCompletionPort(INVALID_HANDLE_VALUE, nullptr, 0, 2);
+  }
+
+#elif defined(__APPLE__)
+
+  (void)event_loop;
+
+#elif defined(__linux)
+
+  int backend_fd = uv_backend_fd(event_loop);
+  struct epoll_event ev = {0};
+  ev.events = EPOLLIN;
+  ev.data.fd = backend_fd;
+  epoll_ctl(epoll_, EPOLL_CTL_ADD, backend_fd, &ev);
+
+#else
+  ERROR_AND_ABORT("The platform is not supported yet.");
+#endif
+}
+
+void EmbeddedRuntime::PollEvents() {
   uv_loop_t* event_loop = env_setup_->env()->event_loop();
 
   // If there are other kinds of events pending, uv_backend_timeout will
   // instruct us not to wait.
-  DWORD timeout = static_cast<DWORD>(uv_backend_timeout(event_loop));
+  int timeout = uv_backend_timeout(event_loop);
 
+#if defined(_WIN32)
+
+  DWORD timeout_msec = static_cast<DWORD>(timeout);
   DWORD byte_count;
   ULONG_PTR completion_key;
   OVERLAPPED* overlapped;
-  GetQueuedCompletionStatus(
-      event_loop->iocp, &byte_count, &completion_key, &overlapped, timeout);
+  ::GetQueuedCompletionStatus(event_loop->iocp,
+                              &byte_count,
+                              &completion_key,
+                              &overlapped,
+                              timeout_msec);
 
   // Give the event back so libuv can deal with it.
   if (overlapped != nullptr)
-    PostQueuedCompletionStatus(
+    ::PostQueuedCompletionStatus(
         event_loop->iocp, byte_count, completion_key, overlapped);
+
+#elif defined(__APPLE__)
+
+  struct timeval tv;
+  if (timeout != -1) {
+    tv.tv_sec = timeout / 1000;
+    tv.tv_usec = (timeout % 1000) * 1000;
+  }
+
+  fd_set readset;
+  int fd = uv_backend_fd(event_loop);
+  FD_ZERO(&readset);
+  FD_SET(fd, &readset);
+
+  // Wait for new libuv events.
+  int r;
+  do {
+    r = select(
+        fd + 1, &readset, nullptr, nullptr, timeout == -1 ? nullptr : &tv);
+  } while (r == -1 && errno == EINTR);
+
+#elif defined(__linux)
+
+  // Wait for new libuv events.
+  int r;
+  do {
+    struct epoll_event ev;
+    r = epoll_wait(epoll_, &ev, 1, timeout);
+  } while (r == -1 && errno == EINTR);
+
+#else
+  ERROR_AND_ABORT("The platform is not supported yet.");
+#endif
 }
 
 node_embedding_status EmbeddedRuntime::SetTaskRunner(
