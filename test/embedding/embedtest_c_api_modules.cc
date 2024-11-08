@@ -4,6 +4,8 @@
 #include <cstdio>
 #include <cstring>
 
+using namespace node;
+
 class GreeterModule {
  public:
   explicit GreeterModule(std::atomic<int32_t>* counter_ptr)

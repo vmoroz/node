@@ -5,6 +5,8 @@
 #include <mutex>
 #include <thread>
 
+using namespace node;
+
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
@@ -35,8 +37,8 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                   // process.
                   CHECK_STATUS(node_embedding_runtime_set_flags(
                       runtime_config,
-                      node_embedding_runtime_default_flags |
-                          node_embedding_runtime_no_create_inspector));
+                      node_embedding_runtime_flags_default |
+                          node_embedding_runtime_flags_no_create_inspector));
                   CHECK_STATUS(LoadUtf8Script(
                       runtime_config,
                       main_script,
@@ -106,8 +108,8 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
               // process.
               CHECK_STATUS(node_embedding_runtime_set_flags(
                   runtime_config,
-                  node_embedding_runtime_default_flags |
-                      node_embedding_runtime_no_create_inspector));
+                  node_embedding_runtime_flags_default |
+                      node_embedding_runtime_flags_no_create_inspector));
               CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
               return node_embedding_status_ok;
             }),
@@ -137,7 +139,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
     for (node_embedding_runtime runtime : runtimes) {
       bool has_more_work = false;
       CHECK_STATUS_OR_EXIT(node_embedding_run_event_loop(
-          runtime, node_embedding_event_loop_run_nowait, &has_more_work));
+          runtime, node_embedding_event_loop_run_mode_nowait, &has_more_work));
       more_work |= has_more_work;
     }
   } while (more_work);
@@ -360,7 +362,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                   env, undefined, func, 0, nullptr, nullptr));
 
               node_embedding_run_event_loop(
-                  runtime, node_embedding_event_loop_run_nowait, nullptr);
+                  runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
             }));
     CHECK_STATUS_OR_EXIT(status);
   });

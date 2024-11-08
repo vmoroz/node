@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cstring>
 
+using namespace node;
+
 void CallMe(node_embedding_runtime runtime, napi_env env);
 void WaitMe(node_embedding_runtime runtime, napi_env env);
 void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
@@ -19,23 +21,23 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
           [&](node_embedding_platform_config platform_config) {
             CHECK_STATUS(node_embedding_platform_set_flags(
                 platform_config,
-                node_embedding_platform_disable_node_options_env));
+                node_embedding_platform_flags_disable_node_options_env));
             return node_embedding_status_ok;
           }),
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(LoadUtf8Script(
-                runtime_config,
-                main_script,
-                AsFunctor<node_embedding_handle_result_functor>(
-                    [&](node_embedding_runtime runtime,
-                        napi_env env,
-                        napi_value /*value*/) {
-                      CallMe(runtime, env);
-                      WaitMe(runtime, env);
-                      WaitMeWithCheese(runtime, env);
-                    })));
+            CHECK_STATUS(
+                LoadUtf8Script(runtime_config,
+                               main_script,
+                               AsFunctor<node_embedding_handle_result_functor>(
+                                   [&](node_embedding_runtime runtime,
+                                       napi_env env,
+                                       napi_value /*value*/) {
+                                     CallMe(runtime, env);
+                                     WaitMe(runtime, env);
+                                     WaitMeWithCheese(runtime, env);
+                                   })));
             return node_embedding_status_ok;
           })));
 
@@ -122,7 +124,7 @@ void WaitMe(node_embedding_runtime runtime, napi_env env) {
     }
 
     node_embedding_run_event_loop(
-        runtime, node_embedding_event_loop_run_default, nullptr);
+        runtime, node_embedding_event_loop_run_mode_default, nullptr);
 
     if (strcmp(callback_buf, "waited you") != 0) {
       NODE_API_FAIL_RETURN_VOID("Invalid value received: %s\n", callback_buf);
@@ -223,7 +225,7 @@ void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
 
   while (promise_state == PromiseState::kPending) {
     node_embedding_run_event_loop(
-        runtime, node_embedding_event_loop_run_nowait, nullptr);
+        runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
   }
 
   expected = (promise_state == PromiseState::kFulfilled)

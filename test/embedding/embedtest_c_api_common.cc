@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cstring>
 
+using namespace node;
+
 const char* main_script =
     "globalThis.require = require('module').createRequire(process.execPath);\n"
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"

@@ -1,5 +1,7 @@
 #include "embedtest_c_api_common.h"
 
+using namespace node;
+
 // Test the no_browser_globals option.
 extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
                                                           char* argv[]) {
@@ -11,7 +13,8 @@ extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
           [](node_embedding_platform platform,
              node_embedding_runtime_config runtime_config) {
             CHECK_STATUS(node_embedding_runtime_set_flags(
-                runtime_config, node_embedding_runtime_no_browser_globals));
+                runtime_config,
+                node_embedding_runtime_flags_no_browser_globals));
             return LoadUtf8Script(runtime_config,
                                   R"JS(
 const assert = require('assert');
@@ -79,7 +82,7 @@ const { SourceTextModule } = require('node:vm');
 
 // Test ESM loaded
 extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
-                                                       char* argv[]) {
+                                                          char* argv[]) {
   return node_embedding_run_main(
       argc,
       argv,

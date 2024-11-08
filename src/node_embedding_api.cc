@@ -14,7 +14,7 @@
 // or expression and their location in the source code.
 
 #define CAST_NOT_NULL_TO(value, type)                                          \
-  (value) == nullptr ? v8impl::EmbeddedErrorHandling::HandleError(             \
+  (value) == nullptr ? node::EmbeddedErrorHandling::HandleError(               \
                            "Argument must not be null: " #value,               \
                            __FILE__,                                           \
                            __LINE__,                                           \
@@ -22,15 +22,15 @@
                      : reinterpret_cast<type*>(value)
 
 #define EMBEDDED_PLATFORM(platform)                                            \
-  CAST_NOT_NULL_TO(platform, v8impl::EmbeddedPlatform)
+  CAST_NOT_NULL_TO(platform, node::EmbeddedPlatform)
 
 #define EMBEDDED_RUNTIME(runtime)                                              \
-  CAST_NOT_NULL_TO(runtime, v8impl::EmbeddedRuntime)
+  CAST_NOT_NULL_TO(runtime, node::EmbeddedRuntime)
 
 #define CHECK_ARG_NOT_NULL(arg)                                                \
   do {                                                                         \
     if ((arg) == nullptr) {                                                    \
-      return v8impl::EmbeddedErrorHandling::HandleError(                       \
+      return node::EmbeddedErrorHandling::HandleError(                         \
           "Argument must not be null: " #arg,                                  \
           __FILE__,                                                            \
           __LINE__,                                                            \
@@ -41,7 +41,7 @@
 #define ASSERT_ARG(arg, expr)                                                  \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      return v8impl::EmbeddedErrorHandling::HandleError(                       \
+      return node::EmbeddedErrorHandling::HandleError(                         \
           "Arg: " #arg " failed: " #expr,                                      \
           __FILE__,                                                            \
           __LINE__,                                                            \
@@ -52,7 +52,7 @@
 #define ASSERT(expr)                                                           \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      return v8impl::EmbeddedErrorHandling::HandleError(                       \
+      return node::EmbeddedErrorHandling::HandleError(                         \
           "Expression returned false: " #expr,                                 \
           __FILE__,                                                            \
           __LINE__,                                                            \
@@ -68,18 +68,19 @@
     }                                                                          \
   } while (false)
 
-namespace node {
-// Declare functions implemented in embed_helpers.cc
-v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
-                                                uv_run_mode run_mode);
-
-}  // end of namespace node
-
 namespace v8impl {
 
 napi_env NewEnv(v8::Local<v8::Context> context,
                 const std::string& module_filename,
                 int32_t module_api_version);
+
+}  // namespace v8impl
+
+namespace node {
+
+// Declare functions implemented in embed_helpers.cc
+v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
+                                                uv_run_mode run_mode);
 
 namespace {
 
@@ -462,7 +463,7 @@ class EmbeddedRuntime {
  private:
   EmbeddedPlatform* platform_;
   bool is_initialized_{false};
-  node_embedding_runtime_flags flags_{node_embedding_runtime_default_flags};
+  node_embedding_runtime_flags flags_{node_embedding_runtime_flags_default};
   std::vector<std::string> args_;
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
@@ -639,7 +640,7 @@ node_embedding_status EmbeddedPlatform::Initialize(
   is_initialized_ = true;
 
   if (!optional_bits_.flags) {
-    flags_ = node_embedding_platform_no_flags;
+    flags_ = node_embedding_platform_flags_none;
   }
 
   init_result_ = node::InitializeOncePerProcess(
@@ -675,12 +676,12 @@ node_embedding_status EmbeddedPlatform::GetParsedArgs(
   ASSERT(is_initialized_);
 
   if (get_args.invoke != nullptr) {
-    v8impl::CStringArray args(init_result_->args());
+    node::CStringArray args(init_result_->args());
     get_args.invoke(get_args.data, args.argc(), args.argv());
   }
 
   if (get_exec_args.invoke != nullptr) {
-    v8impl::CStringArray exec_args(init_result_->exec_args());
+    node::CStringArray exec_args(init_result_->exec_args());
     get_exec_args.invoke(
         get_exec_args.data, exec_args.argc(), exec_args.argv());
   }
@@ -692,42 +693,45 @@ node::ProcessInitializationFlags::Flags
 EmbeddedPlatform::GetProcessInitializationFlags(
     node_embedding_platform_flags flags) {
   uint32_t result = node::ProcessInitializationFlags::kNoFlags;
-  if ((flags & node_embedding_platform_enable_stdio_inheritance) != 0) {
+  if ((flags & node_embedding_platform_flags_enable_stdio_inheritance) != 0) {
     result |= node::ProcessInitializationFlags::kEnableStdioInheritance;
   }
-  if ((flags & node_embedding_platform_disable_node_options_env) != 0) {
+  if ((flags & node_embedding_platform_flags_disable_node_options_env) != 0) {
     result |= node::ProcessInitializationFlags::kDisableNodeOptionsEnv;
   }
-  if ((flags & node_embedding_platform_disable_cli_options) != 0) {
+  if ((flags & node_embedding_platform_flags_disable_cli_options) != 0) {
     result |= node::ProcessInitializationFlags::kDisableCLIOptions;
   }
-  if ((flags & node_embedding_platform_no_icu) != 0) {
+  if ((flags & node_embedding_platform_flags_no_icu) != 0) {
     result |= node::ProcessInitializationFlags::kNoICU;
   }
-  if ((flags & node_embedding_platform_no_stdio_initialization) != 0) {
+  if ((flags & node_embedding_platform_flags_no_stdio_initialization) != 0) {
     result |= node::ProcessInitializationFlags::kNoStdioInitialization;
   }
-  if ((flags & node_embedding_platform_no_default_signal_handling) != 0) {
+  if ((flags & node_embedding_platform_flags_no_default_signal_handling) != 0) {
     result |= node::ProcessInitializationFlags::kNoDefaultSignalHandling;
   }
   result |= node::ProcessInitializationFlags::kNoInitializeV8;
   result |= node::ProcessInitializationFlags::kNoInitializeNodeV8Platform;
-  if ((flags & node_embedding_platform_no_init_openssl) != 0) {
+  if ((flags & node_embedding_platform_flags_no_init_openssl) != 0) {
     result |= node::ProcessInitializationFlags::kNoInitOpenSSL;
   }
-  if ((flags & node_embedding_platform_no_parse_global_debug_variables) != 0) {
+  if ((flags & node_embedding_platform_flags_no_parse_global_debug_variables) !=
+      0) {
     result |= node::ProcessInitializationFlags::kNoParseGlobalDebugVariables;
   }
-  if ((flags & node_embedding_platform_no_adjust_resource_limits) != 0) {
+  if ((flags & node_embedding_platform_flags_no_adjust_resource_limits) != 0) {
     result |= node::ProcessInitializationFlags::kNoAdjustResourceLimits;
   }
-  if ((flags & node_embedding_platform_no_use_large_pages) != 0) {
+  if ((flags & node_embedding_platform_flags_no_use_large_pages) != 0) {
     result |= node::ProcessInitializationFlags::kNoUseLargePages;
   }
-  if ((flags & node_embedding_platform_no_print_help_or_version_output) != 0) {
+  if ((flags & node_embedding_platform_flags_no_print_help_or_version_output) !=
+      0) {
     result |= node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput;
   }
-  if ((flags & node_embedding_platform_generate_predictable_snapshot) != 0) {
+  if ((flags & node_embedding_platform_flags_generate_predictable_snapshot) !=
+      0) {
     result |= node::ProcessInitializationFlags::kGeneratePredictableSnapshot;
   }
   return static_cast<node::ProcessInitializationFlags::Flags>(result);
@@ -920,7 +924,7 @@ node_embedding_status EmbeddedRuntime::Initialize(
   is_initialized_ = true;
 
   node::EnvironmentFlags::Flags flags = GetEnvironmentFlags(
-      optional_bits_.flags ? flags_ : node_embedding_runtime_default_flags);
+      optional_bits_.flags ? flags_ : node_embedding_runtime_flags_default);
 
   const std::vector<std::string>& args =
       optional_bits_.args ? args_ : platform_->init_result()->args();
@@ -1071,7 +1075,7 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
         node::AsFunctor<node_embedding_run_task_functor>(
             [](node_embedding_runtime runtime) {
               reinterpret_cast<EmbeddedRuntime*>(runtime)->RunEventLoop(
-                  node_embedding_event_loop_run_nowait, nullptr);
+                  node_embedding_event_loop_run_mode_nowait, nullptr);
             }));
   }
 }
@@ -1290,9 +1294,9 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
   }
 
   // Avoid creating the environment under the lock.
-  napi_env env = NewEnv(node_env->context(),
-                        module_filename,
-                        EmbeddedPlatform::node_api_version());
+  napi_env env = v8impl::NewEnv(node_env->context(),
+                                module_filename,
+                                EmbeddedPlatform::node_api_version());
 
   // In case if we cannot insert the new env, we are just going to have an
   // unused env which will be deleted in the end with other environments.
@@ -1307,40 +1311,42 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
 node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
     node_embedding_runtime_flags flags) {
   uint64_t result = node::EnvironmentFlags::kNoFlags;
-  if ((flags & node_embedding_runtime_default_flags) != 0) {
+  if ((flags & node_embedding_runtime_flags_default) != 0) {
     result |= node::EnvironmentFlags::kDefaultFlags;
   }
-  if ((flags & node_embedding_runtime_owns_process_state) != 0) {
+  if ((flags & node_embedding_runtime_flags_owns_process_state) != 0) {
     result |= node::EnvironmentFlags::kOwnsProcessState;
   }
-  if ((flags & node_embedding_runtime_owns_inspector) != 0) {
+  if ((flags & node_embedding_runtime_flags_owns_inspector) != 0) {
     result |= node::EnvironmentFlags::kOwnsInspector;
   }
-  if ((flags & node_embedding_runtime_no_register_esm_loader) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_register_esm_loader) != 0) {
     result |= node::EnvironmentFlags::kNoRegisterESMLoader;
   }
-  if ((flags & node_embedding_runtime_track_unmanaged_fds) != 0) {
+  if ((flags & node_embedding_runtime_flags_track_unmanaged_fds) != 0) {
     result |= node::EnvironmentFlags::kTrackUnmanagedFds;
   }
-  if ((flags & node_embedding_runtime_hide_console_windows) != 0) {
+  if ((flags & node_embedding_runtime_flags_hide_console_windows) != 0) {
     result |= node::EnvironmentFlags::kHideConsoleWindows;
   }
-  if ((flags & node_embedding_runtime_no_native_addons) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_native_addons) != 0) {
     result |= node::EnvironmentFlags::kNoNativeAddons;
   }
-  if ((flags & node_embedding_runtime_no_global_search_paths) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_global_search_paths) != 0) {
     result |= node::EnvironmentFlags::kNoGlobalSearchPaths;
   }
-  if ((flags & node_embedding_runtime_no_browser_globals) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_browser_globals) != 0) {
     result |= node::EnvironmentFlags::kNoBrowserGlobals;
   }
-  if ((flags & node_embedding_runtime_no_create_inspector) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_create_inspector) != 0) {
     result |= node::EnvironmentFlags::kNoCreateInspector;
   }
-  if ((flags & node_embedding_runtime_no_start_debug_signal_handler) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_start_debug_signal_handler) !=
+      0) {
     result |= node::EnvironmentFlags::kNoStartDebugSignalHandler;
   }
-  if ((flags & node_embedding_runtime_no_wait_for_inspector_frontend) != 0) {
+  if ((flags & node_embedding_runtime_flags_no_wait_for_inspector_frontend) !=
+      0) {
     result |= node::EnvironmentFlags::kNoWaitForInspectorFrontend;
   }
   return static_cast<node::EnvironmentFlags::Flags>(result);
@@ -1394,17 +1400,17 @@ void EmbeddedRuntime::RegisterModules() {
 }
 
 }  // end of anonymous namespace
-}  // end of namespace v8impl
+}  // namespace node
 
 node_embedding_status NAPI_CDECL
 node_embedding_on_error(node_embedding_handle_error_functor error_handler) {
-  return v8impl::EmbeddedErrorHandling::SetErrorHandler(error_handler);
+  return node::EmbeddedErrorHandling::SetErrorHandler(error_handler);
 }
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
     int32_t embedding_api_version, int32_t node_api_version) {
-  return v8impl::EmbeddedPlatform::SetApiVersion(embedding_api_version,
-                                                 node_api_version);
+  return node::EmbeddedPlatform::SetApiVersion(embedding_api_version,
+                                               node_api_version);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_run_main(
@@ -1412,7 +1418,7 @@ node_embedding_status NAPI_CDECL node_embedding_run_main(
     char* argv[],
     node_embedding_configure_platform_functor_ref configure_platform,
     node_embedding_configure_runtime_functor_ref configure_runtime) {
-  return v8impl::EmbeddedPlatform::RunMain(
+  return node::EmbeddedPlatform::RunMain(
       argc, argv, configure_platform, configure_runtime);
 }
 
@@ -1421,8 +1427,7 @@ node_embedding_status NAPI_CDECL node_embedding_create_platform(
     char* argv[],
     node_embedding_configure_platform_functor_ref configure_platform,
     node_embedding_platform* result) {
-  return v8impl::EmbeddedPlatform::Create(
-      argc, argv, configure_platform, result);
+  return node::EmbeddedPlatform::Create(argc, argv, configure_platform, result);
 }
 
 node_embedding_status NAPI_CDECL
@@ -1446,14 +1451,14 @@ node_embedding_status NAPI_CDECL node_embedding_platform_get_parsed_args(
 node_embedding_status NAPI_CDECL node_embedding_run_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_functor_ref configure_runtime) {
-  return v8impl::EmbeddedRuntime::Run(platform, configure_runtime);
+  return node::EmbeddedRuntime::Run(platform, configure_runtime);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_create_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_functor_ref configure_runtime,
     node_embedding_runtime* result) {
-  return v8impl::EmbeddedRuntime::Create(platform, configure_runtime, result);
+  return node::EmbeddedRuntime::Create(platform, configure_runtime, result);
 }
 
 node_embedding_status NAPI_CDECL
