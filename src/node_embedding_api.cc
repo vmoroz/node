@@ -84,31 +84,6 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
 
 namespace {
 
-template <typename T>
-struct FunctorDeleter {
-  void operator()(T* ptr) {
-    if (ptr->release != nullptr) {
-      ptr->release(ptr->data);
-    }
-    delete ptr;
-  }
-};
-
-template <typename T>
-using FunctorPtr = std::unique_ptr<T, FunctorDeleter<T>>;
-
-template <typename T>
-FunctorPtr<T> MakeUniqueFunctor(const T& functor) {
-  return functor.invoke ? FunctorPtr<T>(new T(functor)) : nullptr;
-}
-
-template <typename T>
-std::shared_ptr<T> MakeSharedFunctor(const T& functor) {
-  return functor.invoke
-             ? std::shared_ptr<T>(new T(functor), FunctorDeleter<T>())
-             : nullptr;
-}
-
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
 // stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
@@ -224,23 +199,15 @@ class EmbeddedErrorHandling {
 
   static std::string FormatString(const char* format, ...);
 
+  static StdFunction<node_embedding_handle_error_functor>& ErrorHandler();
+
+ private:
   static node_embedding_status DefaultErrorHandler(
       void* handler_data,
       const char* messages[],
       size_t messages_size,
       node_embedding_status status);
-
-  static node_embedding_handle_error_callback error_handler() {
-    return error_handler_ && error_handler_->invoke ? error_handler_->invoke
-                                                    : DefaultErrorHandler;
-  }
-
- private:
-  static FunctorPtr<node_embedding_handle_error_functor> error_handler_;
 };
-
-FunctorPtr<node_embedding_handle_error_functor>
-    EmbeddedErrorHandling::error_handler_{};
 
 class EmbeddedPlatform {
  public:
@@ -402,7 +369,7 @@ class EmbeddedRuntime {
   struct ModuleInfo {
     node_embedding_runtime runtime;
     std::string module_name;
-    FunctorPtr<node_embedding_initialize_module_functor> init_module;
+    StdFunction<node_embedding_initialize_module_functor> init_module;
     int32_t module_node_api_version;
   };
 
@@ -468,7 +435,7 @@ class EmbeddedRuntime {
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
   node::StartExecutionCallback start_execution_cb_{};
-  FunctorPtr<node_embedding_handle_result_functor> handle_result_{};
+  StdFunction<node_embedding_handle_result_functor> handle_result_{};
   napi_env node_api_env_{};
 
   struct {
@@ -482,7 +449,7 @@ class EmbeddedRuntime {
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<V8ScopeData> v8_scope_data_;
 
-  FunctorPtr<node_embedding_post_task_functor> post_task_{};
+  StdFunction<node_embedding_post_task_functor> post_task_{};
   uv_async_t polling_async_handle_{};
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
@@ -497,21 +464,20 @@ class EmbeddedRuntime {
 
 node_embedding_status EmbeddedErrorHandling::SetErrorHandler(
     const node_embedding_handle_error_functor& error_handler) {
-  error_handler_ = MakeUniqueFunctor(error_handler);
+  ErrorHandler() = AsStdFunction(error_handler);
   return node_embedding_status_ok;
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::string& message, node_embedding_status status) {
   const char* message_c_str = message.c_str();
-  return error_handler()(error_handler_->data, &message_c_str, 1, status);
+  return ErrorHandler()(&message_c_str, 1, status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::vector<std::string>& messages, node_embedding_status status) {
   CStringArray message_arr(messages);
-  return error_handler()(
-      error_handler_->data, message_arr.c_strs(), message_arr.size(), status);
+  return ErrorHandler()(message_arr.c_strs(), message_arr.size(), status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
@@ -546,6 +512,14 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   std::vsnprintf(&result[0], result.size() + 1, format, args2);
   va_end(args2);
   return result;
+}
+
+StdFunction<node_embedding_handle_error_functor>&
+EmbeddedErrorHandling::ErrorHandler() {
+  static StdFunction<node_embedding_handle_error_functor> error_handler =
+      AsStdFunction(node_embedding_handle_error_functor{
+          nullptr, &DefaultErrorHandler, nullptr});
+  return error_handler;
 }
 
 //-----------------------------------------------------------------------------
@@ -817,7 +791,7 @@ node_embedding_status EmbeddedRuntime::OnPreload(
   if (run_preload.invoke != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
         [runtime = reinterpret_cast<node_embedding_runtime>(this),
-         run_preload_ptr = MakeSharedFunctor(run_preload)](
+         run_preload_ptr = MakeSharedFunctorPtr(run_preload)](
             node::Environment* node_env,
             v8::Local<v8::Value> process,
             v8::Local<v8::Value> require) {
@@ -850,7 +824,7 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
 
   if (start_execution.invoke != nullptr) {
     start_execution_cb_ = node::StartExecutionCallback(
-        [this, start_execution_ptr = MakeSharedFunctor(start_execution)](
+        [this, start_execution_ptr = MakeSharedFunctorPtr(start_execution)](
             const node::StartExecutionCallbackInfo& info)
             -> v8::MaybeLocal<v8::Value> {
           napi_value result{};
@@ -881,7 +855,7 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
     start_execution_cb_ = {};
   }
 
-  handle_result_ = MakeUniqueFunctor(handle_result);
+  handle_result_ = AsStdFunction(handle_result);
 
   return node_embedding_status_ok;
 }
@@ -898,7 +872,7 @@ node_embedding_status EmbeddedRuntime::AddModule(
       modules_.try_emplace(module_name,
                            reinterpret_cast<node_embedding_runtime>(this),
                            module_name,
-                           MakeUniqueFunctor(init_module),
+                           AsStdFunction(init_module),
                            module_node_api_version);
   if (!insert_result.second) {
     return EmbeddedErrorHandling::HandleError(
@@ -960,14 +934,12 @@ node_embedding_status EmbeddedRuntime::Initialize(
     return EmbeddedErrorHandling::HandleError(
         "Failed to load environment", node_embedding_status_generic_error);
 
-  if (handle_result_ != nullptr && handle_result_->invoke != nullptr) {
+  if (handle_result_) {
     node_api_env_->CallIntoModule(
         [&](napi_env env) {
-          handle_result_->invoke(
-              handle_result_->data,
-              reinterpret_cast<node_embedding_runtime>(this),
-              env,
-              v8impl::JsValueFromV8LocalValue(ret.ToLocalChecked()));
+          handle_result_(reinterpret_cast<node_embedding_runtime>(this),
+                         env,
+                         v8impl::JsValueFromV8LocalValue(ret.ToLocalChecked()));
         },
         TriggerFatalException);
   }
@@ -1069,14 +1041,11 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     if (runtime->polling_thread_closed_) break;
 
     // Deal with event in the task runner thread.
-    runtime->post_task_->invoke(
-        runtime->post_task_->data,
-        reinterpret_cast<node_embedding_runtime>(runtime),
-        node::AsFunctor<node_embedding_run_task_functor>(
-            [](node_embedding_runtime runtime) {
-              reinterpret_cast<EmbeddedRuntime*>(runtime)->RunEventLoop(
-                  node_embedding_event_loop_run_mode_nowait, nullptr);
-            }));
+    runtime->post_task_(
+        node::AsFunctor<node_embedding_run_task_functor>([runtime]() {
+          runtime->RunEventLoop(node_embedding_event_loop_run_mode_nowait,
+                                nullptr);
+        }));
   }
 }
 
@@ -1141,7 +1110,7 @@ void EmbeddedRuntime::PollEvents() {
 node_embedding_status EmbeddedRuntime::SetTaskRunner(
     const node_embedding_post_task_functor& post_task) {
   ASSERT(!is_initialized_);
-  post_task_.reset(new node_embedding_post_task_functor(post_task));
+  post_task_ = AsStdFunction(post_task);
   return node_embedding_status_ok;
 }
 
@@ -1381,12 +1350,11 @@ void EmbeddedRuntime::RegisterModules() {
 
   napi_value node_api_exports = nullptr;
   env->CallIntoModule([&](napi_env env) {
-    node_api_exports = module_info->init_module->invoke(
-        module_info->init_module->data,
-        module_info->runtime,
-        env,
-        module_info->module_name.c_str(),
-        v8impl::JsValueFromV8LocalValue(exports));
+    node_api_exports =
+        module_info->init_module(module_info->runtime,
+                                 env,
+                                 module_info->module_name.c_str(),
+                                 v8impl::JsValueFromV8LocalValue(exports));
   });
 
   // If register function returned a non-null exports object different from

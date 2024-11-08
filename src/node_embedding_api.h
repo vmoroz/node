@@ -196,8 +196,7 @@ typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     const char* module_name,
     napi_value exports);
 
-typedef void(NAPI_CDECL* node_embedding_run_task_callback)(
-    void* cb_data, node_embedding_runtime runtime);
+typedef void(NAPI_CDECL* node_embedding_run_task_callback)(void* cb_data);
 
 typedef struct {
   void* data;
@@ -206,9 +205,7 @@ typedef struct {
 } node_embedding_run_task_functor;
 
 typedef void(NAPI_CDECL* node_embedding_post_task_callback)(
-    void* cb_data,
-    node_embedding_runtime runtime,
-    node_embedding_run_task_functor run_task);
+    void* cb_data, node_embedding_run_task_functor run_task);
 
 typedef void(NAPI_CDECL* node_embedding_run_node_api_callback)(
     void* cb_data, node_embedding_runtime runtime, napi_env env);
@@ -427,6 +424,13 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
+//==============================================================================
+// C++ convenience functions for the C API.
+// These functions are not ABI safe and can be changed in future versions.
+//==============================================================================
+
+#include <memory>
+
 namespace node {
 
 //------------------------------------------------------------------------------
@@ -470,6 +474,47 @@ struct FunctorAdapter<TLambda, void(void*, TArgs...)> {
   }
 };
 
+template <typename T>
+struct FunctorDeleter {
+  void operator()(T* ptr) {
+    if (ptr->release != nullptr) {
+      ptr->release(ptr->data);
+    }
+    delete ptr;
+  }
+};
+
+template <typename TFunctor>
+struct StdFunctionAdapter {
+  static_assert(sizeof(TFunctor) == -1, "Unsupported signature");
+};
+
+template <typename TResult, typename... TArgs>
+struct StdFunctionAdapter<TResult(void*, TArgs...)> {
+  using FunctionType = std::function<TResult(TArgs...)>;
+
+  template <typename TFunctorSharedPtr>
+  static FunctionType Create(TFunctorSharedPtr&& ptr) {
+    return ptr ? FunctionType([ptr = std::move(ptr)](TArgs... args) {
+      return ptr->invoke(ptr->data, args...);
+    })
+               : FunctionType(nullptr);
+  }
+};
+
+template <typename... TArgs>
+struct StdFunctionAdapter<void(void*, TArgs...)> {
+  using FunctionType = std::function<void(TArgs...)>;
+
+  template <typename TFunctorSharedPtr>
+  static FunctionType Create(TFunctorSharedPtr&& ptr) {
+    return ptr ? FunctionType([ptr = std::move(ptr)](TArgs... args) {
+      ptr->invoke(ptr->data, args...);
+    })
+               : FunctionType(nullptr);
+  }
+};
+
 }  // namespace details
 
 template <typename TFunctor, typename TLambda>
@@ -493,6 +538,32 @@ inline TFunctor AsFunctor(TLambda&& lambda) {
       static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
       &TAdapter::Invoke,
       [](void* data) { delete static_cast<TLambdaType*>(data); }};
+}
+
+template <typename T>
+using FunctorPtr = std::unique_ptr<T, details::FunctorDeleter<T>>;
+
+template <typename T>
+FunctorPtr<T> MakeUniqueFunctorPtr(const T& functor) {
+  return functor.invoke ? FunctorPtr<T>(new T(functor)) : nullptr;
+}
+
+template <typename T>
+std::shared_ptr<T> MakeSharedFunctorPtr(const T& functor) {
+  return functor.invoke
+             ? std::shared_ptr<T>(new T(functor), details::FunctorDeleter<T>())
+             : nullptr;
+}
+
+template <typename TFunctor>
+using StdFunction = typename details::StdFunctionAdapter<std::remove_pointer_t<
+    decltype(std::remove_reference_t<TFunctor>::invoke)>>::FunctionType;
+
+template <typename TFunctor>
+inline StdFunction<TFunctor> AsStdFunction(TFunctor&& functor) {
+  using TAdapter = details::StdFunctionAdapter<std::remove_pointer_t<
+      decltype(std::remove_reference_t<TFunctor>::invoke)>>;
+  return TAdapter::Create(std::move(MakeSharedFunctorPtr(functor)));
 }
 
 }  // namespace node

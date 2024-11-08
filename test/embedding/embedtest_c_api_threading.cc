@@ -322,13 +322,16 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             CHECK_STATUS(node_embedding_runtime_set_task_runner(
                 runtime_config,
                 AsFunctor<node_embedding_post_task_functor>(
-                    [&ui_queue](node_embedding_runtime runtime,
-                                node_embedding_run_task_functor run_task) {
+                    // We capture the ui_queue by reference here because we
+                    // guarantee it to be alive till the end of the test. In
+                    // real applications, you should use a safer way to capture
+                    // the dispatcher queue.
+                    [&ui_queue](node_embedding_run_task_functor run_task) {
                       // TODO: use a safer way to call release.
                       // TODO: figure out the termination scenario.
-                      ui_queue.PostTask([runtime, run_task]() {
+                      ui_queue.PostTask([run_task]() {
                         if (run_task.invoke != nullptr) {
-                          run_task.invoke(run_task.data, runtime);
+                          run_task.invoke(run_task.data);
                         }
                         if (run_task.release != nullptr) {
                           run_task.release(run_task.data);
