@@ -414,7 +414,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(
     node_embedding_node_api_scope* node_api_scope,
     napi_env* env);
 
-// Closes the current Node-API scope.
+// Closes the Node-API invocation scope.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_close_node_api_scope(
     node_embedding_runtime runtime,
@@ -429,7 +429,9 @@ EXTERN_C_END
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
+#include <functional>
 #include <memory>
+#include <type_traits>
 
 namespace node {
 
