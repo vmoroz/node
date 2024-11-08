@@ -3748,6 +3748,9 @@ It is recommended to use the `new` qualifier instead. This applies to all Zlib c
 
 <!-- YAML
 changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/54869
+    description: Runtime deprecation.
   - version:
     - v22.9.0
     - v20.18.0
@@ -3755,11 +3758,24 @@ changes:
     description: Documentation-only deprecation.
 -->
 
-Type: Documentation-only
+Type: Runtime
 
 Instantiating classes without the `new` qualifier exported by the `node:repl` module is deprecated.
 It is recommended to use the `new` qualifier instead. This applies to all REPL classes, including
 `REPLServer` and `Recoverable`.
+
+### DEP0186: `util.getCallSite`
+
+<!-- YAML
+changes:
+  - version: REPLACEME
+    pr-url: https://github.com/nodejs/node/pull/55626
+    description: Runtime deprecation.
+-->
+
+Type: Runtime
+
+The `util.getCallSite` API has been removed. Please use [`util.getCallSites()`][] instead.
 
 [NIST SP 800-38D]: https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-38d.pdf
 [RFC 6066]: https://tools.ietf.org/html/rfc6066#section-3
@@ -3886,6 +3902,7 @@ It is recommended to use the `new` qualifier instead. This applies to all REPL c
 [`url.parse()`]: url.md#urlparseurlstring-parsequerystring-slashesdenotehost
 [`url.resolve()`]: url.md#urlresolvefrom-to
 [`util._extend()`]: util.md#util_extendtarget-source
+[`util.getCallSites()`]: util.md#utilgetcallsitesframecountoroptions-options
 [`util.getSystemErrorName()`]: util.md#utilgetsystemerrornameerr
 [`util.inspect()`]: util.md#utilinspectobject-options
 [`util.inspect.custom`]: util.md#utilinspectcustom

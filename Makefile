@@ -8,9 +8,7 @@ PREFIX ?= /usr/local
 FLAKY_TESTS ?= run
 TEST_CI_ARGS ?=
 STAGINGSERVER ?= node-www
-CLOUDFLARE_ENDPOINT ?= https://07be8d2fbc940503ca1be344714cb0d1.r2.cloudflarestorage.com
-CLOUDFLARE_BUCKET ?= dist-staging
-CLOUDFLARE_PROFILE ?= worker
+CLOUDFLARE_BUCKET ?= r2:dist-staging
 LOGLEVEL ?= silent
 OSTYPE := $(shell uname -s | tr '[:upper:]' '[:lower:]')
 ifeq ($(findstring os/390,$OSTYPE),os/390)
@@ -1170,7 +1168,7 @@ pkg-upload: pkg
 	ssh $(STAGINGSERVER) "mkdir -p nodejs/$(DISTTYPEDIR)/$(FULLVERSION)"
 	chmod 664 $(TARNAME).pkg
 	scp -p $(TARNAME).pkg $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).pkg.done"
 
 $(TARBALL): release-only doc-only
@@ -1221,12 +1219,12 @@ tar-upload: tar
 	ssh $(STAGINGSERVER) "mkdir -p nodejs/$(DISTTYPEDIR)/$(FULLVERSION)"
 	chmod 664 $(TARNAME).tar.gz
 	scp -p $(TARNAME).tar.gz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.gz.done"
 ifeq ($(XZ), 1)
 	chmod 664 $(TARNAME).tar.xz
 	scp -p $(TARNAME).tar.xz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME).tar.xz.done"
 endif
 
@@ -1236,7 +1234,7 @@ doc-upload: doc
 	ssh $(STAGINGSERVER) "mkdir -p nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs/"
 	chmod -R ug=rw-x+X,o=r+X out/doc/
 	scp -pr out/doc/* $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs/
-	ssh $(STAGINGSERVER) "aws s3 cp --recursive nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs/ --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copy nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs/ $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs/"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/docs.done"
 
 .PHONY: $(TARBALL)-headers
@@ -1265,12 +1263,12 @@ tar-headers-upload: tar-headers
 	ssh $(STAGINGSERVER) "mkdir -p nodejs/$(DISTTYPEDIR)/$(FULLVERSION)"
 	chmod 664 $(TARNAME)-headers.tar.gz
 	scp -p $(TARNAME)-headers.tar.gz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.gz.done"
 ifeq ($(XZ), 1)
 	chmod 664 $(TARNAME)-headers.tar.xz
 	scp -p $(TARNAME)-headers.tar.xz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-headers.tar.xz.done"
 endif
 
@@ -1312,12 +1310,12 @@ binary-upload: binary
 	ssh $(STAGINGSERVER) "mkdir -p nodejs/$(DISTTYPEDIR)/$(FULLVERSION)"
 	chmod 664 $(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz
 	scp -p $(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.gz.done"
 ifeq ($(XZ), 1)
 	chmod 664 $(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz
 	scp -p $(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz $(STAGINGSERVER):nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz
-	ssh $(STAGINGSERVER) "aws s3 cp nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz s3://$(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz --endpoint=$(CLOUDFLARE_ENDPOINT) --profile=$(CLOUDFLARE_PROFILE)"
+	ssh $(STAGINGSERVER) "rclone copyto nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz $(CLOUDFLARE_BUCKET)/nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz"
 	ssh $(STAGINGSERVER) "touch nodejs/$(DISTTYPEDIR)/$(FULLVERSION)/$(TARNAME)-$(OSTYPE)-$(ARCH).tar.xz.done"
 endif
 
@@ -1335,21 +1333,6 @@ bench-addons-clean:
 	$(RM) -r benchmark/napi/*/build
 	$(RM) benchmark/napi/.buildstamp
 
-.PHONY: lint-md-rollup
-lint-md-rollup:
-	$(RM) tools/.*mdlintstamp
-	cd tools/lint-md && npm ci && npm run build
-
-.PHONY: lint-md-clean
-.NOTPARALLEL: lint-md-clean
-lint-md-clean:
-	$(RM) -r tools/lint-md/node_modules
-	$(RM) tools/.*mdlintstamp
-
-.PHONY: lint-md-build
-lint-md-build:
-	$(warning Deprecated no-op target 'lint-md-build')
-
 ifeq ("$(wildcard tools/.mdlintstamp)","")
 LINT_MD_NEWER =
 else
@@ -1361,8 +1344,13 @@ LINT_MD_FILES = $(shell $(FIND) $(LINT_MD_TARGETS) -type f \
 	! -path '*node_modules*' ! -path 'test/fixtures/*' -name '*.md' \
 	$(LINT_MD_NEWER))
 run-lint-md = tools/lint-md/lint-md.mjs $(LINT_MD_FILES)
+
+# Check for a specific file, as (empty) directories are persisted in git.
+tools/lint-md/node_modules/remark-parse/package.json:
+	-cd tools/lint-md && $(call available-node,$(run-npm-ci))
+
 # Lint all changed markdown files maintained by us
-tools/.mdlintstamp: $(LINT_MD_FILES)
+tools/.mdlintstamp: tools/lint-md/node_modules/remark-parse/package.json $(LINT_MD_FILES)
 	$(info Running Markdown linter...)
 	@$(call available-node,$(run-lint-md))
 	@touch $@
@@ -1372,7 +1360,7 @@ lint-md: lint-js-doc | tools/.mdlintstamp ## Lint the markdown documents maintai
 
 run-format-md = tools/lint-md/lint-md.mjs --format $(LINT_MD_FILES)
 .PHONY: format-md
-format-md: ## Format the markdown documents maintained by us in the codebase.
+format-md: tools/lint-md/node_modules/remark-parse/package.json ## Format the markdown documents maintained by us in the codebase.
 	@$(call available-node,$(run-format-md))
 
 
@@ -1601,6 +1589,7 @@ lint-clean: ## Remove linting artifacts.
 	$(RM) tools/.*lintstamp
 	$(RM) .eslintcache
 	$(RM) -r tools/eslint/node_modules
+	$(RM) -r tools/lint-md/node_modules
 	$(RM) tools/pip/site_packages
 
 HAS_DOCKER ?= $(shell command -v docker > /dev/null 2>&1; [ $$? -eq 0 ] && echo 1 || echo 0)

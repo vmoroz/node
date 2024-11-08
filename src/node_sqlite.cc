@@ -56,40 +56,56 @@ using v8::Value;
     }                                                                          \
   } while (0)
 
-inline Local<Object> CreateSQLiteError(Isolate* isolate, const char* message) {
-  Local<String> js_msg = String::NewFromUtf8(isolate, message).ToLocalChecked();
-  Local<Object> e = Exception::Error(js_msg)
-                        ->ToObject(isolate->GetCurrentContext())
-                        .ToLocalChecked();
-  e->Set(isolate->GetCurrentContext(),
-         OneByteString(isolate, "code"),
-         OneByteString(isolate, "ERR_SQLITE_ERROR"))
-      .Check();
+inline MaybeLocal<Object> CreateSQLiteError(Isolate* isolate,
+                                            const char* message) {
+  Local<String> js_msg;
+  Local<Object> e;
+  if (!String::NewFromUtf8(isolate, message).ToLocal(&js_msg) ||
+      !Exception::Error(js_msg)
+           ->ToObject(isolate->GetCurrentContext())
+           .ToLocal(&e) ||
+      e->Set(isolate->GetCurrentContext(),
+             OneByteString(isolate, "code"),
+             OneByteString(isolate, "ERR_SQLITE_ERROR"))
+          .IsNothing()) {
+    return MaybeLocal<Object>();
+  }
   return e;
 }
 
-inline Local<Object> CreateSQLiteError(Isolate* isolate, sqlite3* db) {
+inline MaybeLocal<Object> CreateSQLiteError(Isolate* isolate, sqlite3* db) {
   int errcode = sqlite3_extended_errcode(db);
   const char* errstr = sqlite3_errstr(errcode);
   const char* errmsg = sqlite3_errmsg(db);
-  Local<Object> e = CreateSQLiteError(isolate, errmsg);
-  e->Set(isolate->GetCurrentContext(),
-         OneByteString(isolate, "errcode"),
-         Integer::New(isolate, errcode))
-      .Check();
-  e->Set(isolate->GetCurrentContext(),
-         OneByteString(isolate, "errstr"),
-         String::NewFromUtf8(isolate, errstr).ToLocalChecked())
-      .Check();
+  Local<String> js_errmsg;
+  Local<Object> e;
+  if (!String::NewFromUtf8(isolate, errstr).ToLocal(&js_errmsg) ||
+      !CreateSQLiteError(isolate, errmsg).ToLocal(&e) ||
+      e->Set(isolate->GetCurrentContext(),
+             OneByteString(isolate, "errcode"),
+             Integer::New(isolate, errcode))
+          .IsNothing() ||
+      e->Set(isolate->GetCurrentContext(),
+             OneByteString(isolate, "errstr"),
+             js_errmsg)
+          .IsNothing()) {
+    return MaybeLocal<Object>();
+  }
   return e;
 }
 
 inline void THROW_ERR_SQLITE_ERROR(Isolate* isolate, sqlite3* db) {
-  isolate->ThrowException(CreateSQLiteError(isolate, db));
+  Local<Object> e;
+  if (CreateSQLiteError(isolate, db).ToLocal(&e)) {
+    isolate->ThrowException(e);
+  }
 }
 
 inline void THROW_ERR_SQLITE_ERROR(Isolate* isolate, const char* message) {
-  isolate->ThrowException(CreateSQLiteError(isolate, message));
+  Local<Object> e;
+  if (CreateSQLiteError(isolate, message).ToLocal(&e)) {
+    isolate->ThrowException(e);
+  }
 }
 
 DatabaseSync::DatabaseSync(Environment* env,
@@ -126,7 +142,9 @@ bool DatabaseSync::Open() {
   }
 
   // TODO(cjihrig): Support additional flags.
-  int flags = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
+  int flags = open_config_.get_read_only()
+                  ? SQLITE_OPEN_READONLY
+                  : SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE;
   int r = sqlite3_open_v2(
       open_config_.location().c_str(), &connection_, flags, nullptr);
   CHECK_ERROR_OR_THROW(env()->isolate(), connection_, r, SQLITE_OK, false);
@@ -217,6 +235,22 @@ void DatabaseSync::New(const FunctionCallbackInfo<Value>& args) {
         return;
       }
       open = open_v.As<Boolean>()->Value();
+    }
+
+    Local<String> read_only_string =
+        FIXED_ONE_BYTE_STRING(env->isolate(), "readOnly");
+    Local<Value> read_only_v;
+    if (!options->Get(env->context(), read_only_string).ToLocal(&read_only_v)) {
+      return;
+    }
+    if (!read_only_v->IsUndefined()) {
+      if (!read_only_v->IsBoolean()) {
+        node::THROW_ERR_INVALID_ARG_TYPE(
+            env->isolate(),
+            "The \"options.readOnly\" argument must be a boolean.");
+        return;
+      }
+      open_config.set_read_only(read_only_v.As<Boolean>()->Value());
     }
 
     Local<String> enable_foreign_keys_string =
