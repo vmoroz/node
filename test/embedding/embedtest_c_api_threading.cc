@@ -326,16 +326,41 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
                     // guarantee it to be alive till the end of the test. In
                     // real applications, you should use a safer way to capture
                     // the dispatcher queue.
-                    [&ui_queue](node_embedding_run_task_functor run_task) {
-                      // TODO: use a safer way to call release.
+                    [&ui_queue,
+                     &runtime](node_embedding_run_task_functor run_task) {
                       // TODO: figure out the termination scenario.
-                      ui_queue.PostTask([run_task]() {
-                        if (run_task.invoke != nullptr) {
-                          run_task.invoke(run_task.data);
-                        }
-                        if (run_task.release != nullptr) {
-                          run_task.release(run_task.data);
-                        }
+                      ui_queue.PostTask([run_task, &runtime, &ui_queue]() {
+                        AsStdFunction(run_task)();
+
+                        // Check myCount and stop the processing when it
+                        // reaches 5.
+                        CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
+                            runtime,
+                            AsFunctorRef<
+                                node_embedding_run_node_api_functor_ref>(
+                                [&](node_embedding_runtime runtime,
+                                    napi_env env) {
+                                  napi_value global, my_count;
+                                  NODE_API_CALL_RETURN_VOID(
+                                      napi_get_global(env, &global));
+                                  NODE_API_CALL_RETURN_VOID(
+                                      napi_get_named_property(
+                                          env, global, "myCount", &my_count));
+                                  napi_valuetype count_type;
+                                  NODE_API_CALL_RETURN_VOID(
+                                      napi_typeof(env, my_count, &count_type));
+                                  NODE_API_ASSERT_RETURN_VOID(count_type ==
+                                                              napi_number);
+                                  int32_t count;
+                                  NODE_API_CALL_RETURN_VOID(
+                                      napi_get_value_int32(
+                                          env, my_count, &count));
+                                  if (count == 5) {
+                                    node_embedding_complete_event_loop(runtime);
+                                    fprintf(stdout, "%d\n", count);
+                                    ui_queue.Stop();
+                                  }
+                                })));
                       });
                     })));
 

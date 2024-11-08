@@ -334,22 +334,22 @@ runSnapshotTests('cpp-api');
     }
   );
 
-//   runTest(
-//     'threading-runtime-in-ui-thread-node-api: run and environment from multiple threads',
-//     spawnSyncAndAssert,
-//     [
-//       'threading-runtime-in-ui-thread-node-api',
-//       'myCount = 0; ' +
-//         'function incMyCount() { ' +
-//         '  ++myCount; ' +
-//         '  if (myCount < 5) setTimeout(incMyCount, 1); ' +
-//         '}',
-//     ],
-//     {
-//       trim: true,
-//       stdout: '5',
-//     }
-//   );
+  runTest(
+    'threading-runtime-in-ui-thread-node-api: run and environment from multiple threads',
+    spawnSyncAndAssert,
+    [
+      'threading-runtime-in-ui-thread-node-api',
+      'myCount = 0; ' +
+        'function incMyCount() { ' +
+        '  ++myCount; ' +
+        '  if (myCount < 5) setTimeout(incMyCount, 1); ' +
+        '}',
+    ],
+    {
+      trim: true,
+      stdout: '5',
+    }
+  );
 
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
