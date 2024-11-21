@@ -19,9 +19,9 @@ extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
                                   R"JS(
 const assert = require('assert');
 const path = require('path');
-const relativeRequire = 
+const relativeRequire =
   require('module').createRequire(path.join(process.cwd(), 'stub.js'));
-const { intrinsics, nodeGlobals } = 
+const { intrinsics, nodeGlobals } =
   relativeRequire('./test/common/globals');
 const items = Object.getOwnPropertyNames(globalThis);
 const leaks = [];
