@@ -1,5 +1,7 @@
 #include "embedtest_c_api_common.h"
 
+#include <atomic>
+#include <cstdint>
 #include <condition_variable>
 #include <deque>
 #include <mutex>
