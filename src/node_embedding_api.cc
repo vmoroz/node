@@ -460,6 +460,10 @@ class EmbeddedRuntime {
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
   bool polling_thread_closed_{false};
+#if defined(__linux)
+  // Epoll to poll for uv's backend fd.
+  int epoll_{epoll_create(1)};
+#endif
 
   SmallTrivialStack<NodeApiScopeData> node_api_scope_data_{};
 };
@@ -992,7 +996,7 @@ void EmbeddedRuntime::InitializePollingThread() {
 #elif defined(__linux)
 
     int backend_fd = uv_backend_fd(event_loop);
-    struct epoll_event ev = {0};
+    struct epoll_event ev = {};
     ev.events = EPOLLIN;
     ev.data.fd = backend_fd;
     epoll_ctl(epoll_, EPOLL_CTL_ADD, backend_fd, &ev);

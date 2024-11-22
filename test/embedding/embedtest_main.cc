@@ -1,4 +1,5 @@
 #include "executable_wrapper.h"
+#include <cstring>
 
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]);
