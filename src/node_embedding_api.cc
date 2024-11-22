@@ -10,6 +10,12 @@
 #include <mutex>
 #include <string>
 
+#if defined(__APPLE__)
+#include <sys/select.h>
+#elif defined(__linux)
+#include <sys/epoll.h>
+#endif
+
 // Use macros to handle errors since they can record the failing argument name
 // or expression and their location in the source code.
 
@@ -136,7 +142,7 @@ class SmallTrivialStack {
                 "T must be trivially copyable");
 
  public:
-  SmallTrivialStack() noexcept : stack_(inplace_entries_.data()) {}
+  SmallTrivialStack() noexcept : stack_(this->inplace_entries_.data()) {}
 
   void Push(T&& value) {
     EnsureCapacity(size_ + 1);
@@ -174,10 +180,10 @@ class SmallTrivialStack {
   }
 
  private:
+  std::array<T, kInplaceEntryCount> inplace_entries_;
   T* stack_{};     // Points to either inplace_entries_ or allocated_entries_.
   size_t size_{};  // Number of elements in the stack.
   size_t capacity_{kInplaceEntryCount};
-  std::array<T, kInplaceEntryCount> inplace_entries_;
   std::unique_ptr<T[]> allocated_entries_;
 };
 

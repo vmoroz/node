@@ -3,6 +3,7 @@
 #endif
 #include <assert.h>
 #include "node.h"
+#include "uv.h"
 
 #include <algorithm>
 
