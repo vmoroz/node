@@ -9,6 +9,7 @@
 
 #include <mutex>
 #include <string>
+#include <string_view>
 
 #if defined(__APPLE__)
 #include <sys/select.h>
@@ -88,7 +89,88 @@ namespace node {
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
                                                 uv_run_mode run_mode);
 
-namespace {
+//------------------------------------------------------------------------------
+// Convenience functor struct adapter for C++ function object or lambdas.
+//------------------------------------------------------------------------------
+
+template <typename TCallback>
+struct functor_struct {
+  void* data;
+  TCallback invoke;
+  node_embedding_release_data_callback release;
+
+  ~functor_struct() {
+    if (release != nullptr) {
+      release(data);
+    }
+  }
+};
+
+template <typename TCallback>
+std::shared_ptr<functor_struct<TCallback>> MakeSharedFunctorPtr(
+    TCallback callback,
+    void* callback_data,
+    node_embedding_release_data_callback release_callback_data) {
+  return callback ? std::make_shared<functor_struct<TCallback>>(
+                        callback_data, callback, release_callback_data)
+                  : nullptr;
+}
+
+template <typename TCallback>
+std::unique_ptr<functor_struct<TCallback>> MakeUniqueFunctorPtr(
+    TCallback callback,
+    void* callback_data,
+    node_embedding_release_data_callback release_callback_data) {
+  return callback ? std::make_unique_ptr<functor_struct<TCallback>>(
+                        callback_data, callback, release_callback_data)
+                  : nullptr;
+}
+
+// TODO: consider better name for this class.
+template <typename TCallback>
+class UniqueFunction;
+
+template <typename TResult, typename... TArgs>
+class UniqueFunction<TResult (*)(void*, TArgs...)> {
+ public:
+  using TCallback = TResult (*)(void*, TArgs...);
+
+  UniqueFunction() = default;
+  UniqueFunction(TCallback callback,
+                 void* callback_data,
+                 node_embedding_release_data_callback release_callback_data)
+      : functor_{callback_data, callback, release_callback_data} {}
+
+  ~UniqueFunction() {
+    if (functor_.release != nullptr) {
+      functor_.release(functor_.data);
+    }
+  }
+
+  UniqueFunction(const UniqueFunction&) = delete;
+  UniqueFunction& operator=(const UniqueFunction&) = delete;
+
+  UniqueFunction(UniqueFunction&& other)
+      : functor_{std::exchange(other.functor_, {})} {}
+
+  UniqueFunction& operator=(UniqueFunction&& other) {
+    if (this != &other) {
+      UniqueFunction temp(std::move(other));
+      functor_ = std::exchange(other.functor_, {});
+    }
+    return *this;
+  }
+
+  TResult operator()(TArgs... args) const {
+    return functor_.invoke ? functor_->invoke(functor_->data, args...)
+                           : TResult();
+  }
+
+  explicit operator bool() const { return functor_.invoke != nullptr; }
+
+ private:
+  functor_struct<TCallback> functor_{};
+};
 
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
@@ -189,10 +271,13 @@ class SmallTrivialStack {
 
 class EmbeddedErrorHandling {
  public:
-  static node_embedding_status SetErrorHandler(
-      const node_embedding_handle_error_functor& error_handler);
+  using ErrorHandlerCallback =
+      UniqueFunction<node_embedding_handle_error_callback>;
 
-  static node_embedding_status HandleError(const std::string& message,
+  static node_embedding_status SetErrorHandler(
+      ErrorHandlerCallback error_handler);
+
+  static node_embedding_status HandleError(std::string_view message,
                                            node_embedding_status status);
 
   static node_embedding_status HandleError(
@@ -205,9 +290,10 @@ class EmbeddedErrorHandling {
 
   static std::string FormatString(const char* format, ...);
 
-  static StdFunction<node_embedding_handle_error_functor>& ErrorHandler();
-
  private:
+  static ErrorHandlerCallback* ErrorHandler();
+  static const std::mutex& ErrorHandlerMutex();
+
   static node_embedding_status DefaultErrorHandler(
       void* handler_data,
       const char* messages[],
@@ -229,13 +315,16 @@ class EmbeddedPlatform {
   static node_embedding_status RunMain(
       int32_t argc,
       char* argv[],
-      const node_embedding_configure_platform_functor_ref& configure_platform,
-      const node_embedding_configure_runtime_functor_ref& configure_runtime);
+      node_embedding_configure_platform_callback configure_platform,
+      void* configure_platform_data,
+      node_embedding_configure_runtime_callback configure_runtime,
+      void* configure_runtime_data);
 
   static node_embedding_status Create(
       int32_t argc,
       char* argv[],
-      const node_embedding_configure_platform_functor_ref& configure_platform,
+      node_embedding_configure_platform_callback configure_platform,
+      void* configure_platform_data,
       node_embedding_platform* result);
 
   node_embedding_status DeleteMe();
@@ -243,12 +332,15 @@ class EmbeddedPlatform {
   node_embedding_status SetFlags(node_embedding_platform_flags flags);
 
   node_embedding_status Initialize(
-      const node_embedding_configure_platform_functor_ref& configure_platform,
+      node_embedding_configure_platform_callback configure_platform,
+      void* configure_platform_data,
       bool* early_return);
 
   node_embedding_status GetParsedArgs(
-      const node_embedding_get_args_functor_ref& get_args,
-      const node_embedding_get_args_functor_ref& get_exec_args);
+      node_embedding_get_args_callback get_args,
+      void* get_args_data,
+      node_embedding_get_args_callback get_exec_args,
+      void* get_exec_args_data);
 
   node::InitializationResult* init_result() { return init_result_.get(); }
 
@@ -296,11 +388,13 @@ class EmbeddedRuntime {
 
   static node_embedding_status Run(
       node_embedding_platform platform,
-      const node_embedding_configure_runtime_functor_ref& configure_runtime);
+      node_embedding_configure_runtime_callback configure_runtime,
+      void* configure_runtime_data);
 
   static node_embedding_status Create(
       node_embedding_platform platform,
-      const node_embedding_configure_runtime_functor_ref& configure_runtime,
+      node_embedding_configure_runtime_callback configure_runtime,
+      void* configure_runtime_data,
       node_embedding_runtime* result);
 
   node_embedding_status DeleteMe();
@@ -313,31 +407,54 @@ class EmbeddedRuntime {
                                 const char* exec_argv[]);
 
   node_embedding_status OnPreload(
-      const node_embedding_preload_functor& run_preload);
+      node_embedding_preload_callback run_preload,
+      void* preload_data,
+      node_embedding_release_data_callback release_preload_data);
 
   node_embedding_status OnStartExecution(
-      const node_embedding_start_execution_functor& start_execution,
-      const node_embedding_handle_result_functor& handle_result);
+      node_embedding_start_execution_callback start_execution,
+      void* start_execution_data,
+      node_embedding_release_data_callback release_start_execution_data);
+
+  node_embedding_status OnHandleStartResult(
+      node_embedding_handle_start_result_callback handle_result,
+      void* handle_result_data,
+      node_embedding_release_data_callback release_handle_result_data);
 
   node_embedding_status AddModule(
       const char* module_name,
-      const node_embedding_initialize_module_functor& init_module,
+      node_embedding_initialize_module_callback init_module,
+      void* init_module_data,
+      node_embedding_release_data_callback release_init_module_data,
       int32_t module_node_api_version);
 
+  node_embedding_status OnCreateWrapper(
+      node_embedding_create_wrapper_callback create_wrapper,
+      void* create_wrapper_data,
+      node_embedding_release_data_callback release_create_wrapper_data);
+
+  node_embedding_status GetWrapper(void** result);
+
   node_embedding_status Initialize(
-      const node_embedding_configure_runtime_functor_ref& configure_runtime);
+      node_embedding_configure_runtime_callback configure_runtime,
+      void* configure_runtime_data);
 
   node_embedding_status SetTaskRunner(
-      const node_embedding_post_task_functor& post_task);
+      node_embedding_post_task_callback post_task,
+      void* post_task_data,
+      node_embedding_release_data_callback release_post_task_data);
 
-  node_embedding_status RunEventLoop(
-      node_embedding_event_loop_run_mode run_mode, bool* has_more_work);
+  node_embedding_status RunEventLoop();
 
-  node_embedding_status CompleteEventLoop();
   node_embedding_status TerminateEventLoop();
 
+  node_embedding_status RunEventLoopOnce(bool* has_more_work);
+
+  node_embedding_status RunEventLoopNoWait(bool* has_more_work);
+
   node_embedding_status RunNodeApi(
-      const node_embedding_run_node_api_functor_ref& run_node_api);
+      node_embedding_run_node_api_callback run_node_api,
+      void* run_node_api_data);
 
   node_embedding_status OpenNodeApiScope(
       node_embedding_node_api_scope* node_api_scope, napi_env* env);
@@ -375,7 +492,7 @@ class EmbeddedRuntime {
   struct ModuleInfo {
     node_embedding_runtime runtime;
     std::string module_name;
-    StdFunction<node_embedding_initialize_module_functor> init_module;
+    UniqueFunction<node_embedding_initialize_module_callback> init_module;
     int32_t module_node_api_version;
   };
 
@@ -441,7 +558,9 @@ class EmbeddedRuntime {
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
   node::StartExecutionCallback start_execution_cb_{};
-  StdFunction<node_embedding_handle_result_functor> handle_result_{};
+  UniqueFunction<node_embedding_handle_start_result_callback> handle_result_{};
+  UniqueFunction<node_embedding_create_wrapper_callback> on_create_wrapper_{};
+  void* wrapper_{};
   napi_env node_api_env_{};
 
   struct {
@@ -455,7 +574,7 @@ class EmbeddedRuntime {
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<V8ScopeData> v8_scope_data_;
 
-  StdFunction<node_embedding_post_task_functor> post_task_{};
+  UniqueFunction<node_embedding_post_task_callback> post_task_{};
   uv_async_t polling_async_handle_{};
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
@@ -473,21 +592,24 @@ class EmbeddedRuntime {
 //-----------------------------------------------------------------------------
 
 node_embedding_status EmbeddedErrorHandling::SetErrorHandler(
-    const node_embedding_handle_error_functor& error_handler) {
-  ErrorHandler() = AsStdFunction(error_handler);
+    ErrorHandlerCallback error_handler) {
+  std::scoped_lock lock(ErrorHandlerMutex());
+  *ErrorHandler() = std::move(error_handler);
   return node_embedding_status_ok;
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
-    const std::string& message, node_embedding_status status) {
-  const char* message_c_str = message.c_str();
-  return ErrorHandler()(&message_c_str, 1, status);
+    std::string_view message, node_embedding_status status) {
+  const char* message_c_str = message.data();
+  std::scoped_lock lock(ErrorHandlerMutex());
+  return (*ErrorHandler())(&message_c_str, 1, status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::vector<std::string>& messages, node_embedding_status status) {
   CStringArray message_arr(messages);
-  return ErrorHandler()(message_arr.c_strs(), message_arr.size(), status);
+  std::scoped_lock lock(ErrorHandlerMutex());
+  return (*ErrorHandler())(message_arr.c_strs(), message_arr.size(), status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
@@ -504,6 +626,7 @@ node_embedding_status EmbeddedErrorHandling::DefaultErrorHandler(
     const char* messages[],
     size_t messages_size,
     node_embedding_status status) {
+  // TODO: see how the rest of Node.js reports to console.
   FILE* stream = status != node_embedding_status_ok ? stderr : stdout;
   for (size_t i = 0; i < messages_size; ++i) {
     fprintf(stream, "%s\n", messages[i]);
@@ -515,8 +638,9 @@ node_embedding_status EmbeddedErrorHandling::DefaultErrorHandler(
 std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   va_list args1;
   va_start(args1, format);
-  va_list args2;
-  va_copy(args2, args1);  // Required for some compilers like GCC.
+  va_list args2;  // Required for some compilers like GCC since we go over the
+                  // args twice.
+  va_copy(args2, args1);
   std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
   va_end(args1);
   std::vsnprintf(&result[0], result.size() + 1, format, args2);
@@ -524,12 +648,16 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   return result;
 }
 
-StdFunction<node_embedding_handle_error_functor>&
+EmbeddedErrorHandling::ErrorHandlerCallback*
 EmbeddedErrorHandling::ErrorHandler() {
-  static StdFunction<node_embedding_handle_error_functor> error_handler =
-      AsStdFunction(node_embedding_handle_error_functor{
-          nullptr, &DefaultErrorHandler, nullptr});
-  return error_handler;
+  static ErrorHandlerCallback error_handler = {
+      nullptr, &DefaultErrorHandler, nullptr};
+  return &error_handler;
+}
+
+const std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
+  static std::mutex mutex;
+  return mutex;
 }
 
 //-----------------------------------------------------------------------------
@@ -555,21 +683,25 @@ EmbeddedErrorHandling::ErrorHandler() {
 node_embedding_status EmbeddedPlatform::RunMain(
     int32_t argc,
     char* argv[],
-    const node_embedding_configure_platform_functor_ref& configure_platform,
-    const node_embedding_configure_runtime_functor_ref& configure_runtime) {
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data) {
   node_embedding_platform platform{};
-  CHECK_STATUS(
-      EmbeddedPlatform::Create(argc, argv, configure_platform, &platform));
+  CHECK_STATUS(EmbeddedPlatform::Create(
+      argc, argv, configure_platform, configure_platform_data, &platform));
   if (platform == nullptr) {
     return node_embedding_status_ok;  // early return
   }
-  return EmbeddedRuntime::Run(platform, configure_runtime);
+  return EmbeddedRuntime::Run(
+      platform, configure_runtime, configure_runtime_data);
 }
 
 /*static*/ node_embedding_status EmbeddedPlatform::Create(
     int32_t argc,
     char* argv[],
-    const node_embedding_configure_platform_functor_ref& configure_platform,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_platform* result) {
   CHECK_ARG_NOT_NULL(result);
 
@@ -578,7 +710,8 @@ node_embedding_status EmbeddedPlatform::RunMain(
 
   auto platform_ptr = std::make_unique<EmbeddedPlatform>(argc, argv);
   bool early_return = false;
-  CHECK_STATUS(platform_ptr->Initialize(configure_platform, &early_return));
+  CHECK_STATUS(platform_ptr->Initialize(
+      configure_platform, configure_platform_data, &early_return));
   if (early_return) {
     return platform_ptr.release()->DeleteMe();
   }
@@ -610,15 +743,15 @@ node_embedding_status EmbeddedPlatform::SetFlags(
 }
 
 node_embedding_status EmbeddedPlatform::Initialize(
-    const node_embedding_configure_platform_functor_ref& configure_platform,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     bool* early_return) {
   ASSERT(!is_initialized_);
 
   node_embedding_platform_config platform_config =
       reinterpret_cast<node_embedding_platform_config>(this);
-  if (configure_platform.invoke != nullptr) {
-    CHECK_STATUS(
-        configure_platform.invoke(configure_platform.data, platform_config));
+  if (configure_platform != nullptr) {
+    CHECK_STATUS(configure_platform(configure_platform_data, platform_config));
   }
 
   is_initialized_ = true;
@@ -655,19 +788,20 @@ node_embedding_status EmbeddedPlatform::Initialize(
 }
 
 node_embedding_status EmbeddedPlatform::GetParsedArgs(
-    const node_embedding_get_args_functor_ref& get_args,
-    const node_embedding_get_args_functor_ref& get_exec_args) {
+    node_embedding_get_args_callback get_args,
+    void* get_args_data,
+    node_embedding_get_args_callback get_exec_args,
+    void* get_exec_args_data) {
   ASSERT(is_initialized_);
 
-  if (get_args.invoke != nullptr) {
+  if (get_args != nullptr) {
     node::CStringArray args(init_result_->args());
-    get_args.invoke(get_args.data, args.argc(), args.argv());
+    get_args(get_args_data, args.argc(), args.argv());
   }
 
-  if (get_exec_args.invoke != nullptr) {
+  if (get_exec_args != nullptr) {
     node::CStringArray exec_args(init_result_->exec_args());
-    get_exec_args.invoke(
-        get_exec_args.data, exec_args.argc(), exec_args.argv());
+    get_exec_args(get_exec_args_data, exec_args.argc(), exec_args.argv());
   }
 
   return node_embedding_status_ok;
@@ -727,17 +861,20 @@ EmbeddedPlatform::GetProcessInitializationFlags(
 
 /*static*/ node_embedding_status EmbeddedRuntime::Run(
     node_embedding_platform platform,
-    const node_embedding_configure_runtime_functor_ref& configure_runtime) {
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data) {
   node_embedding_runtime runtime{};
-  CHECK_STATUS(Create(platform, configure_runtime, &runtime));
-  CHECK_STATUS(node_embedding_complete_event_loop(runtime));
+  CHECK_STATUS(
+      Create(platform, configure_runtime, configure_runtime_data, &runtime));
+  CHECK_STATUS(node_embedding_run_event_loop(runtime));
   CHECK_STATUS(node_embedding_delete_runtime(runtime));
   return node_embedding_status_ok;
 }
 
 /*static*/ node_embedding_status EmbeddedRuntime::Create(
     node_embedding_platform platform,
-    const node_embedding_configure_runtime_functor_ref& configure_runtime,
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data,
     node_embedding_runtime* result) {
   CHECK_ARG_NOT_NULL(platform);
   CHECK_ARG_NOT_NULL(result);
@@ -747,7 +884,8 @@ EmbeddedPlatform::GetProcessInitializationFlags(
   std::unique_ptr<EmbeddedRuntime> runtime_ptr =
       std::make_unique<EmbeddedRuntime>(platform_ptr);
 
-  CHECK_STATUS(runtime_ptr->Initialize(configure_runtime));
+  CHECK_STATUS(
+      runtime_ptr->Initialize(configure_runtime, configure_runtime_data));
 
   *result = reinterpret_cast<node_embedding_runtime>(runtime_ptr.release());
 
@@ -795,13 +933,16 @@ node_embedding_status EmbeddedRuntime::SetArgs(int32_t argc,
 }
 
 node_embedding_status EmbeddedRuntime::OnPreload(
-    const node_embedding_preload_functor& run_preload) {
+    node_embedding_preload_callback run_preload,
+    void* preload_data,
+    node_embedding_release_data_callback release_preload_data) {
   ASSERT(!is_initialized_);
 
-  if (run_preload.invoke != nullptr) {
+  if (run_preload != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
         [runtime = reinterpret_cast<node_embedding_runtime>(this),
-         run_preload_ptr = MakeSharedFunctorPtr(run_preload)](
+         run_preload_ptr = MakeSharedFunctorPtr(
+             run_preload, preload_data, release_preload_data)](
             node::Environment* node_env,
             v8::Local<v8::Value> process,
             v8::Local<v8::Value> require) {
@@ -828,13 +969,18 @@ node_embedding_status EmbeddedRuntime::OnPreload(
 }
 
 node_embedding_status EmbeddedRuntime::OnStartExecution(
-    const node_embedding_start_execution_functor& start_execution,
-    const node_embedding_handle_result_functor& handle_result) {
+    node_embedding_start_execution_callback start_execution,
+    void* start_execution_data,
+    node_embedding_release_data_callback release_start_execution_data) {
   ASSERT(!is_initialized_);
 
-  if (start_execution.invoke != nullptr) {
+  if (start_execution != nullptr) {
     start_execution_cb_ = node::StartExecutionCallback(
-        [this, start_execution_ptr = MakeSharedFunctorPtr(start_execution)](
+        [this,
+         start_execution_ptr =
+             MakeSharedFunctorPtr(start_execution,
+                                  start_execution_data,
+                                  release_start_execution_data)](
             const node::StartExecutionCallbackInfo& info)
             -> v8::MaybeLocal<v8::Value> {
           napi_value result{};
@@ -865,24 +1011,37 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
     start_execution_cb_ = {};
   }
 
-  handle_result_ = AsStdFunction(handle_result);
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::OnHandleStartResult(
+    node_embedding_handle_start_result_callback handle_result,
+    void* handle_result_data,
+    node_embedding_release_data_callback release_handle_result_data) {
+  ASSERT(!is_initialized_);
+
+  handle_result_ = UniqueFunction<node_embedding_handle_start_result_callback>{
+      handle_result, handle_result_data, release_handle_result_data};
 
   return node_embedding_status_ok;
 }
 
 node_embedding_status EmbeddedRuntime::AddModule(
     const char* module_name,
-    const node_embedding_initialize_module_functor& init_module,
+    node_embedding_initialize_module_callback init_module,
+    void* init_module_data,
+    node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version) {
   CHECK_ARG_NOT_NULL(module_name);
-  CHECK_ARG_NOT_NULL(init_module.invoke);
+  CHECK_ARG_NOT_NULL(init_module);
   ASSERT(!is_initialized_);
 
   auto insert_result = modules_.try_emplace(
       module_name,
       ModuleInfo{reinterpret_cast<node_embedding_runtime>(this),
                  module_name,
-                 AsStdFunction(init_module),
+                 UniqueFunction<node_embedding_initialize_module_callback>{
+                     init_module, init_module_data, release_init_module_data},
                  module_node_api_version});
   if (!insert_result.second) {
     return EmbeddedErrorHandling::HandleError(
@@ -894,13 +1053,36 @@ node_embedding_status EmbeddedRuntime::AddModule(
   return node_embedding_status_ok;
 }
 
-node_embedding_status EmbeddedRuntime::Initialize(
-    const node_embedding_configure_runtime_functor_ref& configure_runtime) {
+node_embedding_status EmbeddedRuntime::OnCreateWrapper(
+    node_embedding_create_wrapper_callback create_wrapper,
+    void* create_wrapper_data,
+    node_embedding_release_data_callback release_create_wrapper_data) {
+  CHECK_ARG_NOT_NULL(create_wrapper);
   ASSERT(!is_initialized_);
 
-  if (configure_runtime.invoke != nullptr) {
-    CHECK_STATUS(configure_runtime.invoke(
-        configure_runtime.data,
+  on_create_wrapper_ = UniqueFunction<node_embedding_create_wrapper_callback>{
+      create_wrapper, create_wrapper_data, release_create_wrapper_data};
+
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::GetWrapper(void** result) {
+  CHECK_ARG_NOT_NULL(result);
+  ASSERT(is_initialized_);
+
+  *result = wrapper_;
+
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::Initialize(
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data) {
+  ASSERT(!is_initialized_);
+
+  if (configure_runtime != nullptr) {
+    CHECK_STATUS(configure_runtime(
+        configure_runtime_data,
         reinterpret_cast<node_embedding_platform>(platform_),
         reinterpret_cast<node_embedding_runtime_config>(this)));
   }
@@ -965,7 +1147,7 @@ uv_loop_t* EmbeddedRuntime::EventLoop() {
 }
 
 void EmbeddedRuntime::InitializePollingThread() {
-  if (post_task_ == nullptr) return;
+  if (!post_task_) return;
 
   uv_loop_t* event_loop = EventLoop();
 
@@ -1017,7 +1199,7 @@ void EmbeddedRuntime::InitializePollingThread() {
 }
 
 void EmbeddedRuntime::DestroyPollingThread() {
-  if (post_task_ == nullptr) return;
+  if (!post_task_) return;
   if (polling_thread_closed_) return;
 
   polling_thread_closed_ = true;
@@ -1033,7 +1215,7 @@ void EmbeddedRuntime::DestroyPollingThread() {
 }
 
 void EmbeddedRuntime::WakeupPollingThread() {
-  if (post_task_ == nullptr) return;
+  if (!post_task_) return;
   if (polling_thread_closed_) return;
 
   uv_sem_post(&polling_sem_);
@@ -1051,11 +1233,8 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     if (runtime->polling_thread_closed_) break;
 
     // Deal with event in the task runner thread.
-    runtime->post_task_(
-        node::AsFunctor<node_embedding_run_task_functor>([runtime]() {
-          runtime->RunEventLoop(node_embedding_event_loop_run_mode_nowait,
-                                nullptr);
-        }));
+    runtime->post_task_(node::AsFunctor<node_embedding_run_task_functor>(
+        [runtime]() { runtime->RunEventLoopNoWait(nullptr); }));
   }
 }
 
@@ -1118,40 +1297,16 @@ void EmbeddedRuntime::PollEvents() {
 }
 
 node_embedding_status EmbeddedRuntime::SetTaskRunner(
-    const node_embedding_post_task_functor& post_task) {
+    node_embedding_post_task_callback post_task,
+    void* post_task_data,
+    node_embedding_release_data_callback release_post_task_data) {
   ASSERT(!is_initialized_);
-  post_task_ = AsStdFunction(post_task);
+  post_task_ = UniqueFunction<node_embedding_post_task_callback>{
+      post_task, post_task_data, release_post_task_data};
   return node_embedding_status_ok;
 }
 
-node_embedding_status EmbeddedRuntime::RunEventLoop(
-    node_embedding_event_loop_run_mode run_mode, bool* has_more_work) {
-  ASSERT(is_initialized_);
-
-  V8ScopeLocker v8_scope_locker(*this);
-
-  node::ExitCode exit_code =
-      node::SpinEventLoopWithoutCleanup(env_setup_->env(),
-                                        static_cast<uv_run_mode>(run_mode))
-          .FromMaybe(node::ExitCode::kGenericUserError);
-  if (exit_code != node::ExitCode::kNoFailure) {
-    return EmbeddedErrorHandling::HandleError(
-        "Failed running the event loop",
-        static_cast<node_embedding_status>(
-            node_embedding_status_error_exit_code +
-            static_cast<node_embedding_status>(exit_code)));
-  }
-
-  if (has_more_work != nullptr) {
-    *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
-  }
-
-  WakeupPollingThread();
-
-  return node_embedding_status_ok;
-}
-
-node_embedding_status EmbeddedRuntime::CompleteEventLoop() {
+node_embedding_status EmbeddedRuntime::RunEventLoop() {
   ASSERT(is_initialized_);
 
   V8ScopeLocker v8_scope_locker(*this);
@@ -1180,6 +1335,56 @@ node_embedding_status EmbeddedRuntime::TerminateEventLoop() {
         static_cast<node_embedding_status>(
             node_embedding_status_error_exit_code + exit_code));
   }
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::RunEventLoopOnce(bool* has_more_work) {
+  ASSERT(is_initialized_);
+
+  V8ScopeLocker v8_scope_locker(*this);
+
+  node::ExitCode exit_code =
+      node::SpinEventLoopWithoutCleanup(env_setup_->env(), UV_RUN_ONCE)
+          .FromMaybe(node::ExitCode::kGenericUserError);
+  if (exit_code != node::ExitCode::kNoFailure) {
+    return EmbeddedErrorHandling::HandleError(
+        "Failed running the event loop",
+        static_cast<node_embedding_status>(
+            node_embedding_status_error_exit_code +
+            static_cast<node_embedding_status>(exit_code)));
+  }
+
+  if (has_more_work != nullptr) {
+    *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
+  }
+
+  WakeupPollingThread();
+
+  return node_embedding_status_ok;
+}
+
+node_embedding_status EmbeddedRuntime::RunEventLoopNoWait(bool* has_more_work) {
+  ASSERT(is_initialized_);
+
+  V8ScopeLocker v8_scope_locker(*this);
+
+  node::ExitCode exit_code =
+      node::SpinEventLoopWithoutCleanup(env_setup_->env(), UV_RUN_ONCE)
+          .FromMaybe(node::ExitCode::kGenericUserError);
+  if (exit_code != node::ExitCode::kNoFailure) {
+    return EmbeddedErrorHandling::HandleError(
+        "Failed running the event loop",
+        static_cast<node_embedding_status>(
+            node_embedding_status_error_exit_code +
+            static_cast<node_embedding_status>(exit_code)));
+  }
+
+  if (has_more_work != nullptr) {
+    *has_more_work = uv_loop_alive(env_setup_->env()->event_loop());
+  }
+
+  WakeupPollingThread();
+
   return node_embedding_status_ok;
 }
 
@@ -1214,8 +1419,9 @@ void EmbeddedRuntime::CloseV8Scope(size_t nest_level) {
 }
 
 node_embedding_status EmbeddedRuntime::RunNodeApi(
-    const node_embedding_run_node_api_functor_ref& run_node_api) {
-  CHECK_ARG_NOT_NULL(run_node_api.invoke);
+    node_embedding_run_node_api_callback run_node_api,
+    void* run_node_api_data) {
+  CHECK_ARG_NOT_NULL(run_node_api);
 
   node_embedding_node_api_scope node_api_scope{};
   napi_env env{};
@@ -1223,8 +1429,8 @@ node_embedding_status EmbeddedRuntime::RunNodeApi(
   auto nodeApiScopeLeave =
       node::OnScopeLeave([&]() { CloseNodeApiScope(node_api_scope); });
 
-  run_node_api.invoke(
-      run_node_api.data, reinterpret_cast<node_embedding_runtime>(this), env);
+  run_node_api(
+      run_node_api_data, reinterpret_cast<node_embedding_runtime>(this), env);
 
   return node_embedding_status_ok;
 }
@@ -1377,12 +1583,15 @@ void EmbeddedRuntime::RegisterModules() {
   }
 }
 
-}  // end of anonymous namespace
 }  // namespace node
 
-node_embedding_status NAPI_CDECL
-node_embedding_on_error(node_embedding_handle_error_functor error_handler) {
-  return node::EmbeddedErrorHandling::SetErrorHandler(error_handler);
+node_embedding_status NAPI_CDECL node_embedding_on_error(
+    node_embedding_handle_error_callback error_handler,
+    void* error_handler_data,
+    node_embedding_release_data_callback release_error_handler_data) {
+  return node::EmbeddedErrorHandling::SetErrorHandler(
+      node::EmbeddedErrorHandling::ErrorHandlerCallback{
+          error_handler, error_handler_data, release_error_handler_data});
 }
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
@@ -1394,18 +1603,26 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
 node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
     char* argv[],
-    node_embedding_configure_platform_functor_ref configure_platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime) {
-  return node::EmbeddedPlatform::RunMain(
-      argc, argv, configure_platform, configure_runtime);
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data) {
+  return node::EmbeddedPlatform::RunMain(argc,
+                                         argv,
+                                         configure_platform,
+                                         configure_platform_data,
+                                         configure_runtime,
+                                         configure_runtime_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     char* argv[],
-    node_embedding_configure_platform_functor_ref configure_platform,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_platform* result) {
-  return node::EmbeddedPlatform::Create(argc, argv, configure_platform, result);
+  return node::EmbeddedPlatform::Create(
+      argc, argv, configure_platform, configure_platform_data, result);
 }
 
 node_embedding_status NAPI_CDECL
@@ -1421,22 +1638,29 @@ node_embedding_status NAPI_CDECL node_embedding_platform_set_flags(
 
 node_embedding_status NAPI_CDECL node_embedding_platform_get_parsed_args(
     node_embedding_platform platform,
-    node_embedding_get_args_functor_ref get_args,
-    node_embedding_get_args_functor_ref get_runtime_args) {
-  return EMBEDDED_PLATFORM(platform)->GetParsedArgs(get_args, get_runtime_args);
+    node_embedding_get_args_callback get_args,
+    void* get_args_data,
+    node_embedding_get_args_callback get_runtime_args,
+    void* get_runtime_args_data) {
+  return EMBEDDED_PLATFORM(platform)->GetParsedArgs(
+      get_args, get_args_data, get_runtime_args, get_runtime_args_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_run_runtime(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime) {
-  return node::EmbeddedRuntime::Run(platform, configure_runtime);
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data) {
+  return node::EmbeddedRuntime::Run(
+      platform, configure_runtime, configure_runtime_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_create_runtime(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime,
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data,
     node_embedding_runtime* result) {
-  return node::EmbeddedRuntime::Create(platform, configure_runtime, result);
+  return node::EmbeddedRuntime::Create(
+      platform, configure_runtime, configure_runtime_data, result);
 }
 
 node_embedding_status NAPI_CDECL
@@ -1460,45 +1684,77 @@ node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
       ->SetArgs(argc, argv, runtime_argc, runtime_argv);
 }
 
-node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_preload(node_embedding_runtime_config runtime_config,
-                                  node_embedding_preload_functor run_preload) {
-  return EMBEDDED_RUNTIME(runtime_config)->OnPreload(run_preload);
+node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_preload_callback run_preload,
+    void* preload_data,
+    node_embedding_release_data_callback release_preload_data) {
+  return EMBEDDED_RUNTIME(runtime_config)
+      ->OnPreload(run_preload, preload_data, release_preload_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_on_start_execution(
     node_embedding_runtime_config runtime_config,
-    node_embedding_start_execution_functor start_execution,
-    node_embedding_handle_result_functor handle_result) {
+    node_embedding_start_execution_callback start_execution,
+    void* start_execution_data,
+    node_embedding_release_data_callback release_start_execution_data) {
   return EMBEDDED_RUNTIME(runtime_config)
-      ->OnStartExecution(start_execution, handle_result);
+      ->OnStartExecution(
+          start_execution, start_execution_data, release_start_execution_data);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_on_handle_start_result(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_handle_start_result_callback handle_result,
+    void* handle_result_data,
+    node_embedding_release_data_callback release_handle_result_data) {
+  return EMBEDDED_RUNTIME(runtime_config)
+      ->OnHandleStartResult(
+          handle_result, handle_result_data, release_handle_result_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
-    node_embedding_initialize_module_functor init_module,
+    node_embedding_initialize_module_callback init_module,
+    void* init_module_data,
+    node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version) {
   return EMBEDDED_RUNTIME(runtime_config)
-      ->AddModule(module_name, init_module, module_node_api_version);
+      ->AddModule(module_name,
+                  init_module,
+                  init_module_data,
+                  release_init_module_data,
+                  module_node_api_version);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_on_create_wrapper(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_create_wrapper_callback create_wrapper,
+    void* create_wrapper_data,
+    node_embedding_release_data_callback release_create_wrapper_data) {
+  return EMBEDDED_RUNTIME(runtime_config)
+      ->OnCreateWrapper(
+          create_wrapper, create_wrapper_data, release_create_wrapper_data);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_get_wrapper(
+    node_embedding_runtime runtime, void** result) {
+  return EMBEDDED_RUNTIME(runtime)->GetWrapper(result);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_set_task_runner(
     node_embedding_runtime_config runtime_config,
-    node_embedding_post_task_functor post_task) {
-  return EMBEDDED_RUNTIME(runtime_config)->SetTaskRunner(post_task);
+    node_embedding_post_task_callback post_task,
+    void* post_task_data,
+    node_embedding_release_data_callback release_post_task_data) {
+  return EMBEDDED_RUNTIME(runtime_config)
+      ->SetTaskRunner(post_task, post_task_data, release_post_task_data);
 }
 
 node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop(node_embedding_runtime runtime,
-                              node_embedding_event_loop_run_mode run_mode,
-                              bool* has_more_work) {
-  return EMBEDDED_RUNTIME(runtime)->RunEventLoop(run_mode, has_more_work);
-}
-
-node_embedding_status NAPI_CDECL
-node_embedding_complete_event_loop(node_embedding_runtime runtime) {
-  return EMBEDDED_RUNTIME(runtime)->CompleteEventLoop();
+node_embedding_run_event_loop(node_embedding_runtime runtime) {
+  return EMBEDDED_RUNTIME(runtime)->RunEventLoop();
 }
 
 node_embedding_status NAPI_CDECL
@@ -1506,10 +1762,21 @@ node_embedding_terminate_event_loop(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->TerminateEventLoop();
 }
 
-node_embedding_status NAPI_CDECL node_embedding_run_node_api(
-    node_embedding_runtime runtime,
-    node_embedding_run_node_api_functor_ref run_node_api) {
-  return EMBEDDED_RUNTIME(runtime)->RunNodeApi(run_node_api);
+node_embedding_status NAPI_CDECL node_embedding_run_event_loop_once(
+    node_embedding_runtime runtime, bool* has_more_work) {
+  return EMBEDDED_RUNTIME(runtime)->RunEventLoopOnce(has_more_work);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_run_event_loop_no_wait(
+    node_embedding_runtime runtime, bool* has_more_work) {
+  return EMBEDDED_RUNTIME(runtime)->RunEventLoopNoWait(has_more_work);
+}
+
+node_embedding_status NAPI_CDECL
+node_embedding_run_node_api(node_embedding_runtime runtime,
+                            node_embedding_run_node_api_callback run_node_api,
+                            void* run_node_api_data) {
+  return EMBEDDED_RUNTIME(runtime)->RunNodeApi(run_node_api, run_node_api_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(

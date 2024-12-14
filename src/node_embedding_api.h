@@ -130,18 +130,6 @@ typedef enum {
   node_embedding_runtime_flags_no_wait_for_inspector_frontend = 1 << 11
 } node_embedding_runtime_flags;
 
-typedef enum {
-  // Run the event loop until it is completed.
-  // It matches the UV_RUN_DEFAULT behavior.
-  node_embedding_event_loop_run_mode_default = 0,
-  // Run the event loop once and wait if there are no items.
-  // It matches the UV_RUN_ONCE behavior.
-  node_embedding_event_loop_run_mode_once = 1,
-  // Run the event loop once and do not wait if there are no items.
-  // It matches the UV_RUN_NOWAIT behavior.
-  node_embedding_event_loop_run_mode_nowait = 2,
-} node_embedding_event_loop_run_mode;
-
 //==============================================================================
 // Callbacks
 //==============================================================================
@@ -183,7 +171,7 @@ typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
     napi_value require,
     napi_value run_cjs);
 
-typedef void(NAPI_CDECL* node_embedding_handle_result_callback)(
+typedef void(NAPI_CDECL* node_embedding_handle_start_result_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
@@ -196,75 +184,19 @@ typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     const char* module_name,
     napi_value exports);
 
+typedef napi_value(NAPI_CDECL* node_embedding_create_wrapper_callback)(
+    void* cb_data, node_embedding_runtime runtime, void** result);
+
 typedef void(NAPI_CDECL* node_embedding_run_task_callback)(void* cb_data);
 
-typedef struct {
-  void* data;
-  node_embedding_run_task_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_run_task_functor;
-
 typedef void(NAPI_CDECL* node_embedding_post_task_callback)(
-    void* cb_data, node_embedding_run_task_functor run_task);
+    void* cb_data,
+    node_embedding_run_task_callback run_task,
+    void* task_data,
+    node_embedding_release_data_callback release_task_data);
 
 typedef void(NAPI_CDECL* node_embedding_run_node_api_callback)(
     void* cb_data, node_embedding_runtime runtime, napi_env env);
-
-typedef struct {
-  void* data;
-  node_embedding_handle_error_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_handle_error_functor;
-
-typedef struct {
-  void* data;
-  node_embedding_configure_platform_callback invoke;
-} node_embedding_configure_platform_functor_ref;
-
-typedef struct {
-  void* data;
-  node_embedding_configure_runtime_callback invoke;
-} node_embedding_configure_runtime_functor_ref;
-
-typedef struct {
-  void* data;
-  node_embedding_run_node_api_callback invoke;
-} node_embedding_run_node_api_functor_ref;
-
-typedef struct {
-  void* data;
-  node_embedding_get_args_callback invoke;
-} node_embedding_get_args_functor_ref;
-
-typedef struct {
-  void* data;
-  node_embedding_preload_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_preload_functor;
-
-typedef struct {
-  void* data;
-  node_embedding_start_execution_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_start_execution_functor;
-
-typedef struct {
-  void* data;
-  node_embedding_handle_result_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_handle_result_functor;
-
-typedef struct {
-  void* data;
-  node_embedding_initialize_module_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_initialize_module_functor;
-
-typedef struct {
-  void* data;
-  node_embedding_post_task_callback invoke;
-  node_embedding_release_data_callback release;
-} node_embedding_post_task_functor;
 
 //==============================================================================
 // Functions
@@ -275,8 +207,10 @@ typedef struct {
 //------------------------------------------------------------------------------
 
 // Sets the global error handing for the Node.js embedding API.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_error(node_embedding_handle_error_functor error_handler);
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
+    node_embedding_handle_error_callback error_handler,
+    void* error_handler_data,
+    node_embedding_release_data_callback release_error_handler_data);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
@@ -290,14 +224,17 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
     char* argv[],
-    node_embedding_configure_platform_functor_ref configure_platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime);
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data);
 
 // Creates and configures a new Node.js platform instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     char* argv[],
-    node_embedding_configure_platform_functor_ref configure_platform,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_platform* result);
 
 // Deletes the Node.js platform instance.
@@ -313,8 +250,10 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_platform_set_flags(
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_platform_get_parsed_args(
     node_embedding_platform platform,
-    node_embedding_get_args_functor_ref get_args,
-    node_embedding_get_args_functor_ref get_runtime_args);
+    node_embedding_get_args_callback get_args,
+    void* get_args_data,
+    node_embedding_get_args_callback get_runtime_args,
+    void* get_runtime_args_data);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions.
@@ -323,12 +262,13 @@ node_embedding_platform_get_parsed_args(
 // Runs the Node.js runtime with the provided configuration.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime);
+    node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data);
 
 // Creates a new Node.js runtime instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
     node_embedding_platform platform,
-    node_embedding_configure_runtime_functor_ref configure_runtime,
+    node_embedding_configure_runtime_callback configure_runtime,
     node_embedding_runtime* result);
 
 // Deletes the Node.js runtime instance.
@@ -350,16 +290,26 @@ node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
                                 const char* runtime_argv[]);
 
 // Sets the preload callback for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_preload(node_embedding_runtime_config runtime_config,
-                                  node_embedding_preload_functor run_preload);
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_preload_callback run_preload,
+    void* preload_data,
+    node_embedding_release_data_callback release_preload_data);
 
 // Sets the start execution callback for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_runtime_on_start_execution(
     node_embedding_runtime_config runtime_config,
-    node_embedding_start_execution_functor start_execution,
-    node_embedding_handle_result_functor handle_result);
+    node_embedding_start_execution_callback start_execution,
+    void* start_execution_data,
+    node_embedding_release_data_callback release_start_execution_data);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_on_handle_start_result(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_handle_start_result_callback handle_result,
+    void* handle_result_data,
+    node_embedding_release_data_callback release_handle_result_data);
 
 // Adds a new module to the Node.js runtime.
 // It is accessed as process._linkedBinding(module_name) in the main JS and in
@@ -367,8 +317,20 @@ node_embedding_runtime_on_start_execution(
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
-    node_embedding_initialize_module_functor init_module,
+    node_embedding_initialize_module_callback init_module,
+    void* init_module_data,
+    node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_on_create_wrapper(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_create_wrapper_callback create_wrapper,
+    void* create_wrapper_data,
+    node_embedding_release_data_callback release_create_wrapper_data);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_get_wrapper(
+    node_embedding_runtime runtime, void** result);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the event loop.
@@ -382,31 +344,41 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_runtime_set_task_runner(
     node_embedding_runtime_config runtime_config,
-    node_embedding_post_task_functor post_task);
+    node_embedding_post_task_callback post_task,
+    void* post_task_data,
+    node_embedding_release_data_callback release_post_task_data);
 
-// Runs the Node.js runtime event loop.
+// Runs the Node.js runtime event loop in UV_RUN_DEFAULT mode.
+// It finishes it with emitting the beforeExit and exit process events.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop(node_embedding_runtime runtime,
-                              node_embedding_event_loop_run_mode run_mode,
-                              bool* has_more_work);
-
-// Runs the Node.js runtime event loop in node_embedding_event_loop_run_default
-// mode and finishes it with emitting the beforeExit and exit process events.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_complete_event_loop(node_embedding_runtime runtime);
+node_embedding_run_event_loop(node_embedding_runtime runtime);
 
 // Stops the Node.js runtime event loop. It cannot be resumed after this call.
+// It does not emit the beforeExit and exit process events if they were not
+// emitted before.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_terminate_event_loop(node_embedding_runtime runtime);
+
+// Runs the Node.js runtime event loop once. It may block the current thread.
+// It matches the UV_RUN_ONCE behavior
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_event_loop_once(
+    node_embedding_runtime runtime, bool* has_more_work);
+
+// Runs the Node.js runtime event loop once. It does not block the thread.
+// It matches the UV_RUN_NOWAIT behavior.
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_run_event_loop_no_wait(node_embedding_runtime runtime,
+                                      bool* has_more_work);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
 //------------------------------------------------------------------------------
 
 // Runs Node-API code in the Node-API scope.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_node_api(
-    node_embedding_runtime runtime,
-    node_embedding_run_node_api_functor_ref run_node_api);
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_run_node_api(node_embedding_runtime runtime,
+                            node_embedding_run_node_api_callback run_node_api,
+                            void* run_node_api_data);
 
 // Opens a new Node-API scope.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(
@@ -429,10 +401,6 @@ EXTERN_C_END
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
-#include <functional>
-#include <memory>
-#include <type_traits>
-
 namespace node {
 
 //------------------------------------------------------------------------------
@@ -449,123 +417,6 @@ inline constexpr node_embedding_runtime_flags operator|(
     node_embedding_runtime_flags lhs, node_embedding_runtime_flags rhs) {
   return static_cast<node_embedding_runtime_flags>(static_cast<int32_t>(lhs) |
                                                    static_cast<int32_t>(rhs));
-}
-
-//------------------------------------------------------------------------------
-// Convenience functor struct adapter for C++ function object or lambdas.
-//------------------------------------------------------------------------------
-
-namespace details {
-
-template <typename TLambda, typename TFunctor>
-struct FunctorAdapter {
-  static_assert(sizeof(TLambda) == -1, "Unsupported signature");
-};
-
-template <typename TLambda, typename TResult, typename... TArgs>
-struct FunctorAdapter<TLambda, TResult(void*, TArgs...)> {
-  static TResult Invoke(void* data, TArgs... args) {
-    return reinterpret_cast<TLambda*>(data)->operator()(args...);
-  }
-};
-
-template <typename TLambda, typename... TArgs>
-struct FunctorAdapter<TLambda, void(void*, TArgs...)> {
-  static void Invoke(void* data, TArgs... args) {
-    reinterpret_cast<TLambda*>(data)->operator()(args...);
-  }
-};
-
-template <typename T>
-struct FunctorDeleter {
-  void operator()(T* ptr) {
-    if (ptr->release != nullptr) {
-      ptr->release(ptr->data);
-    }
-    delete ptr;
-  }
-};
-
-template <typename TFunctor>
-struct StdFunctionAdapter {
-  static_assert(sizeof(TFunctor) == -1, "Unsupported signature");
-};
-
-template <typename TResult, typename... TArgs>
-struct StdFunctionAdapter<TResult(void*, TArgs...)> {
-  using FunctionType = std::function<TResult(TArgs...)>;
-
-  template <typename TFunctorSharedPtr>
-  static FunctionType Create(TFunctorSharedPtr&& ptr) {
-    return ptr ? FunctionType([ptr = std::move(ptr)](TArgs... args) {
-      return ptr->invoke(ptr->data, args...);
-    })
-               : FunctionType(nullptr);
-  }
-};
-
-template <typename... TArgs>
-struct StdFunctionAdapter<void(void*, TArgs...)> {
-  using FunctionType = std::function<void(TArgs...)>;
-
-  template <typename TFunctorSharedPtr>
-  static FunctionType Create(TFunctorSharedPtr&& ptr) {
-    return ptr ? FunctionType([ptr = std::move(ptr)](TArgs... args) {
-      ptr->invoke(ptr->data, args...);
-    })
-               : FunctionType(nullptr);
-  }
-};
-
-}  // namespace details
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctorRef(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter = details::FunctorAdapter<
-      TLambdaType,
-      std::remove_pointer_t<
-          decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{static_cast<void*>(&lambda), &TAdapter::Invoke};
-}
-
-template <typename TFunctor, typename TLambda>
-inline TFunctor AsFunctor(TLambda&& lambda) {
-  using TLambdaType = std::remove_reference_t<TLambda>;
-  using TAdapter = details::FunctorAdapter<
-      TLambdaType,
-      std::remove_pointer_t<
-          decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TFunctor{
-      static_cast<void*>(new TLambdaType(std::forward<TLambdaType>(lambda))),
-      &TAdapter::Invoke,
-      [](void* data) { delete static_cast<TLambdaType*>(data); }};
-}
-
-template <typename T>
-using FunctorPtr = std::unique_ptr<T, details::FunctorDeleter<T>>;
-
-template <typename T>
-FunctorPtr<T> MakeUniqueFunctorPtr(const T& functor) {
-  return functor.invoke ? FunctorPtr<T>(new T(functor)) : nullptr;
-}
-
-template <typename T>
-std::shared_ptr<T> MakeSharedFunctorPtr(const T& functor) {
-  return functor.invoke
-             ? std::shared_ptr<T>(new T(functor), details::FunctorDeleter<T>())
-             : nullptr;
-}
-
-template <typename TFunctor>
-using StdFunction = typename details::StdFunctionAdapter<std::remove_pointer_t<
-    decltype(std::remove_reference_t<TFunctor>::invoke)>>::FunctionType;
-
-template <typename TFunctor>
-inline StdFunction<TFunctor> AsStdFunction(TFunctor&& functor) {
-  using TAdapter = details::StdFunctionAdapter<std::remove_pointer_t<
-      decltype(std::remove_reference_t<TFunctor>::invoke)>>;
-  return TAdapter::Create(std::move(MakeSharedFunctorPtr(functor)));
 }
 
 }  // namespace node
