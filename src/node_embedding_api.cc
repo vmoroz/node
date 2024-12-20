@@ -95,9 +95,16 @@ v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
 
 template <typename TCallback>
 struct functor_struct {
-  void* data;
-  TCallback invoke;
-  node_embedding_release_data_callback release;
+  void* data{};
+  TCallback invoke{};
+  node_embedding_release_data_callback release{};
+
+  functor_struct() = default;
+
+  functor_struct(void* data,
+                 TCallback invoke,
+                 node_embedding_release_data_callback release)
+      : data(data), invoke(invoke), release(release) {}
 
   ~functor_struct() {
     if (release != nullptr) {
@@ -162,7 +169,7 @@ class UniqueFunction<TResult (*)(void*, TArgs...)> {
   }
 
   TResult operator()(TArgs... args) const {
-    return functor_.invoke ? functor_->invoke(functor_->data, args...)
+    return functor_.invoke ? functor_.invoke(functor_.data, args...)
                            : TResult();
   }
 
@@ -292,7 +299,7 @@ class EmbeddedErrorHandling {
 
  private:
   static ErrorHandlerCallback* ErrorHandler();
-  static const std::mutex& ErrorHandlerMutex();
+  static std::mutex& ErrorHandlerMutex();
 
   static node_embedding_status DefaultErrorHandler(
       void* handler_data,
@@ -655,7 +662,7 @@ EmbeddedErrorHandling::ErrorHandler() {
   return &error_handler;
 }
 
-const std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
+std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
   static std::mutex mutex;
   return mutex;
 }
@@ -1233,8 +1240,13 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     if (runtime->polling_thread_closed_) break;
 
     // Deal with event in the task runner thread.
-    runtime->post_task_(node::AsFunctor<node_embedding_run_task_functor>(
-        [runtime]() { runtime->RunEventLoopNoWait(nullptr); }));
+    runtime->post_task_(
+        [](void* task_data) {
+          auto* runtime = static_cast<EmbeddedRuntime*>(task_data);
+          runtime->RunEventLoopNoWait(nullptr);
+        },
+        runtime,
+        nullptr);
   }
 }
 
