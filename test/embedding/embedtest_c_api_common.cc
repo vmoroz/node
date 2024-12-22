@@ -67,7 +67,7 @@ node_embedding_status LoadUtf8Script(
     node_embedding_runtime_config runtime_config,
     std::string script,
     const node_embedding_handle_result_functor& handle_result) {
-  return node_embedding_runtime_on_start_execution(
+  return node_embedding_on_start_runtime_execution(
       runtime_config,
       AsFunctor<node_embedding_start_execution_functor>(
           [script = std::move(script)](node_embedding_runtime /*runtime*/,

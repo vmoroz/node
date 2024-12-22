@@ -1642,13 +1642,13 @@ node_embedding_delete_platform(node_embedding_platform platform) {
   return EMBEDDED_PLATFORM(platform)->DeleteMe();
 }
 
-node_embedding_status NAPI_CDECL node_embedding_platform_set_flags(
+node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags) {
   return EMBEDDED_PLATFORM(platform_config)->SetFlags(flags);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_platform_get_parsed_args(
+node_embedding_status NAPI_CDECL node_embedding_get_platform_parsed_args(
     node_embedding_platform platform,
     node_embedding_get_args_callback get_args,
     void* get_args_data,
@@ -1681,13 +1681,13 @@ node_embedding_delete_runtime(node_embedding_runtime runtime) {
 }
 
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_flags(node_embedding_runtime_config runtime_config,
+node_embedding_set_runtime_flags(node_embedding_runtime_config runtime_config,
                                  node_embedding_runtime_flags flags) {
   return EMBEDDED_RUNTIME(runtime_config)->SetFlags(flags);
 }
 
 node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
+node_embedding_set_runtime_args(node_embedding_runtime_config runtime_config,
                                 int32_t argc,
                                 const char* argv[],
                                 int32_t runtime_argc,
@@ -1696,7 +1696,7 @@ node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
       ->SetArgs(argc, argv, runtime_argc, runtime_argv);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
+node_embedding_status NAPI_CDECL node_embedding_on_preload_runtime(
     node_embedding_runtime_config runtime_config,
     node_embedding_preload_callback run_preload,
     void* preload_data,
@@ -1705,7 +1705,7 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
       ->OnPreload(run_preload, preload_data, release_preload_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_on_start_execution(
+node_embedding_status NAPI_CDECL node_embedding_on_start_runtime_execution(
     node_embedding_runtime_config runtime_config,
     node_embedding_start_execution_callback start_execution,
     void* start_execution_data,
@@ -1715,7 +1715,7 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_on_start_execution(
           start_execution, start_execution_data, release_start_execution_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_on_handle_start_result(
+node_embedding_status NAPI_CDECL node_embedding_on_handle_runtime_start_result(
     node_embedding_runtime_config runtime_config,
     node_embedding_handle_start_result_callback handle_result,
     void* handle_result_data,
@@ -1725,7 +1725,7 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_on_handle_start_result(
           handle_result, handle_result_data, release_handle_result_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
+node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
     node_embedding_initialize_module_callback init_module,
@@ -1740,7 +1740,7 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
                   module_node_api_version);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_on_create_wrapper(
+node_embedding_status NAPI_CDECL node_embedding_on_create_runtime_wrapper(
     node_embedding_runtime_config runtime_config,
     node_embedding_create_wrapper_callback create_wrapper,
     void* create_wrapper_data,
@@ -1750,12 +1750,12 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_on_create_wrapper(
           create_wrapper, create_wrapper_data, release_create_wrapper_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_get_wrapper(
+node_embedding_status NAPI_CDECL node_embedding_get_runtime_wrapper(
     node_embedding_runtime runtime, void** result) {
   return EMBEDDED_RUNTIME(runtime)->GetWrapper(result);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_runtime_set_task_runner(
+node_embedding_status NAPI_CDECL node_embedding_set_runtime_task_runner(
     node_embedding_runtime_config runtime_config,
     node_embedding_post_task_callback post_task,
     void* post_task_data,
@@ -1812,20 +1812,20 @@ node_embedding_get_api_vtable(node_embedding_api_vtable** api_vtable) {
       node_embedding_run_main,
       node_embedding_create_platform,
       node_embedding_delete_platform,
-      node_embedding_platform_set_flags,
-      node_embedding_platform_get_parsed_args,
+      node_embedding_set_platform_flags,
+      node_embedding_get_platform_parsed_args,
       node_embedding_run_runtime,
       node_embedding_create_runtime,
       node_embedding_delete_runtime,
-      node_embedding_runtime_set_flags,
-      node_embedding_runtime_set_args,
-      node_embedding_runtime_on_preload,
-      node_embedding_runtime_on_start_execution,
-      node_embedding_runtime_on_handle_start_result,
-      node_embedding_runtime_add_module,
-      node_embedding_runtime_on_create_wrapper,
-      node_embedding_runtime_get_wrapper,
-      node_embedding_runtime_set_task_runner,
+      node_embedding_set_runtime_flags,
+      node_embedding_set_runtime_args,
+      node_embedding_on_preload_runtime,
+      node_embedding_on_start_runtime_execution,
+      node_embedding_on_handle_runtime_start_result,
+      node_embedding_add_runtime_module,
+      node_embedding_on_create_runtime_wrapper,
+      node_embedding_get_runtime_wrapper,
+      node_embedding_set_runtime_task_runner,
       node_embedding_run_event_loop,
       node_embedding_terminate_event_loop,
       node_embedding_run_event_loop_once,

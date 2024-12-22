@@ -379,13 +379,13 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 
 // Sets the flags for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_platform_set_flags(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
 
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_platform_get_parsed_args(
+node_embedding_get_platform_parsed_args(
     node_embedding_platform platform,
     node_embedding_get_args_callback get_args,
     void* get_args_data,
@@ -414,20 +414,20 @@ node_embedding_delete_runtime(node_embedding_runtime runtime);
 
 // Sets the flags for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_flags(node_embedding_runtime_config runtime_config,
+node_embedding_set_runtime_flags(node_embedding_runtime_config runtime_config,
                                  node_embedding_runtime_flags flags);
 
 // Sets the non-Node.js and Node.js CLI arguments for the Node.js runtime
 // initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_args(node_embedding_runtime_config runtime_config,
+node_embedding_set_runtime_args(node_embedding_runtime_config runtime_config,
                                 int32_t argc,
                                 const char* argv[],
                                 int32_t runtime_argc,
                                 const char* runtime_argv[]);
 
 // Sets the preload callback for the Node.js runtime initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_preload_runtime(
     node_embedding_runtime_config runtime_config,
     node_embedding_preload_callback run_preload,
     void* preload_data,
@@ -435,14 +435,14 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_on_preload(
 
 // Sets the start execution callback for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_start_execution(
+node_embedding_on_start_runtime_execution(
     node_embedding_runtime_config runtime_config,
     node_embedding_start_execution_callback start_execution,
     void* start_execution_data,
     node_embedding_release_data_callback release_start_execution_data);
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_handle_start_result(
+node_embedding_on_handle_runtime_start_result(
     node_embedding_runtime_config runtime_config,
     node_embedding_handle_start_result_callback handle_result,
     void* handle_result_data,
@@ -451,7 +451,7 @@ node_embedding_runtime_on_handle_start_result(
 // Adds a new module to the Node.js runtime.
 // It is accessed as process._linkedBinding(module_name) in the main JS and in
 // the related worker threads.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
     node_embedding_initialize_module_callback init_module,
@@ -460,13 +460,13 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_add_module(
     int32_t module_node_api_version);
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_on_create_wrapper(
+node_embedding_on_create_runtime_wrapper(
     node_embedding_runtime_config runtime_config,
     node_embedding_create_wrapper_callback create_wrapper,
     void* create_wrapper_data,
     node_embedding_release_data_callback release_create_wrapper_data);
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_get_wrapper(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_get_runtime_wrapper(
     node_embedding_runtime runtime, void** result);
 
 //------------------------------------------------------------------------------
@@ -479,7 +479,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_get_wrapper(
 // E.g. it enables running Node.js event loop inside of the application UI event
 // loop or UI dispatcher.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_runtime_set_task_runner(
+node_embedding_set_runtime_task_runner(
     node_embedding_runtime_config runtime_config,
     node_embedding_post_task_callback post_task,
     void* post_task_data,
@@ -626,7 +626,7 @@ class NodeRuntimeConfig {
  public:
   NodeRuntimeConfig() {
     node_embedding_runtime_config runtime_config{};
-    //node_embedding_runtime_set_flags(runtime_config, NodeRuntimeFlags::Default);
+    //node_embedding_set_runtime_flags(runtime_config, NodeRuntimeFlags::Default);
     runtime_config_ = runtime_config;
   }
 
@@ -658,33 +658,33 @@ class NodeRuntimeConfig {
                const char* argv[],
                int32_t runtime_argc,
                const char* runtime_argv[]) {
-    node_embedding_runtime_set_args(
+    node_embedding_set_runtime_args(
         runtime_config_, argc, argv, runtime_argc, runtime_argv);
   }
 
   using PreloadCallback = std::function<void(napi_env, napi_value, napi_value)>;
 
   void OnPreload(PreloadCallback preloadCallback) {
-    node_embedding_runtime_on_preload(
+    node_embedding_on_preload_runtime(
         runtime_config_, run_preload, preload_data, release_preload_data);
   }
 
   template <typename TPreload>
   void OnPreload(TPreload&& preloadCallback) {
-    node_embedding_runtime_on_preload(
+    node_embedding_on_preload_runtime(
         runtime_config_, run_preload, preload_data, release_preload_data);
   }
 
   //// Sets the start execution callback for the Node.js runtime initialization.
   // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_runtime_on_start_execution(
+  // node_embedding_on_start_runtime_execution(
   //     node_embedding_runtime_config runtime_config,
   //     node_embedding_start_execution_callback start_execution,
   //     void* start_execution_data,
   //     node_embedding_release_data_callback release_start_execution_data);
 
   // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_runtime_on_handle_start_result(
+  // node_embedding_on_handle_runtime_start_result(
   //     node_embedding_runtime_config runtime_config,
   //     node_embedding_handle_start_result_callback handle_result,
   //     void* handle_result_data,
@@ -694,7 +694,7 @@ class NodeRuntimeConfig {
   //// It is accessed as process._linkedBinding(module_name) in the main JS and
   /// in / the related worker threads.
   // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_runtime_add_module(
+  // node_embedding_add_runtime_module(
   //     node_embedding_runtime_config runtime_config,
   //     const char* module_name,
   //     node_embedding_initialize_module_callback init_module,

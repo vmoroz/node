@@ -12,7 +12,7 @@ extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [](node_embedding_platform platform,
              node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_runtime_set_flags(
+            CHECK_STATUS(node_embedding_set_runtime_flags(
                 runtime_config,
                 node_embedding_runtime_flags_no_browser_globals));
             return LoadUtf8Script(runtime_config,

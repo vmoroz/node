@@ -37,7 +37,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
                     node_embedding_runtime_config runtime_config) {
                   // Inspector can be associated with only one runtime in the
                   // process.
-                  CHECK_STATUS(node_embedding_runtime_set_flags(
+                  CHECK_STATUS(node_embedding_set_runtime_flags(
                       runtime_config,
                       node_embedding_runtime_flags_default |
                           node_embedding_runtime_flags_no_create_inspector));
@@ -108,7 +108,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
                 node_embedding_runtime_config runtime_config) {
               // Inspector can be associated with only one runtime in the
               // process.
-              CHECK_STATUS(node_embedding_runtime_set_flags(
+              CHECK_STATUS(node_embedding_set_runtime_flags(
                   runtime_config,
                   node_embedding_runtime_flags_default |
                       node_embedding_runtime_flags_no_create_inspector));
@@ -321,7 +321,7 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
             // The callback will be invoked from the runtime's event loop
             // observer thread. It must schedule the work to the UI thread's
             // event loop.
-            CHECK_STATUS(node_embedding_runtime_set_task_runner(
+            CHECK_STATUS(node_embedding_set_runtime_task_runner(
                 runtime_config,
                 AsFunctor<node_embedding_post_task_functor>(
                     // We capture the ui_queue by reference here because we

@@ -100,7 +100,7 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_runtime_on_preload(
+            CHECK_STATUS(node_embedding_on_preload_runtime(
                 runtime_config,
                 AsFunctor<node_embedding_preload_functor>(
                     [](node_embedding_runtime runtime,
@@ -113,13 +113,13 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
                       napi_set_named_property(env, global, "process", process);
                     })));
 
-            CHECK_STATUS(node_embedding_runtime_add_module(
+            CHECK_STATUS(node_embedding_add_runtime_module(
                 runtime_config,
                 "greeter_module",
                 AsFunctor<node_embedding_initialize_module_functor>(
                     GreeterModule(&greeterModuleInitCallCount)),
                 NAPI_VERSION));
-            CHECK_STATUS(node_embedding_runtime_add_module(
+            CHECK_STATUS(node_embedding_add_runtime_module(
                 runtime_config,
                 "replicator_module",
                 AsFunctor<node_embedding_initialize_module_functor>(

@@ -15,7 +15,7 @@ extern "C" int32_t test_main_preload_node_api(int32_t argc, char* argv[]) {
       AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
           [&](node_embedding_platform platform,
               node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_runtime_on_preload(
+            CHECK_STATUS(node_embedding_on_preload_runtime(
                 runtime_config,
                 AsFunctor<node_embedding_preload_functor>(
                     [](node_embedding_runtime runtime,
