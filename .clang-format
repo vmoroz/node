@@ -79,6 +79,11 @@ JavaScriptWrapImports: true
 KeepEmptyLinesAtTheStartOfBlocks: false
 MacroBlockBegin: ''
 MacroBlockEnd:   ''
+Macros:
+  - "NODE_ENUM(a,b) = enum b b;enum b"
+  - "NODE_ENUM_ITEM (a,b) = b"
+  - "NODE_OPTIONS(a,b) = enum b b;enum b"
+  - "NODE_OPTION(a,b) = b"
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 ObjCBlockIndentWidth: 2

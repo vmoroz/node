@@ -20,7 +20,42 @@
 
 #define NODE_EMBEDDING_VERSION 1
 
-EXTERN_C_START
+#ifdef __cplusplus
+
+#define NODE_OPTIONS(c_name, cpp_name)                                         \
+  enum class cpp_name : int32_t cpp_name;                                      \
+  inline constexpr cpp_name operator|(cpp_name lhs, cpp_name rhs) {            \
+    return static_cast<cpp_name>(static_cast<int32_t>(lhs) |                   \
+                                 static_cast<int32_t>(rhs));                   \
+  }                                                                            \
+  inline constexpr bool is_option_set(cpp_name flags, cpp_name flag) {         \
+    return (static_cast<int32_t>(flags) & static_cast<int32_t>(flag)) != 0;    \
+  }                                                                            \
+  enum class cpp_name : int32_t
+
+#define NODE_OPTION(c_name, cpp_name) cpp_name
+
+#define NODE_ENUM(c_name, cpp_name)                                            \
+  enum class cpp_name : int32_t cpp_name;                                      \
+  enum class cpp_name : int32_t
+
+#define NODE_ENUM_ITEM(c_name, cpp_name) cpp_name
+
+#else
+
+#define NODE_OPTIONS(c_name, cpp_name)                                         \
+  enum c_name c_name;                                                          \
+  enum c_name
+
+#define NODE_OPTION(c_name, cpp_name) c_name
+
+#define NODE_ENUM(c_name, cpp_name)                                            \
+  enum c_name c_name;                                                          \
+  enum c_name
+
+#define NODE_ENUM_ITEM(c_name, cpp_name) c_name
+
+#endif
 
 //==============================================================================
 // Data types
@@ -32,103 +67,137 @@ typedef struct node_embedding_platform_config_s* node_embedding_platform_config;
 typedef struct node_embedding_runtime_config_s* node_embedding_runtime_config;
 typedef struct node_embedding_node_api_scope_s* node_embedding_node_api_scope;
 
+#ifdef __cplusplus
+namespace node::embedding {
+#endif
+
 // The status returned by the Node.js embedding API functions.
-typedef enum {
-  node_embedding_status_ok = 0,
-  node_embedding_status_generic_error = 1,
-  node_embedding_status_null_arg = 2,
-  node_embedding_status_bad_arg = 3,
+typedef NODE_ENUM(node_embedding_status, NodeStatus){
+  NODE_ENUM_ITEM(node_embedding_status_ok, kOk) = 0,
+  NODE_ENUM_ITEM(node_embedding_status_generic_error, kGenericError) = 1,
+  NODE_ENUM_ITEM(node_embedding_status_null_arg, kNullArg) = 2,
+  NODE_ENUM_ITEM(node_embedding_status_bad_arg, kBadArg) = 3,
   // This value is added to the exit code in cases when Node.js API returns
   // an error exit code.
-  node_embedding_status_error_exit_code = 512,
-} node_embedding_status;
+  NODE_ENUM_ITEM(node_embedding_status_error_exit_code, kErrorExitCode) = 512,
+};
 
 // The flags for the Node.js platform initialization.
 // They match the internal ProcessInitializationFlags::Flags enum.
-typedef enum {
-  node_embedding_platform_flags_none = 0,
+typedef NODE_OPTIONS(node_embedding_platform_flags, NodePlatformFlags){
+  NODE_OPTION(node_embedding_platform_flags_none, kNone) = 0,
   // Enable stdio inheritance, which is disabled by default.
   // This flag is also implied by
   // node_embedding_platform_flags_no_stdio_initialization.
-  node_embedding_platform_flags_enable_stdio_inheritance = 1 << 0,
+  NODE_OPTION(node_embedding_platform_flags_enable_stdio_inheritance,
+              kEnableStdioInheritance) = 1 << 0,
   // Disable reading the NODE_OPTIONS environment variable.
-  node_embedding_platform_flags_disable_node_options_env = 1 << 1,
+  NODE_OPTION(node_embedding_platform_flags_disable_node_options_env,
+              kDisableNodeOptionsEnv) = 1 << 1,
   // Do not parse CLI options.
-  node_embedding_platform_flags_disable_cli_options = 1 << 2,
+  NODE_OPTION(node_embedding_platform_flags_disable_cli_options,
+              kDisableCliOptions) = 1 << 2,
   // Do not initialize ICU.
-  node_embedding_platform_flags_no_icu = 1 << 3,
+  NODE_OPTION(node_embedding_platform_flags_no_icu, kNoICU) = 1 << 3,
   // Do not modify stdio file descriptor or TTY state.
-  node_embedding_platform_flags_no_stdio_initialization = 1 << 4,
+  NODE_OPTION(node_embedding_platform_flags_no_stdio_initialization,
+              kNoStdioInitialization) = 1 << 4,
   // Do not register Node.js-specific signal handlers
   // and reset other signal handlers to default state.
-  node_embedding_platform_flags_no_default_signal_handling = 1 << 5,
+  NODE_OPTION(node_embedding_platform_flags_no_default_signal_handling,
+              kNoDefaultSignalHandling) = 1 << 5,
   // Do not initialize OpenSSL config.
-  node_embedding_platform_flags_no_init_openssl = 1 << 8,
+  NODE_OPTION(node_embedding_platform_flags_no_init_openssl,
+              kNoInitOpenSSL) = 1 << 8,
   // Do not initialize Node.js debugging based on environment variables.
-  node_embedding_platform_flags_no_parse_global_debug_variables = 1 << 9,
+  NODE_OPTION(node_embedding_platform_flags_no_parse_global_debug_variables,
+              kNoParseGlobalDebugVariables) = 1 << 9,
   // Do not adjust OS resource limits for this process.
-  node_embedding_platform_flags_no_adjust_resource_limits = 1 << 10,
+  NODE_OPTION(node_embedding_platform_flags_no_adjust_resource_limits,
+              kNoAdjustResourceLimits) = 1 << 10,
   // Do not map code segments into large pages for this process.
-  node_embedding_platform_flags_no_use_large_pages = 1 << 11,
+  NODE_OPTION(node_embedding_platform_flags_no_use_large_pages,
+              kNoUseLargePages) = 1 << 11,
   // Skip printing output for --help, --version, --v8-options.
-  node_embedding_platform_flags_no_print_help_or_version_output = 1 << 12,
+  NODE_OPTION(node_embedding_platform_flags_no_print_help_or_version_output,
+              kNoPrintHelpOrVersionOutput) = 1 << 12,
   // Initialize the process for predictable snapshot generation.
-  node_embedding_platform_flags_generate_predictable_snapshot = 1 << 14,
-} node_embedding_platform_flags;
+  NODE_OPTION(node_embedding_platform_flags_generate_predictable_snapshot,
+              kGeneratePredictableSnapshot) = 1 << 14,
+};
 
 // The flags for the Node.js runtime initialization.
 // They match the internal EnvironmentFlags::Flags enum.
-typedef enum {
-  node_embedding_runtime_flags_none = 0,
+typedef NODE_OPTIONS(node_embedding_runtime_flags, NodeRuntimeFlags){
+  NODE_OPTION(node_embedding_runtime_flags_none, kNone) = 0,
   // Use the default behavior for Node.js instances.
-  node_embedding_runtime_flags_default = 1 << 0,
+  NODE_OPTION(node_embedding_runtime_flags_default, kDefault) = 1 << 0,
   // Controls whether this Environment is allowed to affect per-process state
   // (e.g. cwd, process title, uid, etc.).
   // This is set when using node_embedding_runtime_flags_default.
-  node_embedding_runtime_flags_owns_process_state = 1 << 1,
+  NODE_OPTION(node_embedding_runtime_flags_owns_process_state,
+              kOwnsProcessState) = 1 << 1,
   // Set if this Environment instance is associated with the global inspector
   // handling code (i.e. listening on SIGUSR1).
   // This is set when using node_embedding_runtime_flags_default.
-  node_embedding_runtime_flags_owns_inspector = 1 << 2,
+  NODE_OPTION(node_embedding_runtime_flags_owns_inspector,
+              kOwnsInspector) = 1 << 2,
   // Set if Node.js should not run its own esm loader. This is needed by some
   // embedders, because it's possible for the Node.js esm loader to conflict
   // with another one in an embedder environment, e.g. Blink's in Chromium.
-  node_embedding_runtime_flags_no_register_esm_loader = 1 << 3,
+  NODE_OPTION(node_embedding_runtime_flags_no_register_esm_loader,
+              kNoRegisterEsmLoader) = 1 << 3,
   // Set this flag to make Node.js track "raw" file descriptors, i.e. managed
   // by fs.open() and fs.close(), and close them during
   // node_embedding_delete_runtime().
-  node_embedding_runtime_flags_track_unmanaged_fds = 1 << 4,
+  NODE_OPTION(node_embedding_runtime_flags_track_unmanaged_fds,
+              kTrackUnmanagedFds) = 1 << 4,
   // Set this flag to force hiding console windows when spawning child
   // processes. This is usually used when embedding Node.js in GUI programs on
   // Windows.
-  node_embedding_runtime_flags_hide_console_windows = 1 << 5,
+  NODE_OPTION(node_embedding_runtime_flags_hide_console_windows,
+              kHideConsoleWindows) = 1 << 5,
   // Set this flag to disable loading native addons via `process.dlopen`.
   // This environment flag is especially important for worker threads
   // so that a worker thread can't load a native addon even if `execArgv`
   // is overwritten and `--no-addons` is not specified but was specified
   // for this Environment instance.
-  node_embedding_runtime_flags_no_native_addons = 1 << 6,
+  NODE_OPTION(node_embedding_runtime_flags_no_native_addons,
+              kNoNativeAddons) = 1 << 6,
   // Set this flag to disable searching modules from global paths like
   // $HOME/.node_modules and $NODE_PATH. This is used by standalone apps that
   // do not expect to have their behaviors changed because of globally
   // installed modules.
-  node_embedding_runtime_flags_no_global_search_paths = 1 << 7,
+  NODE_OPTION(node_embedding_runtime_flags_no_global_search_paths,
+              kNoGlobalSearchPaths) = 1 << 7,
   // Do not export browser globals like setTimeout, console, etc.
-  node_embedding_runtime_flags_no_browser_globals = 1 << 8,
-  // Controls whether or not the Environment should call V8Inspector::create().
-  // This control is needed by embedders who may not want to initialize the V8
-  // inspector in situations where one has already been created,
-  // e.g. Blink's in Chromium.
-  node_embedding_runtime_flags_no_create_inspector = 1 << 9,
+  NODE_OPTION(node_embedding_runtime_flags_no_browser_globals,
+              kNoBrowserGlobals) = 1 << 8,
+  // Controls whether or not the Environment should call
+  // V8Inspector::create(). This control is needed by embedders who may not
+  // want to initialize the V8 inspector in situations where one has already
+  // been created, e.g. Blink's in Chromium.
+  NODE_OPTION(node_embedding_runtime_flags_no_create_inspector,
+              kNoCreateInspector) = 1 << 9,
   // Controls whether or not the InspectorAgent for this Environment should
   // call StartDebugSignalHandler. This control is needed by embedders who may
   // not want to allow other processes to start the V8 inspector.
-  node_embedding_runtime_flags_no_start_debug_signal_handler = 1 << 10,
-  // Controls whether the InspectorAgent created for this Environment waits for
-  // Inspector frontend events during the Environment creation. It's used to
-  // call node::Stop(env) on a Worker thread that is waiting for the events.
-  node_embedding_runtime_flags_no_wait_for_inspector_frontend = 1 << 11
-} node_embedding_runtime_flags;
+  NODE_OPTION(node_embedding_runtime_flags_no_start_debug_signal_handler,
+              kNoStartDebugSignalHandler) = 1 << 10,
+  // Controls whether the InspectorAgent created for this Environment waits
+  // for Inspector frontend events during the Environment creation. It's used
+  // to call node::Stop(env) on a Worker thread that is waiting for the
+  // events.
+  NODE_OPTION(node_embedding_runtime_flags_no_wait_for_inspector_frontend,
+              kNoWaitForInspectorFrontend) = 1 << 11,
+};
+
+#ifdef __cplusplus
+}  // namespace node::embedding
+using node_embedding_status = node::embedding::NodeStatus;
+using node_embedding_platform_flags = node::embedding::NodePlatformFlags;
+using node_embedding_runtime_flags = node::embedding::NodeRuntimeFlags;
+#endif
 
 //==============================================================================
 // Callbacks
@@ -332,12 +401,18 @@ typedef struct {
       node_embedding_node_api_scope node_api_scope);
 } node_embedding_api_vtable;
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_get_api_vtable(node_embedding_api_vtable** api_vtable);
-
 //==============================================================================
 // Functions
 //==============================================================================
+
+EXTERN_C_START
+
+//------------------------------------------------------------------------------
+// API v-table functions.
+//------------------------------------------------------------------------------
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_get_api_vtable(node_embedding_api_vtable** api_vtable);
 
 //------------------------------------------------------------------------------
 // Error handling functions.
@@ -533,126 +608,160 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
+namespace node::embedding {
+
 //==============================================================================
 // C++ convenience functions for the C API.
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
-//------------------------------------------------------------------------------
-// Convenience union operator for the Node.js flags.
-//------------------------------------------------------------------------------
-
-inline constexpr node_embedding_platform_flags operator|(
-    node_embedding_platform_flags lhs, node_embedding_platform_flags rhs) {
-  return static_cast<node_embedding_platform_flags>(static_cast<int32_t>(lhs) |
-                                                    static_cast<int32_t>(rhs));
-}
-
-inline constexpr node_embedding_runtime_flags operator|(
-    node_embedding_runtime_flags lhs, node_embedding_runtime_flags rhs) {
-  return static_cast<node_embedding_runtime_flags>(static_cast<int32_t>(lhs) |
-                                                   static_cast<int32_t>(rhs));
-}
-
-namespace node::embedding {
-
-enum class NodeStatus : int32_t {
-  kOk = 0,
-  kGenericError = 1,
-  kNullArg = 2,
-  kBadArg = 3,
-  // This value is added to the exit code in cases when Node.js API returns
-  // an error exit code.
-  kErrorExitCode = 512,
-};
-
-enum class NodePlatformFlags : int32_t {
-  None = 0,
-  EnableStdioInheritance = 1 << 0,
-  DisableNodeOptionsEnv = 1 << 1,
-  DisableCliOptions = 1 << 2,
-  NoIcu = 1 << 3,
-  NoStdioInitialization = 1 << 4,
-  NoDefaultSignalHandling = 1 << 5,
-  NoInitOpenSsl = 1 << 8,
-  NoParseGlobalDebugVariables = 1 << 9,
-  NoAdjustResourceLimits = 1 << 10,
-  NoUseLargePages = 1 << 11,
-  NoPrintHelpOrVersionOutput = 1 << 12,
-  GeneratePredictableSnapshot = 1 << 14,
-};
-
-inline constexpr NodePlatformFlags operator|(NodePlatformFlags lhs,
-                                             NodePlatformFlags rhs) {
-  return static_cast<NodePlatformFlags>(static_cast<int32_t>(lhs) |
-                                        static_cast<int32_t>(rhs));
-}
-
-inline constexpr NodePlatformFlags operator&(NodePlatformFlags lhs,
-                                             NodePlatformFlags rhs) {
-  return static_cast<NodePlatformFlags>(static_cast<int32_t>(lhs) &
-                                        static_cast<int32_t>(rhs));
-}
-
-enum class NodeRuntimeFlags : int32_t {
-  None = 0,
-  Default = 1 << 0,
-  OwnsProcessState = 1 << 1,
-  OwnsInspector = 1 << 2,
-  NoRegisterEsmLoader = 1 << 3,
-  TrackUnmanagedFds = 1 << 4,
-  HideConsoleWindows = 1 << 5,
-  NoNativeAddons = 1 << 6,
-  NoGlobalSearchPaths = 1 << 7,
-  NoBrowserGlobals = 1 << 8,
-  NoCreateInspector = 1 << 9,
-  NoStartDebugSignalHandler = 1 << 10,
-  NoWaitForInspectorFrontend = 1 << 11
-};
-
-inline constexpr NodeRuntimeFlags operator|(NodeRuntimeFlags lhs,
-                                            NodeRuntimeFlags rhs) {
-  return static_cast<NodeRuntimeFlags>(static_cast<int32_t>(lhs) |
-                                       static_cast<int32_t>(rhs));
-}
-
-inline constexpr NodeRuntimeFlags operator&(NodeRuntimeFlags lhs,
-                                            NodeRuntimeFlags rhs) {
-  return static_cast<NodeRuntimeFlags>(static_cast<int32_t>(lhs) &
-                                       static_cast<int32_t>(rhs));
-}
-#if 0
-class NodeRuntimeConfig {
+template <typename T>
+class NodeExpected {
  public:
-  NodeRuntimeConfig() {
-    node_embedding_runtime_config runtime_config{};
-    //node_embedding_set_runtime_flags(runtime_config, NodeRuntimeFlags::Default);
-    runtime_config_ = runtime_config;
+  NodeExpected(T value) : value_(std::move(value)) {}
+
+  NodeExpected(NodeStatus status) : status_(status) {}
+
+  NodeExpected(const NodeExpected&) = delete;
+  NodeExpected& operator=(const NodeExpected&) = delete;
+
+  NodeExpected(NodeExpected&& other) : status_(other) {
+    if (other.HasValue()) {
+      new (std::addressof(value_)) T(std::move(other.value_));
+    }
   }
 
-  NodeRuntimeConfig(const NodeRuntimeConfig&) = delete;
-  NodeRuntimeConfig& operator=(const NodeRuntimeConfig&) = delete;
-
-  NodeRuntimeConfig(NodeRuntimeConfig&& other) noexcept
-      : runtime_config_(other.runtime_config_) {
-    other.runtime_config_ = nullptr;
-  }
-
-  NodeRuntimeConfig& operator=(NodeRuntimeConfig&& other) noexcept {
+  NodeExpected& operator=(NodeExpected&& other) {
     if (this != &other) {
-      runtime_config_ = other.runtime_config_;
-      other.runtime_config_ = nullptr;
+      if (HasValue()) {
+        value_.~T();
+      }
+      status_ = other.status_;
+      if (other.HasValue()) {
+        new (std::addressof(value_)) T(std::move(other.value_));
+      }
     }
     return *this;
   }
 
-  ~NodeRuntimeConfig() {
-    if (runtime_config_) {
-      node_embedding_delete_runtime_config(runtime_config_);
+  ~NodeExpected() {
+    if (HasValue()) {
+      value_.~T();
     }
   }
 
-  node_embedding_runtime_config Get() const { return runtime_config_; }
+  bool HasValue() const { return status_ == NodeStatus::kOk; }
+
+  T& Value() & { return value_; }
+  const T& Value() const& { return value_; }
+  T&& Value() && { return std::move(value_); }
+  const T&& Value() const&& { return std::move(value_); }
+
+  NodeStatus Status() const { return status_; }
+
+ private:
+  NodeStatus status_{NodeStatus::kOk};
+  union {
+    T value_;  // The value is uninitialized if status_ is not kOk.
+    char padding[sizeof(T)];
+  };
+};
+
+class NodePlatformConfig {
+ public:
+  NodePlatformConfig(node_embedding_platform_config platform_config)
+      : platform_config_(platform_config) {}
+
+  NodePlatformConfig(const NodePlatformConfig&) = delete;
+  NodePlatformConfig& operator=(const NodePlatformConfig&) = delete;
+
+  NodePlatformConfig(NodePlatformConfig&& other) = default;
+  NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
+
+  operator node_embedding_platform_config() const { return platform_config_; }
+
+  void SetFlags(NodePlatformFlags flags) {
+    node_embedding_set_platform_flags(platform_config_, flags);
+  }
+
+ private:
+  node_embedding_platform_config platform_config_{};
+};  // namespace node::embedding
+
+class NodePlatform {
+ public:
+  static NodeStatus RunMain(
+      int32_t argc,
+      char* argv[],
+      node_embedding_configure_platform_callback configure_platform,
+      void* configure_platform_data,
+      node_embedding_configure_runtime_callback configure_runtime,
+      void* configure_runtime_data) {
+    return node_embedding_run_main(argc,
+                                   argv,
+                                   configure_platform,
+                                   configure_platform_data,
+                                   configure_runtime,
+                                   configure_runtime_data);
+  }
+
+  static NodeExpected<NodePlatform> Create(
+      int32_t argc,
+      char* argv[],
+      node_embedding_configure_platform_callback configure_platform,
+      void* configure_platform_data) {
+    node_embedding_platform result;
+    NodeStatus status = node_embedding_create_platform(
+        argc, argv, configure_platform, configure_platform_data, &result);
+    if (status != NodeStatus::kOk) {
+      return status;
+    }
+    return NodePlatform(result);
+  }
+
+  NodePlatform(node_embedding_platform platform) : platform_(platform) {}
+
+  NodePlatform(const NodePlatform&) = delete;
+  NodePlatform& operator=(const NodePlatform&) = delete;
+  NodePlatform(NodePlatform&& other) = default;
+  NodePlatform& operator=(NodePlatform&& other) = default;
+
+  ~NodePlatform() {
+    if (platform_) {
+      node_embedding_delete_platform(platform_);
+    }
+  }
+
+  NodeStatus GetParsedArgs(node_embedding_get_args_callback get_args,
+                           void* get_args_data,
+                           node_embedding_get_args_callback get_runtime_args,
+                           void* get_runtime_args_data) {
+    return node_embedding_get_platform_parsed_args(platform_,
+                                                   get_args,
+                                                   get_args_data,
+                                                   get_runtime_args,
+                                                   get_runtime_args_data);
+  }
+
+  operator node_embedding_platform() const { return platform_; }
+
+ private:
+  node_embedding_platform platform_{};
+};
+
+class NodeRuntimeConfig {
+ public:
+  NodeRuntimeConfig(node_embedding_runtime_config runtime_config)
+      : runtime_config_(runtime_config) {}
+  NodeRuntimeConfig(const NodeRuntimeConfig&) = delete;
+  NodeRuntimeConfig& operator=(const NodeRuntimeConfig&) = delete;
+  NodeRuntimeConfig(NodeRuntimeConfig&& other) = default;
+  NodeRuntimeConfig& operator=(NodeRuntimeConfig&& other) = default;
+  operator node_embedding_runtime_config() const { return runtime_config_; }
+
+  void SetFlags(NodeRuntimeFlags flags) {
+    node_embedding_set_runtime_flags(runtime_config_, flags);
+  }
 
   void SetArgs(int32_t argc,
                const char* argv[],
@@ -662,45 +771,62 @@ class NodeRuntimeConfig {
         runtime_config_, argc, argv, runtime_argc, runtime_argv);
   }
 
-  using PreloadCallback = std::function<void(napi_env, napi_value, napi_value)>;
-
-  void OnPreload(PreloadCallback preloadCallback) {
+  void OnPreload(node_embedding_preload_callback preloadCallback,
+                 void* preloadData,
+                 node_embedding_release_data_callback releasePreloadData) {
     node_embedding_on_preload_runtime(
-        runtime_config_, run_preload, preload_data, release_preload_data);
+        runtime_config_, preloadCallback, preloadData, releasePreloadData);
   }
 
-  template <typename TPreload>
-  void OnPreload(TPreload&& preloadCallback) {
-    node_embedding_on_preload_runtime(
-        runtime_config_, run_preload, preload_data, release_preload_data);
+  void OnStartExecution(
+      node_embedding_start_execution_callback startExecution,
+      void* startExecutionData,
+      node_embedding_release_data_callback releaseStartExecutionData) {
+    node_embedding_on_start_runtime_execution(runtime_config_,
+                                              startExecution,
+                                              startExecutionData,
+                                              releaseStartExecutionData);
   }
 
-  //// Sets the start execution callback for the Node.js runtime initialization.
-  // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_on_start_runtime_execution(
-  //     node_embedding_runtime_config runtime_config,
-  //     node_embedding_start_execution_callback start_execution,
-  //     void* start_execution_data,
-  //     node_embedding_release_data_callback release_start_execution_data);
+  void OnHandleStartResult(
+      node_embedding_handle_start_result_callback handleResult,
+      void* handleResultData,
+      node_embedding_release_data_callback releaseHandleResultData) {
+    node_embedding_on_handle_runtime_start_result(runtime_config_,
+                                                  handleResult,
+                                                  handleResultData,
+                                                  releaseHandleResultData);
+  }
 
-  // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_on_handle_runtime_start_result(
-  //     node_embedding_runtime_config runtime_config,
-  //     node_embedding_handle_start_result_callback handle_result,
-  //     void* handle_result_data,
-  //     node_embedding_release_data_callback release_handle_result_data);
+  void AddModule(const char* moduleName,
+                 node_embedding_initialize_module_callback initModule,
+                 void* initModuleData,
+                 node_embedding_release_data_callback releaseInitModuleData,
+                 int32_t moduleNodeApiVersion) {
+    node_embedding_add_runtime_module(runtime_config_,
+                                      moduleName,
+                                      initModule,
+                                      initModuleData,
+                                      releaseInitModuleData,
+                                      moduleNodeApiVersion);
+  }
 
-  //// Adds a new module to the Node.js runtime.
-  //// It is accessed as process._linkedBinding(module_name) in the main JS and
-  /// in / the related worker threads.
-  // NAPI_EXTERN node_embedding_status NAPI_CDECL
-  // node_embedding_add_runtime_module(
-  //     node_embedding_runtime_config runtime_config,
-  //     const char* module_name,
-  //     node_embedding_initialize_module_callback init_module,
-  //     void* init_module_data,
-  //     node_embedding_release_data_callback release_init_module_data,
-  //     int32_t module_node_api_version);
+  void OnCreateWrapper(
+      node_embedding_create_wrapper_callback createWrapper,
+      void* createWrapperData,
+      node_embedding_release_data_callback releaseCreateWrapperData) {
+    node_embedding_on_create_runtime_wrapper(runtime_config_,
+                                             createWrapper,
+                                             createWrapperData,
+                                             releaseCreateWrapperData);
+  }
+
+  void SetTaskRunner(node_embedding_post_task_callback postTask,
+                     void* postTaskData,
+                     node_embedding_release_data_callback releasePostTaskData) {
+    node_embedding_set_runtime_task_runner(
+        runtime_config_, postTask, postTaskData, releasePostTaskData);
+  }
 
  private:
   node_embedding_runtime_config runtime_config_{};
@@ -732,42 +858,37 @@ class NodeApiScope {
 
 class NodeRuntime {
  public:
-  NodeStatus RunEventLoop() {
-    return static_cast<NodeStatus>(node_embedding_run_event_loop(runtime_));
+  NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
+  NodeRuntime(const NodeRuntime&) = delete;
+  NodeRuntime& operator=(const NodeRuntime&) = delete;
+  NodeRuntime(NodeRuntime&& other) = default;
+  NodeRuntime& operator=(NodeRuntime&& other) = default;
+  ~NodeRuntime() {
+    if (runtime_) {
+      node_embedding_delete_runtime(runtime_);
+    }
   }
-
-  NodeStatus TerminateEventLoop() {
-    return static_cast<NodeStatus>(
-        node_embedding_terminate_event_loop(runtime_));
+  operator node_embedding_runtime() const { return runtime_; }
+  void RunEventLoop() { node_embedding_run_event_loop(runtime_); }
+  void TerminateEventLoop() { node_embedding_terminate_event_loop(runtime_); }
+  node_embedding_status RunEventLoopOnce(bool* hasMoreWork) {
+    return node_embedding_run_event_loop_once(runtime_, hasMoreWork);
   }
-
-  NodeStatus RunEventLoopOnce(bool* has_more_work) {
-    return static_cast<NodeStatus>(
-        node_embedding_run_event_loop_once(runtime_, has_more_work));
+  node_embedding_status RunEventLoopNoWait(bool* hasMoreWork) {
+    return node_embedding_run_event_loop_no_wait(runtime_, hasMoreWork);
   }
-
-  NodeStatus RunEventLoopNoWait(bool* has_more_work) {
-    return static_cast<NodeStatus>(
-        node_embedding_run_event_loop_no_wait(runtime_, has_more_work));
+  void RunNodeApi(node_embedding_run_node_api_callback runNodeApi,
+                  void* runNodeApiData) {
+    node_embedding_run_node_api(runtime_, runNodeApi, runNodeApiData);
   }
-
-  template <typename TRunNodeApi>
-  void Run(TRunNodeApi&& runNodeApi) {
-    node_embedding_run_node_api(
-        runtime_,
-        [](void* cb_data, node_embedding_runtime runtime, napi_env env) {
-          TRunNodeApi* runNodeApi = static_cast<TRunNodeApi*>(cb_data);
-          (*runNodeApi)(runtime, env);
-        },
-        &runNodeApi);
-  }
+  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_); }
 
  private:
   node_embedding_runtime runtime_{};
 };
-#endif
+
 }  // namespace node::embedding
 
-#endif
+#endif  // __cplusplus
 
 #endif  // SRC_NODE_EMBEDDING_API_H_
