@@ -310,7 +310,7 @@ class EmbeddedErrorHandling {
 
 class EmbeddedPlatform {
  public:
-  EmbeddedPlatform(int32_t argc, char* argv[]) noexcept
+  EmbeddedPlatform(int32_t argc, const char* argv[]) noexcept
       : args_(argv, argv + argc) {}
 
   EmbeddedPlatform(const EmbeddedPlatform&) = delete;
@@ -321,7 +321,7 @@ class EmbeddedPlatform {
 
   static node_embedding_status RunMain(
       int32_t argc,
-      char* argv[],
+      const char* argv[],
       node_embedding_configure_platform_callback configure_platform,
       void* configure_platform_data,
       node_embedding_configure_runtime_callback configure_runtime,
@@ -329,7 +329,7 @@ class EmbeddedPlatform {
 
   static node_embedding_status Create(
       int32_t argc,
-      char* argv[],
+      const char* argv[],
       node_embedding_configure_platform_callback configure_platform,
       void* configure_platform_data,
       node_embedding_platform* result);
@@ -689,7 +689,7 @@ std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
 
 node_embedding_status EmbeddedPlatform::RunMain(
     int32_t argc,
-    char* argv[],
+    const char* argv[],
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
@@ -706,14 +706,15 @@ node_embedding_status EmbeddedPlatform::RunMain(
 
 /*static*/ node_embedding_status EmbeddedPlatform::Create(
     int32_t argc,
-    char* argv[],
+    const char* argv[],
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_platform* result) {
   CHECK_ARG_NOT_NULL(result);
 
   // Hack around with the argv pointer. Used for process.title = "blah".
-  argv = uv_setup_args(argc, argv);
+  argv =
+      const_cast<const char**>(uv_setup_args(argc, const_cast<char**>(argv)));
 
   auto platform_ptr = std::make_unique<EmbeddedPlatform>(argc, argv);
   bool early_return = false;
@@ -1635,7 +1636,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
 
 node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
-    char* argv[],
+    const char* argv[],
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
@@ -1650,7 +1651,7 @@ node_embedding_status NAPI_CDECL node_embedding_run_main(
 
 node_embedding_status NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
-    char* argv[],
+    const char* argv[],
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_platform* result) {
