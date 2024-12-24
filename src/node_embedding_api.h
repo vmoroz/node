@@ -615,12 +615,40 @@ namespace node::embedding {
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
+template <typename TPointer>
+class NodePointer {
+ public:
+  NodePointer() = default;
+
+  explicit NodePointer(TPointer ptr) : ptr_(ptr) {}
+
+  NodePointer(const NodePointer&) = delete;
+  NodePointer& operator=(const NodePointer&) = delete;
+
+  NodePointer(NodePointer&& other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
+  NodePointer& operator=(NodePointer&& other) {
+    if (this != &other) {
+      ptr_ = other.ptr_;
+      other.ptr_ = nullptr;
+    }
+    return *this;
+  }
+
+  TPointer Get() const { return ptr_; }
+  TPointer operator->() const { return ptr_; }
+
+  explicit operator bool() const { return ptr_ != nullptr; }
+
+ private:
+  TPointer ptr_{};
+};
+
 template <typename T>
 class NodeExpected {
  public:
-  NodeExpected(T value) : value_(std::move(value)) {}
+  explicit NodeExpected(T value) : value_(std::move(value)) {}
 
-  NodeExpected(NodeStatus status) : status_(status) {}
+  explicit NodeExpected(NodeStatus status) : status_(status) {}
 
   NodeExpected(const NodeExpected&) = delete;
   NodeExpected& operator=(const NodeExpected&) = delete;
@@ -667,9 +695,30 @@ class NodeExpected {
   };
 };
 
+template <>
+class NodeExpected<void> {
+ public:
+  NodeExpected() = default;
+
+  explicit NodeExpected(NodeStatus status) : status_(status) {}
+
+  NodeExpected(const NodeExpected&) = delete;
+  NodeExpected& operator=(const NodeExpected&) = delete;
+
+  NodeExpected(NodeExpected&& other) = default;
+  NodeExpected& operator=(NodeExpected&& other) = default;
+
+  bool HasValue() const { return status_ == NodeStatus::kOk; }
+
+  NodeStatus Status() const { return status_; }
+
+ private:
+  NodeStatus status_{NodeStatus::kOk};
+};
+
 class NodePlatformConfig {
  public:
-  NodePlatformConfig(node_embedding_platform_config platform_config)
+  explicit NodePlatformConfig(node_embedding_platform_config platform_config)
       : platform_config_(platform_config) {}
 
   NodePlatformConfig(const NodePlatformConfig&) = delete;
@@ -678,15 +727,17 @@ class NodePlatformConfig {
   NodePlatformConfig(NodePlatformConfig&& other) = default;
   NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
 
-  operator node_embedding_platform_config() const { return platform_config_; }
+  operator node_embedding_platform_config() const {
+    return platform_config_.Get();
+  }
 
   void SetFlags(NodePlatformFlags flags) {
-    node_embedding_set_platform_flags(platform_config_, flags);
+    node_embedding_set_platform_flags(platform_config_.Get(), flags);
   }
 
  private:
-  node_embedding_platform_config platform_config_{};
-};  // namespace node::embedding
+  NodePointer<node_embedding_platform_config> platform_config_{};
+};
 
 class NodeArgs {
  public:
@@ -737,7 +788,9 @@ class NodeFunctor {
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
   TCallback GetCallback() const { return callback_; }
+
   void* GetData() const { return callback_data_; }
+
   node_embedding_release_data_callback GetRelease() const {
     return callback_release_;
   }
@@ -776,9 +829,9 @@ class NodePlatform {
                                        configure_platform.GetData(),
                                        &result);
     if (status != NodeStatus::kOk) {
-      return status;
+      return NodeExpected<NodePlatform>(status);
     }
-    return NodePlatform(result);
+    return NodeExpected<NodePlatform>(result);
   }
 
   NodePlatform(node_embedding_platform platform) : platform_(platform) {}
@@ -790,7 +843,7 @@ class NodePlatform {
 
   ~NodePlatform() {
     if (platform_) {
-      node_embedding_delete_platform(platform_);
+      node_embedding_delete_platform(platform_.Get());
     }
   }
 
@@ -798,35 +851,40 @@ class NodePlatform {
       NodeFunctorRef<node_embedding_get_args_callback> get_args,
       NodeFunctorRef<node_embedding_get_args_callback> get_runtime_args) {
     return node_embedding_get_platform_parsed_args(
-        platform_,
+        platform_.Get(),
         get_args.GetCallback(),
         get_args.GetData(),
         get_runtime_args.GetCallback(),
         get_runtime_args.GetData());
   }
 
-  operator node_embedding_platform() const { return platform_; }
+  operator node_embedding_platform() const { return platform_.Get(); }
 
  private:
-  node_embedding_platform platform_{};
+  NodePointer<node_embedding_platform> platform_{};
 };
 
 class NodeRuntimeConfig {
  public:
-  NodeRuntimeConfig(node_embedding_runtime_config runtime_config)
+  explicit NodeRuntimeConfig(node_embedding_runtime_config runtime_config)
       : runtime_config_(runtime_config) {}
+
   NodeRuntimeConfig(const NodeRuntimeConfig&) = delete;
   NodeRuntimeConfig& operator=(const NodeRuntimeConfig&) = delete;
+
   NodeRuntimeConfig(NodeRuntimeConfig&& other) = default;
   NodeRuntimeConfig& operator=(NodeRuntimeConfig&& other) = default;
-  operator node_embedding_runtime_config() const { return runtime_config_; }
+
+  operator node_embedding_runtime_config() const {
+    return runtime_config_.Get();
+  }
 
   void SetFlags(NodeRuntimeFlags flags) {
-    node_embedding_set_runtime_flags(runtime_config_, flags);
+    node_embedding_set_runtime_flags(runtime_config_.Get(), flags);
   }
 
   void SetArgs(NodeArgs args, NodeArgs runtime_args) {
-    node_embedding_set_runtime_args(runtime_config_,
+    node_embedding_set_runtime_args(runtime_config_.Get(),
                                     args.GetArgc(),
                                     args.GetArgv(),
                                     runtime_args.GetArgc(),
@@ -834,7 +892,7 @@ class NodeRuntimeConfig {
   }
 
   void OnPreload(NodeFunctor<node_embedding_preload_callback> run_preload) {
-    node_embedding_on_preload_runtime(runtime_config_,
+    node_embedding_on_preload_runtime(runtime_config_.Get(),
                                       run_preload.GetCallback(),
                                       run_preload.GetData(),
                                       run_preload.GetRelease());
@@ -842,7 +900,7 @@ class NodeRuntimeConfig {
 
   void OnStartExecution(
       NodeFunctor<node_embedding_start_execution_callback> start_execution) {
-    node_embedding_on_start_runtime_execution(runtime_config_,
+    node_embedding_on_start_runtime_execution(runtime_config_.Get(),
                                               start_execution.GetCallback(),
                                               start_execution.GetData(),
                                               start_execution.GetRelease());
@@ -852,7 +910,7 @@ class NodeRuntimeConfig {
       NodeFunctor<node_embedding_handle_start_result_callback>
           handle_start_result) {
     node_embedding_on_handle_runtime_start_result(
-        runtime_config_,
+        runtime_config_.Get(),
         handle_start_result.GetCallback(),
         handle_start_result.GetData(),
         handle_start_result.GetRelease());
@@ -862,7 +920,7 @@ class NodeRuntimeConfig {
       const char* moduleName,
       NodeFunctor<node_embedding_initialize_module_callback> init_module,
       int32_t moduleNodeApiVersion) {
-    node_embedding_add_runtime_module(runtime_config_,
+    node_embedding_add_runtime_module(runtime_config_.Get(),
                                       moduleName,
                                       init_module.GetCallback(),
                                       init_module.GetData(),
@@ -871,14 +929,14 @@ class NodeRuntimeConfig {
   }
 
   void SetTaskRunner(NodeFunctor<node_embedding_post_task_callback> post_task) {
-    node_embedding_set_runtime_task_runner(runtime_config_,
+    node_embedding_set_runtime_task_runner(runtime_config_.Get(),
                                            post_task.GetCallback(),
                                            post_task.GetData(),
                                            post_task.GetRelease());
   }
 
  private:
-  node_embedding_runtime_config runtime_config_{};
+  NodePointer<node_embedding_runtime_config> runtime_config_{};
 };
 
 class NodeApiScope {
@@ -907,33 +965,60 @@ class NodeApiScope {
 
 class NodeRuntime {
  public:
-  NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
+  explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
+
   NodeRuntime(const NodeRuntime&) = delete;
   NodeRuntime& operator=(const NodeRuntime&) = delete;
+
   NodeRuntime(NodeRuntime&& other) = default;
   NodeRuntime& operator=(NodeRuntime&& other) = default;
+
   ~NodeRuntime() {
     if (runtime_) {
-      node_embedding_delete_runtime(runtime_);
+      node_embedding_delete_runtime(runtime_.Get());
     }
   }
-  operator node_embedding_runtime() const { return runtime_; }
-  void RunEventLoop() { node_embedding_run_event_loop(runtime_); }
-  void TerminateEventLoop() { node_embedding_terminate_event_loop(runtime_); }
-  node_embedding_status RunEventLoopOnce(bool* hasMoreWork) {
-    return node_embedding_run_event_loop_once(runtime_, hasMoreWork);
+  operator node_embedding_runtime() const { return runtime_.Get(); }
+
+  NodeExpected<void> RunEventLoop() {
+    return NodeExpected<void>(node_embedding_run_event_loop(runtime_.Get()));
   }
-  node_embedding_status RunEventLoopNoWait(bool* hasMoreWork) {
-    return node_embedding_run_event_loop_no_wait(runtime_, hasMoreWork);
+
+  NodeExpected<void> TerminateEventLoop() {
+    return NodeExpected<void>(
+        node_embedding_terminate_event_loop(runtime_.Get()));
   }
-  void RunNodeApi(node_embedding_run_node_api_callback runNodeApi,
-                  void* runNodeApiData) {
-    node_embedding_run_node_api(runtime_, runNodeApi, runNodeApiData);
+
+  NodeExpected<bool> RunEventLoopOnce() {
+    bool has_more_work{};
+    NodeStatus status =
+        node_embedding_run_event_loop_once(runtime_.Get(), &has_more_work);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<bool>(status);
+    }
+    return NodeExpected<bool>(has_more_work);
   }
-  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_); }
+
+  NodeExpected<bool> RunEventLoopNoWait() {
+    bool has_more_work{};
+    NodeStatus status =
+        node_embedding_run_event_loop_no_wait(runtime_.Get(), &has_more_work);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<bool>(status);
+    }
+    return NodeExpected<bool>(has_more_work);
+  }
+
+  void RunNodeApi(
+      NodeFunctorRef<node_embedding_run_node_api_callback> runNodeApi) {
+    node_embedding_run_node_api(
+        runtime_.Get(), runNodeApi.GetCallback(), runNodeApi.GetData());
+  }
+
+  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
 
  private:
-  node_embedding_runtime runtime_{};
+  NodePointer<node_embedding_runtime> runtime_{};
 };
 
 }  // namespace node::embedding
