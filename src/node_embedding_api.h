@@ -615,6 +615,14 @@ namespace node::embedding {
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
+template <typename T>
+NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
+  if (status != NodeStatus::kOk) {
+    return NodeExpected<T>(status);
+  }  // namespace node::embedding
+  return success_value;
+}
+
 template <typename TPointer>
 class NodePointer {
  public:
@@ -653,7 +661,7 @@ class NodeExpected {
   NodeExpected(const NodeExpected&) = delete;
   NodeExpected& operator=(const NodeExpected&) = delete;
 
-  NodeExpected(NodeExpected&& other) : status_(other) {
+  NodeExpected(NodeExpected&& other) : status_(other.status_) {
     if (other.HasValue()) {
       new (std::addressof(value_)) T(std::move(other.value_));
     }
@@ -855,37 +863,30 @@ class NodePlatform {
           configure_platform,
       NodeFunctorRef<node_embedding_configure_runtime_callback>
           configure_runtime) {
-    NodeStatus status =
-        node_embedding_run_main(args.GetArgc(),
-                                args.GetArgv(),
-                                configure_platform.GetCallback(),
-                                configure_platform.GetData(),
-                                configure_runtime.GetCallback(),
-                                configure_runtime.GetData());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_run_main(args.GetArgc(),
+                                   args.GetArgv(),
+                                   configure_platform.GetCallback(),
+                                   configure_platform.GetData(),
+                                   configure_runtime.GetCallback(),
+                                   configure_runtime.GetData()) &&
+           NodeExpected<void>();
   }
 
   static NodeExpected<NodePlatform> Create(
       NodeArgs args,
       NodeFunctorRef<node_embedding_configure_platform_callback>
           configure_platform) {
-    node_embedding_platform result;
-    NodeStatus status =
-        node_embedding_create_platform(args.GetArgc(),
-                                       args.GetArgv(),
-                                       configure_platform.GetCallback(),
-                                       configure_platform.GetData(),
-                                       &result);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<NodePlatform>(status);
-    }
-    return NodeExpected<NodePlatform>(result);
+    node_embedding_platform platform;
+    return node_embedding_create_platform(args.GetArgc(),
+                                          args.GetArgv(),
+                                          configure_platform.GetCallback(),
+                                          configure_platform.GetData(),
+                                          &platform) &&
+           NodeExpected<NodePlatform>(NodePlatform(platform));
   }
 
-  NodePlatform(node_embedding_platform platform) : platform_(platform) {}
+  explicit NodePlatform(node_embedding_platform platform)
+      : platform_(platform) {}
 
   NodePlatform(const NodePlatform&) = delete;
   NodePlatform& operator=(const NodePlatform&) = delete;
@@ -898,15 +899,16 @@ class NodePlatform {
     }
   }
 
-  NodeStatus GetParsedArgs(
+  NodeExpected<void> GetParsedArgs(
       NodeFunctorRef<node_embedding_get_args_callback> get_args,
       NodeFunctorRef<node_embedding_get_args_callback> get_runtime_args) {
     return node_embedding_get_platform_parsed_args(
-        platform_.Get(),
-        get_args.GetCallback(),
-        get_args.GetData(),
-        get_runtime_args.GetCallback(),
-        get_runtime_args.GetData());
+               platform_.Get(),
+               get_args.GetCallback(),
+               get_args.GetData(),
+               get_runtime_args.GetCallback(),
+               get_runtime_args.GetData()) &&
+           NodeExpected<void>();
   }
 
   operator node_embedding_platform() const { return platform_.Get(); }
@@ -931,94 +933,69 @@ class NodeRuntimeConfig {
   }
 
   NodeExpected<void> SetFlags(NodeRuntimeFlags flags) {
-    NodeStatus status =
-        node_embedding_set_runtime_flags(runtime_config_.Get(), flags);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_set_runtime_flags(runtime_config_.Get(), flags) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) {
-    NodeStatus status = node_embedding_set_runtime_args(runtime_config_.Get(),
-                                                        args.GetArgc(),
-                                                        args.GetArgv(),
-                                                        runtime_args.GetArgc(),
-                                                        runtime_args.GetArgv());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_set_runtime_args(runtime_config_.Get(),
+                                           args.GetArgc(),
+                                           args.GetArgv(),
+                                           runtime_args.GetArgc(),
+                                           runtime_args.GetArgv()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> OnPreload(
       NodeFunctor<node_embedding_preload_callback> run_preload) {
-    NodeStatus status =
-        node_embedding_on_preload_runtime(runtime_config_.Get(),
-                                          run_preload.GetCallback(),
-                                          run_preload.GetData(),
-                                          run_preload.GetRelease());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_on_preload_runtime(runtime_config_.Get(),
+                                             run_preload.GetCallback(),
+                                             run_preload.GetData(),
+                                             run_preload.GetRelease()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> OnStartExecution(
       NodeFunctor<node_embedding_start_execution_callback> start_execution) {
-    NodeStatus status =
-        node_embedding_on_start_runtime_execution(runtime_config_.Get(),
-                                                  start_execution.GetCallback(),
-                                                  start_execution.GetData(),
-                                                  start_execution.GetRelease());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_on_start_runtime_execution(
+               runtime_config_.Get(),
+               start_execution.GetCallback(),
+               start_execution.GetData(),
+               start_execution.GetRelease()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> OnHandleStartResult(
       NodeFunctor<node_embedding_handle_start_result_callback>
           handle_start_result) {
-    NodeStatus status = node_embedding_on_handle_runtime_start_result(
-        runtime_config_.Get(),
-        handle_start_result.GetCallback(),
-        handle_start_result.GetData(),
-        handle_start_result.GetRelease());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_on_handle_runtime_start_result(
+               runtime_config_.Get(),
+               handle_start_result.GetCallback(),
+               handle_start_result.GetData(),
+               handle_start_result.GetRelease()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> AddModule(
       const char* moduleName,
       NodeFunctor<node_embedding_initialize_module_callback> init_module,
       int32_t moduleNodeApiVersion) {
-    NodeStatus status =
-        node_embedding_add_runtime_module(runtime_config_.Get(),
-                                          moduleName,
-                                          init_module.GetCallback(),
-                                          init_module.GetData(),
-                                          init_module.GetRelease(),
-                                          moduleNodeApiVersion);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_add_runtime_module(runtime_config_.Get(),
+                                             moduleName,
+                                             init_module.GetCallback(),
+                                             init_module.GetData(),
+                                             init_module.GetRelease(),
+                                             moduleNodeApiVersion) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> SetTaskRunner(
       NodeFunctor<node_embedding_post_task_callback> post_task) {
-    NodeStatus status =
-        node_embedding_set_runtime_task_runner(runtime_config_.Get(),
-                                               post_task.GetCallback(),
-                                               post_task.GetData(),
-                                               post_task.GetRelease());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_set_runtime_task_runner(runtime_config_.Get(),
+                                                  post_task.GetCallback(),
+                                                  post_task.GetData(),
+                                                  post_task.GetRelease()) &&
+           NodeExpected<void>();
   }
 
  private:
@@ -1074,42 +1051,34 @@ class NodeRuntime {
   operator node_embedding_runtime() const { return runtime_.Get(); }
 
   NodeExpected<void> RunEventLoop() {
-    return NodeExpected<void>(node_embedding_run_event_loop(runtime_.Get()));
+    return node_embedding_run_event_loop(runtime_.Get()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> TerminateEventLoop() {
-    return NodeExpected<void>(
-        node_embedding_terminate_event_loop(runtime_.Get()));
+    return node_embedding_terminate_event_loop(runtime_.Get()) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<bool> RunEventLoopOnce() {
     bool has_more_work{};
-    NodeStatus status =
-        node_embedding_run_event_loop_once(runtime_.Get(), &has_more_work);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<bool>(status);
-    }
-    return NodeExpected<bool>(has_more_work);
+    return node_embedding_run_event_loop_once(runtime_.Get(), &has_more_work) &&
+           NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<bool> RunEventLoopNoWait() {
     bool has_more_work{};
-    NodeStatus status =
-        node_embedding_run_event_loop_no_wait(runtime_.Get(), &has_more_work);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<bool>(status);
-    }
-    return NodeExpected<bool>(has_more_work);
+    return node_embedding_run_event_loop_no_wait(runtime_.Get(),
+                                                 &has_more_work) &&
+           NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<void> RunNodeApi(
       NodeFunctorRef<node_embedding_run_node_api_callback> runNodeApi) {
-    NodeStatus status = node_embedding_run_node_api(
-        runtime_.Get(), runNodeApi.GetCallback(), runNodeApi.GetData());
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_run_node_api(runtime_.Get(),
+                                       runNodeApi.GetCallback(),
+                                       runNodeApi.GetData()) &&
+           NodeExpected<void>();
   }
 
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
