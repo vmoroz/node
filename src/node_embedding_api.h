@@ -752,10 +752,19 @@ class NodeArgs {
 };
 
 template <typename TCallback>
-class NodeFunctorRef {
+class NodeFunctorRef;
+
+template <typename TResult, typename... TArgs>
+class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
+  using TCallback = TResult (*)(void*, TArgs...);
+
  public:
   NodeFunctorRef(TCallback callback, void* callback_data)
       : callback_(callback), callback_data_(callback_data) {}
+
+  template <typename TFunctor>
+  NodeFunctorRef(TFunctor&& functor)
+      : callback_(&InvokeFunctor<TFunctor>), callback_data_(&functor) {}
 
   NodeFunctorRef(const NodeFunctorRef&) = delete;
   NodeFunctorRef& operator=(const NodeFunctorRef&) = delete;
@@ -767,12 +776,24 @@ class NodeFunctorRef {
   void* GetData() const { return callback_data_; }
 
  private:
+  template <typename TFunctor>
+  static TResult InvokeFunctor(void* data, TArgs... args) {
+    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
+    return (*callback)(args...);
+  }
+
+ private:
   TCallback callback_{};
   void* callback_data_{};
 };
 
 template <typename TCallback>
-class NodeFunctor {
+class NodeFunctor;
+
+template <typename TResult, typename... TArgs>
+class NodeFunctor<TResult (*)(void*, TArgs...)> {
+  using TCallback = TResult (*)(void*, TArgs...);
+
  public:
   NodeFunctor(TCallback callback,
               void* callback_data,
@@ -780,6 +801,14 @@ class NodeFunctor {
       : callback_(callback),
         callback_data_(callback_data),
         callback_release_(callback_release) {}
+
+  template <typename TFunctor>
+  NodeFunctor(TFunctor&& functor)
+      : callback_(&InvokeFunctor<TFunctor>),
+        callback_data_(
+            std::unique_ptr<TFunctor>(std::forward<TFunctor>(functor))
+                .release()),
+        callback_release_(&ReleaseFunctor<TFunctor>) {}
 
   NodeFunctor(const NodeFunctor&) = delete;
   NodeFunctor& operator=(const NodeFunctor&) = delete;
@@ -793,6 +822,18 @@ class NodeFunctor {
 
   node_embedding_release_data_callback GetRelease() const {
     return callback_release_;
+  }
+
+ private:
+  template <typename TFunctor>
+  static TResult InvokeFunctor(void* data, TArgs... args) {
+    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
+    return (*callback)(args...);
+  }
+
+  template <typename TFunctor>
+  static void ReleaseFunctor(void* data) {
+    std::unique_ptr<TFunctor> callback(reinterpret_cast<TFunctor*>(data));
   }
 
  private:
