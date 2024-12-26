@@ -731,8 +731,13 @@ class NodePlatformConfig {
     return platform_config_.Get();
   }
 
-  void SetFlags(NodePlatformFlags flags) {
-    node_embedding_set_platform_flags(platform_config_.Get(), flags);
+  NodeExpected<void> SetFlags(NodePlatformFlags flags) {
+    NodeStatus status =
+        node_embedding_set_platform_flags(platform_config_.Get(), flags);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
  private:
@@ -844,18 +849,23 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
 class NodePlatform {
  public:
-  static NodeStatus RunMain(
+  static NodeExpected<void> RunMain(
       NodeArgs args,
       NodeFunctorRef<node_embedding_configure_platform_callback>
           configure_platform,
       NodeFunctorRef<node_embedding_configure_runtime_callback>
           configure_runtime) {
-    return node_embedding_run_main(args.GetArgc(),
-                                   args.GetArgv(),
-                                   configure_platform.GetCallback(),
-                                   configure_platform.GetData(),
-                                   configure_runtime.GetCallback(),
-                                   configure_runtime.GetData());
+    NodeStatus status =
+        node_embedding_run_main(args.GetArgc(),
+                                args.GetArgv(),
+                                configure_platform.GetCallback(),
+                                configure_platform.GetData(),
+                                configure_runtime.GetCallback(),
+                                configure_runtime.GetData());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
   static NodeExpected<NodePlatform> Create(
@@ -1038,6 +1048,8 @@ class NodeApiScope {
     }
   }
 
+  napi_env GetEnv() const { return env_; }
+
  private:
   NodePointer<node_embedding_runtime> runtime_{};
   node_embedding_node_api_scope node_api_scope_{};
@@ -1090,10 +1102,14 @@ class NodeRuntime {
     return NodeExpected<bool>(has_more_work);
   }
 
-  void RunNodeApi(
+  NodeExpected<void> RunNodeApi(
       NodeFunctorRef<node_embedding_run_node_api_callback> runNodeApi) {
-    node_embedding_run_node_api(
+    NodeStatus status = node_embedding_run_node_api(
         runtime_.Get(), runNodeApi.GetCallback(), runNodeApi.GetData());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
