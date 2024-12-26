@@ -920,60 +920,95 @@ class NodeRuntimeConfig {
     return runtime_config_.Get();
   }
 
-  void SetFlags(NodeRuntimeFlags flags) {
-    node_embedding_set_runtime_flags(runtime_config_.Get(), flags);
+  NodeExpected<void> SetFlags(NodeRuntimeFlags flags) {
+    NodeStatus status =
+        node_embedding_set_runtime_flags(runtime_config_.Get(), flags);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void SetArgs(NodeArgs args, NodeArgs runtime_args) {
-    node_embedding_set_runtime_args(runtime_config_.Get(),
-                                    args.GetArgc(),
-                                    args.GetArgv(),
-                                    runtime_args.GetArgc(),
-                                    runtime_args.GetArgv());
+  NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) {
+    NodeStatus status = node_embedding_set_runtime_args(runtime_config_.Get(),
+                                                        args.GetArgc(),
+                                                        args.GetArgv(),
+                                                        runtime_args.GetArgc(),
+                                                        runtime_args.GetArgv());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void OnPreload(NodeFunctor<node_embedding_preload_callback> run_preload) {
-    node_embedding_on_preload_runtime(runtime_config_.Get(),
-                                      run_preload.GetCallback(),
-                                      run_preload.GetData(),
-                                      run_preload.GetRelease());
+  NodeExpected<void> OnPreload(
+      NodeFunctor<node_embedding_preload_callback> run_preload) {
+    NodeStatus status =
+        node_embedding_on_preload_runtime(runtime_config_.Get(),
+                                          run_preload.GetCallback(),
+                                          run_preload.GetData(),
+                                          run_preload.GetRelease());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void OnStartExecution(
+  NodeExpected<void> OnStartExecution(
       NodeFunctor<node_embedding_start_execution_callback> start_execution) {
-    node_embedding_on_start_runtime_execution(runtime_config_.Get(),
-                                              start_execution.GetCallback(),
-                                              start_execution.GetData(),
-                                              start_execution.GetRelease());
+    NodeStatus status =
+        node_embedding_on_start_runtime_execution(runtime_config_.Get(),
+                                                  start_execution.GetCallback(),
+                                                  start_execution.GetData(),
+                                                  start_execution.GetRelease());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void OnHandleStartResult(
+  NodeExpected<void> OnHandleStartResult(
       NodeFunctor<node_embedding_handle_start_result_callback>
           handle_start_result) {
-    node_embedding_on_handle_runtime_start_result(
+    NodeStatus status = node_embedding_on_handle_runtime_start_result(
         runtime_config_.Get(),
         handle_start_result.GetCallback(),
         handle_start_result.GetData(),
         handle_start_result.GetRelease());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void AddModule(
+  NodeExpected<void> AddModule(
       const char* moduleName,
       NodeFunctor<node_embedding_initialize_module_callback> init_module,
       int32_t moduleNodeApiVersion) {
-    node_embedding_add_runtime_module(runtime_config_.Get(),
-                                      moduleName,
-                                      init_module.GetCallback(),
-                                      init_module.GetData(),
-                                      init_module.GetRelease(),
-                                      moduleNodeApiVersion);
+    NodeStatus status =
+        node_embedding_add_runtime_module(runtime_config_.Get(),
+                                          moduleName,
+                                          init_module.GetCallback(),
+                                          init_module.GetData(),
+                                          init_module.GetRelease(),
+                                          moduleNodeApiVersion);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
-  void SetTaskRunner(NodeFunctor<node_embedding_post_task_callback> post_task) {
-    node_embedding_set_runtime_task_runner(runtime_config_.Get(),
-                                           post_task.GetCallback(),
-                                           post_task.GetData(),
-                                           post_task.GetRelease());
+  NodeExpected<void> SetTaskRunner(
+      NodeFunctor<node_embedding_post_task_callback> post_task) {
+    NodeStatus status =
+        node_embedding_set_runtime_task_runner(runtime_config_.Get(),
+                                               post_task.GetCallback(),
+                                               post_task.GetData(),
+                                               post_task.GetRelease());
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<void>(status);
+    }
+    return NodeExpected<void>();
   }
 
  private:
@@ -994,12 +1029,17 @@ class NodeApiScope {
   NodeApiScope(const NodeApiScope&) = delete;
   NodeApiScope& operator=(const NodeApiScope&) = delete;
 
+  NodeApiScope(NodeApiScope&&) = default;
+  NodeApiScope& operator=(NodeApiScope&&) = default;
+
   ~NodeApiScope() {
-    node_embedding_close_node_api_scope(runtime_, node_api_scope_);
+    if (runtime_) {
+      node_embedding_close_node_api_scope(runtime_.Get(), node_api_scope_);
+    }
   }
 
  private:
-  node_embedding_runtime runtime_{};
+  NodePointer<node_embedding_runtime> runtime_{};
   node_embedding_node_api_scope node_api_scope_{};
   napi_env env_{};
 };
