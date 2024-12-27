@@ -22,36 +22,30 @@
 
 #ifdef __cplusplus
 
-#define NODE_OPTIONS(c_name, cpp_name)                                         \
+#define NODE_ENUM(c_name, cpp_name)                                            \
+  enum class cpp_name : int32_t cpp_name;                                      \
+  enum class cpp_name : int32_t
+
+#define NODE_ENUM_FLAGS(c_name, cpp_name)                                      \
   enum class cpp_name : int32_t cpp_name;                                      \
   inline constexpr cpp_name operator|(cpp_name lhs, cpp_name rhs) {            \
     return static_cast<cpp_name>(static_cast<int32_t>(lhs) |                   \
                                  static_cast<int32_t>(rhs));                   \
   }                                                                            \
-  inline constexpr bool is_option_set(cpp_name flags, cpp_name flag) {         \
+  inline constexpr bool IsFlagSet(cpp_name flags, cpp_name flag) {             \
     return (static_cast<int32_t>(flags) & static_cast<int32_t>(flag)) != 0;    \
   }                                                                            \
-  enum class cpp_name : int32_t
-
-#define NODE_OPTION(c_name, cpp_name) cpp_name
-
-#define NODE_ENUM(c_name, cpp_name)                                            \
-  enum class cpp_name : int32_t cpp_name;                                      \
   enum class cpp_name : int32_t
 
 #define NODE_ENUM_ITEM(c_name, cpp_name) cpp_name
 
 #else
 
-#define NODE_OPTIONS(c_name, cpp_name)                                         \
-  enum c_name c_name;                                                          \
-  enum c_name
-
-#define NODE_OPTION(c_name, cpp_name) c_name
-
 #define NODE_ENUM(c_name, cpp_name)                                            \
   enum c_name c_name;                                                          \
   enum c_name
+
+#define NODE_ENUM_FLAGS(c_name, cpp_name) NODE_ENUM(c_name, cpp_name)
 
 #define NODE_ENUM_ITEM(c_name, cpp_name) c_name
 
@@ -84,112 +78,114 @@ typedef NODE_ENUM(node_embedding_status, NodeStatus){
 
 // The flags for the Node.js platform initialization.
 // They match the internal ProcessInitializationFlags::Flags enum.
-typedef NODE_OPTIONS(node_embedding_platform_flags, NodePlatformFlags){
-  NODE_OPTION(node_embedding_platform_flags_none, kNone) = 0,
-  // Enable stdio inheritance, which is disabled by default.
-  // This flag is also implied by
-  // node_embedding_platform_flags_no_stdio_initialization.
-  NODE_OPTION(node_embedding_platform_flags_enable_stdio_inheritance,
-              kEnableStdioInheritance) = 1 << 0,
-  // Disable reading the NODE_OPTIONS environment variable.
-  NODE_OPTION(node_embedding_platform_flags_disable_node_options_env,
-              kDisableNodeOptionsEnv) = 1 << 1,
-  // Do not parse CLI options.
-  NODE_OPTION(node_embedding_platform_flags_disable_cli_options,
-              kDisableCliOptions) = 1 << 2,
-  // Do not initialize ICU.
-  NODE_OPTION(node_embedding_platform_flags_no_icu, kNoICU) = 1 << 3,
-  // Do not modify stdio file descriptor or TTY state.
-  NODE_OPTION(node_embedding_platform_flags_no_stdio_initialization,
-              kNoStdioInitialization) = 1 << 4,
-  // Do not register Node.js-specific signal handlers
-  // and reset other signal handlers to default state.
-  NODE_OPTION(node_embedding_platform_flags_no_default_signal_handling,
-              kNoDefaultSignalHandling) = 1 << 5,
-  // Do not initialize OpenSSL config.
-  NODE_OPTION(node_embedding_platform_flags_no_init_openssl,
-              kNoInitOpenSSL) = 1 << 8,
-  // Do not initialize Node.js debugging based on environment variables.
-  NODE_OPTION(node_embedding_platform_flags_no_parse_global_debug_variables,
-              kNoParseGlobalDebugVariables) = 1 << 9,
-  // Do not adjust OS resource limits for this process.
-  NODE_OPTION(node_embedding_platform_flags_no_adjust_resource_limits,
-              kNoAdjustResourceLimits) = 1 << 10,
-  // Do not map code segments into large pages for this process.
-  NODE_OPTION(node_embedding_platform_flags_no_use_large_pages,
-              kNoUseLargePages) = 1 << 11,
-  // Skip printing output for --help, --version, --v8-options.
-  NODE_OPTION(node_embedding_platform_flags_no_print_help_or_version_output,
-              kNoPrintHelpOrVersionOutput) = 1 << 12,
-  // Initialize the process for predictable snapshot generation.
-  NODE_OPTION(node_embedding_platform_flags_generate_predictable_snapshot,
-              kGeneratePredictableSnapshot) = 1 << 14,
+typedef NODE_ENUM_FLAGS(node_embedding_platform_flags, NodePlatformFlags){
+    NODE_ENUM_ITEM(node_embedding_platform_flags_none, kNone) = 0,
+    // Enable stdio inheritance, which is disabled by default.
+    // This flag is also implied by
+    // node_embedding_platform_flags_no_stdio_initialization.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_enable_stdio_inheritance,
+                   kEnableStdioInheritance) = 1 << 0,
+    // Disable reading the NODE_ENUM_ITEMS environment variable.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_disable_NODE_ENUM_ITEMs_env,
+                   kDisableNodeOptionsEnv) = 1 << 1,
+    // Do not parse CLI options.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_disable_cli_options,
+                   kDisableCliOptions) = 1 << 2,
+    // Do not initialize ICU.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_icu, kNoICU) = 1 << 3,
+    // Do not modify stdio file descriptor or TTY state.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_stdio_initialization,
+                   kNoStdioInitialization) = 1 << 4,
+    // Do not register Node.js-specific signal handlers
+    // and reset other signal handlers to default state.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_default_signal_handling,
+                   kNoDefaultSignalHandling) = 1 << 5,
+    // Do not initialize OpenSSL config.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_init_openssl,
+                   kNoInitOpenSSL) = 1 << 8,
+    // Do not initialize Node.js debugging based on environment variables.
+    NODE_ENUM_ITEM(
+        node_embedding_platform_flags_no_parse_global_debug_variables,
+        kNoParseGlobalDebugVariables) = 1 << 9,
+    // Do not adjust OS resource limits for this process.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_adjust_resource_limits,
+                   kNoAdjustResourceLimits) = 1 << 10,
+    // Do not map code segments into large pages for this process.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_no_use_large_pages,
+                   kNoUseLargePages) = 1 << 11,
+    // Skip printing output for --help, --version, --v8-options.
+    NODE_ENUM_ITEM(
+        node_embedding_platform_flags_no_print_help_or_version_output,
+        kNoPrintHelpOrVersionOutput) = 1 << 12,
+    // Initialize the process for predictable snapshot generation.
+    NODE_ENUM_ITEM(node_embedding_platform_flags_generate_predictable_snapshot,
+                   kGeneratePredictableSnapshot) = 1 << 14,
 };
 
 // The flags for the Node.js runtime initialization.
 // They match the internal EnvironmentFlags::Flags enum.
-typedef NODE_OPTIONS(node_embedding_runtime_flags, NodeRuntimeFlags){
-  NODE_OPTION(node_embedding_runtime_flags_none, kNone) = 0,
-  // Use the default behavior for Node.js instances.
-  NODE_OPTION(node_embedding_runtime_flags_default, kDefault) = 1 << 0,
-  // Controls whether this Environment is allowed to affect per-process state
-  // (e.g. cwd, process title, uid, etc.).
-  // This is set when using node_embedding_runtime_flags_default.
-  NODE_OPTION(node_embedding_runtime_flags_owns_process_state,
-              kOwnsProcessState) = 1 << 1,
-  // Set if this Environment instance is associated with the global inspector
-  // handling code (i.e. listening on SIGUSR1).
-  // This is set when using node_embedding_runtime_flags_default.
-  NODE_OPTION(node_embedding_runtime_flags_owns_inspector,
-              kOwnsInspector) = 1 << 2,
-  // Set if Node.js should not run its own esm loader. This is needed by some
-  // embedders, because it's possible for the Node.js esm loader to conflict
-  // with another one in an embedder environment, e.g. Blink's in Chromium.
-  NODE_OPTION(node_embedding_runtime_flags_no_register_esm_loader,
-              kNoRegisterEsmLoader) = 1 << 3,
-  // Set this flag to make Node.js track "raw" file descriptors, i.e. managed
-  // by fs.open() and fs.close(), and close them during
-  // node_embedding_delete_runtime().
-  NODE_OPTION(node_embedding_runtime_flags_track_unmanaged_fds,
-              kTrackUnmanagedFds) = 1 << 4,
-  // Set this flag to force hiding console windows when spawning child
-  // processes. This is usually used when embedding Node.js in GUI programs on
-  // Windows.
-  NODE_OPTION(node_embedding_runtime_flags_hide_console_windows,
-              kHideConsoleWindows) = 1 << 5,
-  // Set this flag to disable loading native addons via `process.dlopen`.
-  // This environment flag is especially important for worker threads
-  // so that a worker thread can't load a native addon even if `execArgv`
-  // is overwritten and `--no-addons` is not specified but was specified
-  // for this Environment instance.
-  NODE_OPTION(node_embedding_runtime_flags_no_native_addons,
-              kNoNativeAddons) = 1 << 6,
-  // Set this flag to disable searching modules from global paths like
-  // $HOME/.node_modules and $NODE_PATH. This is used by standalone apps that
-  // do not expect to have their behaviors changed because of globally
-  // installed modules.
-  NODE_OPTION(node_embedding_runtime_flags_no_global_search_paths,
-              kNoGlobalSearchPaths) = 1 << 7,
-  // Do not export browser globals like setTimeout, console, etc.
-  NODE_OPTION(node_embedding_runtime_flags_no_browser_globals,
-              kNoBrowserGlobals) = 1 << 8,
-  // Controls whether or not the Environment should call
-  // V8Inspector::create(). This control is needed by embedders who may not
-  // want to initialize the V8 inspector in situations where one has already
-  // been created, e.g. Blink's in Chromium.
-  NODE_OPTION(node_embedding_runtime_flags_no_create_inspector,
-              kNoCreateInspector) = 1 << 9,
-  // Controls whether or not the InspectorAgent for this Environment should
-  // call StartDebugSignalHandler. This control is needed by embedders who may
-  // not want to allow other processes to start the V8 inspector.
-  NODE_OPTION(node_embedding_runtime_flags_no_start_debug_signal_handler,
-              kNoStartDebugSignalHandler) = 1 << 10,
-  // Controls whether the InspectorAgent created for this Environment waits
-  // for Inspector frontend events during the Environment creation. It's used
-  // to call node::Stop(env) on a Worker thread that is waiting for the
-  // events.
-  NODE_OPTION(node_embedding_runtime_flags_no_wait_for_inspector_frontend,
-              kNoWaitForInspectorFrontend) = 1 << 11,
+typedef NODE_ENUM_FLAGS(node_embedding_runtime_flags, NodeRuntimeFlags){
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_none, kNone) = 0,
+    // Use the default behavior for Node.js instances.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_default, kDefault) = 1 << 0,
+    // Controls whether this Environment is allowed to affect per-process state
+    // (e.g. cwd, process title, uid, etc.).
+    // This is set when using node_embedding_runtime_flags_default.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_owns_process_state,
+                   kOwnsProcessState) = 1 << 1,
+    // Set if this Environment instance is associated with the global inspector
+    // handling code (i.e. listening on SIGUSR1).
+    // This is set when using node_embedding_runtime_flags_default.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_owns_inspector,
+                   kOwnsInspector) = 1 << 2,
+    // Set if Node.js should not run its own esm loader. This is needed by some
+    // embedders, because it's possible for the Node.js esm loader to conflict
+    // with another one in an embedder environment, e.g. Blink's in Chromium.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_register_esm_loader,
+                   kNoRegisterEsmLoader) = 1 << 3,
+    // Set this flag to make Node.js track "raw" file descriptors, i.e. managed
+    // by fs.open() and fs.close(), and close them during
+    // node_embedding_delete_runtime().
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_track_unmanaged_fds,
+                   kTrackUnmanagedFds) = 1 << 4,
+    // Set this flag to force hiding console windows when spawning child
+    // processes. This is usually used when embedding Node.js in GUI programs on
+    // Windows.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_hide_console_windows,
+                   kHideConsoleWindows) = 1 << 5,
+    // Set this flag to disable loading native addons via `process.dlopen`.
+    // This environment flag is especially important for worker threads
+    // so that a worker thread can't load a native addon even if `execArgv`
+    // is overwritten and `--no-addons` is not specified but was specified
+    // for this Environment instance.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_native_addons,
+                   kNoNativeAddons) = 1 << 6,
+    // Set this flag to disable searching modules from global paths like
+    // $HOME/.node_modules and $NODE_PATH. This is used by standalone apps that
+    // do not expect to have their behaviors changed because of globally
+    // installed modules.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_global_search_paths,
+                   kNoGlobalSearchPaths) = 1 << 7,
+    // Do not export browser globals like setTimeout, console, etc.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_browser_globals,
+                   kNoBrowserGlobals) = 1 << 8,
+    // Controls whether or not the Environment should call
+    // V8Inspector::create(). This control is needed by embedders who may not
+    // want to initialize the V8 inspector in situations where one has already
+    // been created, e.g. Blink's in Chromium.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_create_inspector,
+                   kNoCreateInspector) = 1 << 9,
+    // Controls whether or not the InspectorAgent for this Environment should
+    // call StartDebugSignalHandler. This control is needed by embedders who may
+    // not want to allow other processes to start the V8 inspector.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_start_debug_signal_handler,
+                   kNoStartDebugSignalHandler) = 1 << 10,
+    // Controls whether the InspectorAgent created for this Environment waits
+    // for Inspector frontend events during the Environment creation. It's used
+    // to call node::Stop(env) on a Worker thread that is waiting for the
+    // events.
+    NODE_ENUM_ITEM(node_embedding_runtime_flags_no_wait_for_inspector_frontend,
+                   kNoWaitForInspectorFrontend) = 1 << 11,
 };
 
 #ifdef __cplusplus
@@ -317,6 +313,7 @@ typedef struct {
   node_embedding_status(NAPI_CDECL* create_runtime)(
       node_embedding_platform platform,
       node_embedding_configure_runtime_callback configure_runtime,
+      void* create_runtime_data,
       node_embedding_runtime* result);
 
   node_embedding_status(NAPI_CDECL* delete_runtime)(
@@ -481,6 +478,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime,
+    void* configure_runtime_data,
     node_embedding_runtime* result);
 
 // Deletes the Node.js runtime instance.
@@ -615,14 +613,6 @@ namespace node::embedding {
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
-template <typename T>
-NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
-  if (status != NodeStatus::kOk) {
-    return NodeExpected<T>(status);
-  }  // namespace node::embedding
-  return success_value;
-}
-
 template <typename TPointer>
 class NodePointer {
  public:
@@ -723,6 +713,14 @@ class NodeExpected<void> {
  private:
   NodeStatus status_{NodeStatus::kOk};
 };
+
+template <typename T>
+NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
+  if (status != NodeStatus::kOk) {
+    return NodeExpected<T>(status);
+  }
+  return success_value;
+}
 
 class NodePlatformConfig {
  public:
@@ -1035,8 +1033,6 @@ class NodeApiScope {
 
 class NodeRuntime {
  public:
-  explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
-
   NodeRuntime(const NodeRuntime&) = delete;
   NodeRuntime& operator=(const NodeRuntime&) = delete;
 
@@ -1082,6 +1078,42 @@ class NodeRuntime {
   }
 
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
+
+  static NodeExpected<NodeRuntime*> FromRuntime(
+      node_embedding_runtime runtime) {
+    NodeRuntime* nodeRuntime{};
+    return node_embedding_get_runtime_wrapper(
+               runtime, reinterpret_cast<void**>(&nodeRuntime)) &&
+           NodeExpected<NodeRuntime*>(nodeRuntime);
+  }
+
+  static NodeExpected<NodeRuntime> Create(
+      NodePlatform platform,
+      NodeFunctorRef<node_embedding_configure_runtime_callback>
+          configure_runtime) {
+    node_embedding_runtime runtime;
+    return node_embedding_create_runtime(platform,
+                                         &ConfigureRuntimeCallback,
+                                         &configure_runtime,
+                                         &runtime) &&
+           NodeExpected<NodeRuntime>(NodeRuntime(runtime));
+  }
+
+ protected:
+  explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
+
+ private:
+  static node_embedding_status NAPI_CDECL
+  ConfigureRuntimeCallback(void* cb_data,
+                           node_embedding_platform platform,
+                           node_embedding_runtime_config runtime_config) {
+    NodeFunctorRef<node_embedding_configure_runtime_callback>* callback =
+        reinterpret_cast<
+            NodeFunctorRef<node_embedding_configure_runtime_callback>*>(
+            cb_data);
+    return callback->GetCallback()(
+        callback->GetData(), platform, runtime_config);
+  }
 
  private:
   NodePointer<node_embedding_runtime> runtime_{};

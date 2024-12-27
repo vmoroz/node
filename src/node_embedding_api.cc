@@ -821,52 +821,52 @@ node::ProcessInitializationFlags::Flags
 EmbeddedPlatform::GetProcessInitializationFlags(
     node_embedding_platform_flags flags) {
   uint32_t result = node::ProcessInitializationFlags::kNoFlags;
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kEnableStdioInheritance)) {
     result |= node::ProcessInitializationFlags::kEnableStdioInheritance;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kDisableNodeOptionsEnv)) {
     result |= node::ProcessInitializationFlags::kDisableNodeOptionsEnv;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_platform_flags::kDisableCliOptions)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_platform_flags::kDisableCliOptions)) {
     result |= node::ProcessInitializationFlags::kDisableCLIOptions;
   }
-  if (embedding::is_option_set(flags, node_embedding_platform_flags::kNoICU)) {
+  if (embedding::IsFlagSet(flags, node_embedding_platform_flags::kNoICU)) {
     result |= node::ProcessInitializationFlags::kNoICU;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kNoStdioInitialization)) {
     result |= node::ProcessInitializationFlags::kNoStdioInitialization;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kNoDefaultSignalHandling)) {
     result |= node::ProcessInitializationFlags::kNoDefaultSignalHandling;
   }
   result |= node::ProcessInitializationFlags::kNoInitializeV8;
   result |= node::ProcessInitializationFlags::kNoInitializeNodeV8Platform;
-  if (embedding::is_option_set(flags,
-                               node_embedding_platform_flags::kNoInitOpenSSL)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_platform_flags::kNoInitOpenSSL)) {
     result |= node::ProcessInitializationFlags::kNoInitOpenSSL;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kNoParseGlobalDebugVariables)) {
     result |= node::ProcessInitializationFlags::kNoParseGlobalDebugVariables;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kNoAdjustResourceLimits)) {
     result |= node::ProcessInitializationFlags::kNoAdjustResourceLimits;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_platform_flags::kNoUseLargePages)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_platform_flags::kNoUseLargePages)) {
     result |= node::ProcessInitializationFlags::kNoUseLargePages;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kNoPrintHelpOrVersionOutput)) {
     result |= node::ProcessInitializationFlags::kNoPrintHelpOrVersionOutput;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_platform_flags::kGeneratePredictableSnapshot)) {
     result |= node::ProcessInitializationFlags::kGeneratePredictableSnapshot;
   }
@@ -1521,50 +1521,50 @@ napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
 node::EnvironmentFlags::Flags EmbeddedRuntime::GetEnvironmentFlags(
     node_embedding_runtime_flags flags) {
   uint64_t result = node::EnvironmentFlags::kNoFlags;
-  if (embedding::is_option_set(flags, node_embedding_runtime_flags::kDefault)) {
+  if (embedding::IsFlagSet(flags, node_embedding_runtime_flags::kDefault)) {
     result |= node::EnvironmentFlags::kDefaultFlags;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_runtime_flags::kOwnsProcessState)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kOwnsProcessState)) {
     result |= node::EnvironmentFlags::kOwnsProcessState;
   }
-  if (embedding::is_option_set(flags,
-                               node_embedding_runtime_flags::kOwnsInspector)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kOwnsInspector)) {
     result |= node::EnvironmentFlags::kOwnsInspector;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_runtime_flags::kNoRegisterEsmLoader)) {
     result |= node::EnvironmentFlags::kNoRegisterESMLoader;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_runtime_flags::kTrackUnmanagedFds)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kTrackUnmanagedFds)) {
     result |= node::EnvironmentFlags::kTrackUnmanagedFds;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_runtime_flags::kHideConsoleWindows)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kHideConsoleWindows)) {
     result |= node::EnvironmentFlags::kHideConsoleWindows;
   }
-  if (embedding::is_option_set(flags,
-                               node_embedding_runtime_flags::kNoNativeAddons)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kNoNativeAddons)) {
     result |= node::EnvironmentFlags::kNoNativeAddons;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_runtime_flags::kNoGlobalSearchPaths)) {
     result |= node::EnvironmentFlags::kNoGlobalSearchPaths;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_runtime_flags::kNoBrowserGlobals)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kNoBrowserGlobals)) {
     result |= node::EnvironmentFlags::kNoBrowserGlobals;
   }
-  if (embedding::is_option_set(
-          flags, node_embedding_runtime_flags::kNoCreateInspector)) {
+  if (embedding::IsFlagSet(flags,
+                           node_embedding_runtime_flags::kNoCreateInspector)) {
     result |= node::EnvironmentFlags::kNoCreateInspector;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_runtime_flags::kNoStartDebugSignalHandler)) {
     result |= node::EnvironmentFlags::kNoStartDebugSignalHandler;
   }
-  if (embedding::is_option_set(
+  if (embedding::IsFlagSet(
           flags, node_embedding_runtime_flags::kNoWaitForInspectorFrontend)) {
     result |= node::EnvironmentFlags::kNoWaitForInspectorFrontend;
   }
