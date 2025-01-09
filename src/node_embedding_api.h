@@ -505,7 +505,7 @@ class NodePointer {
 };
 
 template <typename T>
-class NodeExpected {
+class [[nodiscard]] NodeExpected {
  public:
   explicit NodeExpected(T value) : value_(std::move(value)) {}
 
@@ -557,7 +557,7 @@ class NodeExpected {
 };
 
 template <>
-class NodeExpected<void> {
+class [[nodiscard]] NodeExpected<void> {
  public:
   NodeExpected() = default;
 
