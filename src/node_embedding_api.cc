@@ -1825,37 +1825,3 @@ node_embedding_status NAPI_CDECL node_embedding_close_node_api_scope(
     node_embedding_node_api_scope node_api_scope) {
   return EMBEDDED_RUNTIME(runtime)->CloseNodeApiScope(node_api_scope);
 }
-
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_get_api_vtable(node_embedding_api_vtable** api_vtable) {
-  static node_embedding_api_vtable vtable = {
-      node_embedding_on_error,
-      node_embedding_set_api_version,
-      node_embedding_run_main,
-      node_embedding_create_platform,
-      node_embedding_delete_platform,
-      node_embedding_set_platform_flags,
-      node_embedding_get_platform_parsed_args,
-      node_embedding_run_runtime,
-      node_embedding_create_runtime,
-      node_embedding_delete_runtime,
-      node_embedding_set_runtime_flags,
-      node_embedding_set_runtime_args,
-      node_embedding_on_preload_runtime,
-      node_embedding_on_start_runtime_execution,
-      node_embedding_on_handle_runtime_start_result,
-      node_embedding_add_runtime_module,
-      node_embedding_on_create_runtime_wrapper,
-      node_embedding_get_runtime_wrapper,
-      node_embedding_set_runtime_task_runner,
-      node_embedding_run_event_loop,
-      node_embedding_terminate_event_loop,
-      node_embedding_run_event_loop_once,
-      node_embedding_run_event_loop_no_wait,
-      node_embedding_run_node_api,
-      node_embedding_open_node_api_scope,
-      node_embedding_close_node_api_scope,
-  };
-  *api_vtable = &vtable;
-  return node_embedding_status::kOk;
-}
