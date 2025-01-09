@@ -475,6 +475,7 @@ namespace node::embedding {
 // These functions are not ABI safe and can be changed in future versions.
 //==============================================================================
 
+// Move-only pointer wrapper.
 template <typename TPointer>
 class NodePointer {
  public:
@@ -616,8 +617,8 @@ class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
 
-  int32_t GetArgc() const { return argc_; }
-  const char** GetArgv() const { return argv_; }
+  int32_t Argc() const { return argc_; }
+  const char** Argv() const { return argv_; }
 
  private:
   int32_t argc_{};
@@ -645,8 +646,8 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
   NodeFunctorRef(NodeFunctorRef&& other) = default;
   NodeFunctorRef& operator=(NodeFunctorRef&& other) = default;
 
-  TCallback GetCallback() const { return callback_; }
-  void* GetData() const { return callback_data_; }
+  TCallback Callback() const { return callback_; }
+  void* Data() const { return callback_data_; }
 
  private:
   template <typename TFunctor>
@@ -689,11 +690,11 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   NodeFunctor(NodeFunctor&& other) = default;
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
-  TCallback GetCallback() const { return callback_; }
+  TCallback Callback() const { return callback_; }
 
-  void* GetData() const { return callback_data_; }
+  void* Data() const { return callback_data_; }
 
-  node_embedding_release_data_callback GetRelease() const {
+  node_embedding_release_data_callback Release() const {
     return callback_release_;
   }
 
@@ -715,6 +716,7 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   node_embedding_release_data_callback callback_release_{};
 };
 
+// Wraps
 class NodePlatform {
  public:
   static NodeExpected<void> RunMain(
@@ -723,12 +725,12 @@ class NodePlatform {
           configure_platform,
       NodeFunctorRef<node_embedding_configure_runtime_callback>
           configure_runtime) {
-    return node_embedding_run_main(args.GetArgc(),
-                                   args.GetArgv(),
-                                   configure_platform.GetCallback(),
-                                   configure_platform.GetData(),
-                                   configure_runtime.GetCallback(),
-                                   configure_runtime.GetData()) &&
+    return node_embedding_run_main(args.Argc(),
+                                   args.Argv(),
+                                   configure_platform.Callback(),
+                                   configure_platform.Data(),
+                                   configure_runtime.Callback(),
+                                   configure_runtime.Data()) &&
            NodeExpected<void>();
   }
 
@@ -737,10 +739,10 @@ class NodePlatform {
       NodeFunctorRef<node_embedding_configure_platform_callback>
           configure_platform) {
     node_embedding_platform platform;
-    return node_embedding_create_platform(args.GetArgc(),
-                                          args.GetArgv(),
-                                          configure_platform.GetCallback(),
-                                          configure_platform.GetData(),
+    return node_embedding_create_platform(args.Argc(),
+                                          args.Argv(),
+                                          configure_platform.Callback(),
+                                          configure_platform.Data(),
                                           &platform) &&
            NodeExpected<NodePlatform>(NodePlatform(platform));
   }
@@ -762,12 +764,11 @@ class NodePlatform {
   NodeExpected<void> GetParsedArgs(
       NodeFunctorRef<node_embedding_get_args_callback> get_args,
       NodeFunctorRef<node_embedding_get_args_callback> get_runtime_args) {
-    return node_embedding_get_platform_parsed_args(
-               platform_.Get(),
-               get_args.GetCallback(),
-               get_args.GetData(),
-               get_runtime_args.GetCallback(),
-               get_runtime_args.GetData()) &&
+    return node_embedding_get_platform_parsed_args(platform_.Get(),
+                                                   get_args.Callback(),
+                                                   get_args.Data(),
+                                                   get_runtime_args.Callback(),
+                                                   get_runtime_args.Data()) &&
            NodeExpected<void>();
   }
 
@@ -799,19 +800,19 @@ class NodeRuntimeConfig {
 
   NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) {
     return node_embedding_set_runtime_args(runtime_config_.Get(),
-                                           args.GetArgc(),
-                                           args.GetArgv(),
-                                           runtime_args.GetArgc(),
-                                           runtime_args.GetArgv()) &&
+                                           args.Argc(),
+                                           args.Argv(),
+                                           runtime_args.Argc(),
+                                           runtime_args.Argv()) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> OnPreload(
-      NodeFunctor<node_embedding_preload_callback> run_preload) {
+      NodeFunctor<node_embedding_preload_callback> preload) {
     return node_embedding_on_preload_runtime(runtime_config_.Get(),
-                                             run_preload.GetCallback(),
-                                             run_preload.GetData(),
-                                             run_preload.GetRelease()) &&
+                                             preload.Callback(),
+                                             preload.Data(),
+                                             preload.Release()) &&
            NodeExpected<void>();
   }
 
@@ -819,9 +820,9 @@ class NodeRuntimeConfig {
       NodeFunctor<node_embedding_start_execution_callback> start_execution) {
     return node_embedding_on_start_runtime_execution(
                runtime_config_.Get(),
-               start_execution.GetCallback(),
-               start_execution.GetData(),
-               start_execution.GetRelease()) &&
+               start_execution.Callback(),
+               start_execution.Data(),
+               start_execution.Release()) &&
            NodeExpected<void>();
   }
 
@@ -830,9 +831,9 @@ class NodeRuntimeConfig {
           handle_start_result) {
     return node_embedding_on_handle_runtime_start_result(
                runtime_config_.Get(),
-               handle_start_result.GetCallback(),
-               handle_start_result.GetData(),
-               handle_start_result.GetRelease()) &&
+               handle_start_result.Callback(),
+               handle_start_result.Data(),
+               handle_start_result.Release()) &&
            NodeExpected<void>();
   }
 
@@ -842,9 +843,9 @@ class NodeRuntimeConfig {
       int32_t moduleNodeApiVersion) {
     return node_embedding_add_runtime_module(runtime_config_.Get(),
                                              moduleName,
-                                             init_module.GetCallback(),
-                                             init_module.GetData(),
-                                             init_module.GetRelease(),
+                                             init_module.Callback(),
+                                             init_module.Data(),
+                                             init_module.Release(),
                                              moduleNodeApiVersion) &&
            NodeExpected<void>();
   }
@@ -852,9 +853,9 @@ class NodeRuntimeConfig {
   NodeExpected<void> SetTaskRunner(
       NodeFunctor<node_embedding_post_task_callback> post_task) {
     return node_embedding_set_runtime_task_runner(runtime_config_.Get(),
-                                                  post_task.GetCallback(),
-                                                  post_task.GetData(),
-                                                  post_task.GetRelease()) &&
+                                                  post_task.Callback(),
+                                                  post_task.Data(),
+                                                  post_task.Release()) &&
            NodeExpected<void>();
   }
 
@@ -933,9 +934,8 @@ class NodeRuntime {
 
   NodeExpected<void> RunNodeApi(
       NodeFunctorRef<node_embedding_run_node_api_callback> runNodeApi) {
-    return node_embedding_run_node_api(runtime_.Get(),
-                                       runNodeApi.GetCallback(),
-                                       runNodeApi.GetData()) &&
+    return node_embedding_run_node_api(
+               runtime_.Get(), runNodeApi.Callback(), runNodeApi.Data()) &&
            NodeExpected<void>();
   }
 
@@ -973,8 +973,7 @@ class NodeRuntime {
         reinterpret_cast<
             NodeFunctorRef<node_embedding_configure_runtime_callback>*>(
             cb_data);
-    return callback->GetCallback()(
-        callback->GetData(), platform, runtime_config);
+    return callback->Callback()(callback->Data(), platform, runtime_config);
   }
 
  private:
