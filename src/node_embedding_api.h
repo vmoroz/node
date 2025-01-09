@@ -274,6 +274,8 @@ EXTERN_C_START
 //------------------------------------------------------------------------------
 
 // TODO: How to set it once upfront?
+// TODO: How to raise an error from the callbacks?
+
 // Sets the global error handing for the Node.js embedding API.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
     node_embedding_handle_error_callback error_handler,
@@ -285,11 +287,13 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
 //------------------------------------------------------------------------------
 
 // TODO: How to set it once upfront?
+
 // Sets the API version for the Node.js embedding API and the Node-API.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
     int32_t embedding_api_version, int32_t node_api_version);
 
 // TODO: How to pass the API versions and the error handler?
+
 // Runs Node.js main function as if it is invoked from Node.js CLI.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
@@ -394,6 +398,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     int32_t module_node_api_version);
 
 // TODO: Provide a better pattern for creating wrappers.
+
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_runtime_wrapper(
     node_embedding_runtime_config runtime_config,
