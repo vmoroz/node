@@ -606,18 +606,15 @@ class NodePlatformConfig {
   }
 
   NodeExpected<void> SetFlags(NodePlatformFlags flags) {
-    NodeStatus status =
-        node_embedding_set_platform_flags(platform_config_.Get(), flags);
-    if (status != NodeStatus::kOk) {
-      return NodeExpected<void>(status);
-    }
-    return NodeExpected<void>();
+    return node_embedding_set_platform_flags(platform_config_.Get(), flags) &&
+           NodeExpected<void>();
   }
 
  private:
   NodePointer<node_embedding_platform_config> platform_config_{};
 };
 
+// Wraps command line arguments.
 class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
