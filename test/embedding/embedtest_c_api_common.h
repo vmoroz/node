@@ -144,15 +144,11 @@ node_embedding_status LoadUtf8Script(
     }                                                                          \
   } while (0)
 
-#define CHECK_STATUS_OR_EXIT(expr)                                             \
+#define CHECK_EXPECTED_OR_EXIT(expr)                                           \
   do {                                                                         \
-    node_embedding_status status_ = (expr);                                    \
-    if (status_ != node_embedding_status_ok) {                                 \
-      int32_t exit_code =                                                      \
-          ((status_ & node_embedding_status_error_exit_code) != 0)             \
-              ? status_ & ~node_embedding_status_error_exit_code               \
-              : 1;                                                             \
-      exit(exit_code);                                                         \
+    node::embedding::NodeExpected<void> expected_ = (expr);                    \
+    if (expected_.HasError()) {                                                \
+      exit(expected_.ExitCode());                                              \
     }                                                                          \
   } while (0)
 

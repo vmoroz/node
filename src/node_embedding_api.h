@@ -61,6 +61,12 @@ typedef struct node_embedding_platform_config_s* node_embedding_platform_config;
 typedef struct node_embedding_runtime_config_s* node_embedding_runtime_config;
 typedef struct node_embedding_node_api_scope_s* node_embedding_node_api_scope;
 
+typedef struct {
+  int32_t embedding_api_version;
+  int32_t node_api_version;
+  node_embedding_platform_flags flags;
+} node_embedding_platform_info;
+
 #ifdef __cplusplus
 namespace node::embedding {
 #endif
@@ -201,12 +207,6 @@ using node_embedding_runtime_flags = node::embedding::NodeRuntimeFlags;
 
 typedef void(NAPI_CDECL* node_embedding_release_data_callback)(void* data);
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_handle_error_callback)(
-    void* cb_data,
-    const char* messages[],
-    size_t messages_size,
-    node_embedding_status status);
-
 typedef node_embedding_status(
     NAPI_CDECL* node_embedding_configure_platform_callback)(
     void* cb_data, node_embedding_platform_config platform_config);
@@ -217,9 +217,8 @@ typedef node_embedding_status(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 
-typedef void(NAPI_CDECL* node_embedding_get_args_callback)(void* cb_data,
-                                                           int32_t argc,
-                                                           const char* argv[]);
+typedef void(NAPI_CDECL* node_embedding_get_strings_callback)(
+    void* cb_data, int32_t string_count, const char* strings[]);
 
 typedef void(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
@@ -273,33 +272,25 @@ EXTERN_C_START
 // Error handling functions.
 //------------------------------------------------------------------------------
 
-// TODO: How to set it once upfront?
-// TODO: How to raise an error from the callbacks?
+// Gets the last error message for the current thread.
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_get_last_error_message(
+    node_embedding_get_strings_callback get_message, void* get_message_data);
 
-// Sets the global error handing for the Node.js embedding API.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_error(
-    node_embedding_handle_error_callback error_handler,
-    void* error_handler_data,
-    node_embedding_release_data_callback release_error_handler_data);
+// Sets the last error message for the current thread.
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_set_last_error_message(int32_t message_line_count,
+                                      const char* message[]);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
 //------------------------------------------------------------------------------
 
-// TODO: How to set it once upfront?
-
-// Sets the API version for the Node.js embedding API and the Node-API.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_api_version(
-    int32_t embedding_api_version, int32_t node_api_version);
-
-// TODO: How to pass the API versions and the error handler?
-
 // Runs Node.js main function as if it is invoked from Node.js CLI.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
     const char* argv[],
-    node_embedding_configure_platform_callback configure_platform,
-    void* configure_platform_data,
+    const node_embedding_platform_info* platform_info,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data);
 
@@ -307,26 +298,20 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     const char* argv[],
-    node_embedding_configure_platform_callback configure_platform,
-    void* configure_platform_data,
+    const node_embedding_platform_info* platform_info,
     node_embedding_platform* result);
 
 // Deletes the Node.js platform instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 
-// Sets the flags for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
-    node_embedding_platform_config platform_config,
-    node_embedding_platform_flags flags);
-
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_get_platform_parsed_args(
     node_embedding_platform platform,
-    node_embedding_get_args_callback get_args,
+    node_embedding_get_strings_callback get_args,
     void* get_args_data,
-    node_embedding_get_args_callback get_runtime_args,
+    node_embedding_get_strings_callback get_runtime_args,
     void* get_runtime_args_data);
 
 //------------------------------------------------------------------------------
@@ -545,6 +530,7 @@ class [[nodiscard]] NodeExpected {
   }
 
   bool HasValue() const { return status_ == NodeStatus::kOk; }
+  bool HasError() const { return status_ != NodeStatus::kOk; }
 
   T& Value() & { return value_; }
   const T& Value() const& { return value_; }
@@ -552,6 +538,17 @@ class [[nodiscard]] NodeExpected {
   const T&& Value() const&& { return std::move(value_); }
 
   NodeStatus Status() const { return status_; }
+
+  int32_t ExitCode() const {
+    if (status_ == NodeStatus::kOk) {
+      return 0;
+    } else if ((static_cast<int32_t>(status_) &
+                static_cast<int32_t>(NodeStatus::kErrorExitCode)) != 0) {
+      return static_cast<int32_t>(status_) &
+             ~static_cast<int32_t>(NodeStatus::kErrorExitCode);
+    }
+    return 1;
+  }
 
  private:
   NodeStatus status_{NodeStatus::kOk};
@@ -575,6 +572,18 @@ class [[nodiscard]] NodeExpected<void> {
   NodeExpected& operator=(NodeExpected&& other) = default;
 
   bool HasValue() const { return status_ == NodeStatus::kOk; }
+  bool HasError() const { return status_ != NodeStatus::kOk; }
+
+  int32_t ExitCode() const {
+    if (status_ == NodeStatus::kOk) {
+      return 0;
+    } else if ((static_cast<int32_t>(status_) &
+                static_cast<int32_t>(NodeStatus::kErrorExitCode)) != 0) {
+      return static_cast<int32_t>(status_) &
+             ~static_cast<int32_t>(NodeStatus::kErrorExitCode);
+    }
+    return 1;
+  }
 
   NodeStatus Status() const { return status_; }
 
@@ -618,6 +627,8 @@ class NodePlatformConfig {
 class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
+  NodeArgs(int32_t argc, char* argv[])
+      : argc_(argc), argv_(const_cast<const char**>(argv)) {}
 
   int32_t Argc() const { return argc_; }
   const char** Argv() const { return argv_; }
@@ -635,6 +646,8 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
   using TCallback = TResult (*)(void*, TArgs...);
 
  public:
+  NodeFunctorRef(std::nullptr_t) {}
+
   NodeFunctorRef(TCallback callback, void* callback_data)
       : callback_(callback), callback_data_(callback_data) {}
 
