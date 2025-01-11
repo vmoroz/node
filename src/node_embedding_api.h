@@ -64,8 +64,7 @@ typedef struct node_embedding_node_api_scope_s* node_embedding_node_api_scope;
 typedef struct {
   int32_t embedding_api_version;
   int32_t node_api_version;
-  node_embedding_platform_flags flags;
-} node_embedding_platform_info;
+} node_embedding_version_info;
 
 #ifdef __cplusplus
 namespace node::embedding {
@@ -205,7 +204,11 @@ using node_embedding_runtime_flags = node::embedding::NodeRuntimeFlags;
 // Callbacks
 //==============================================================================
 
-typedef void(NAPI_CDECL* node_embedding_release_data_callback)(void* data);
+typedef node_embedding_status(NAPI_CDECL* node_embedding_release_data_callback)(
+    void* data);
+
+typedef node_embedding_status(NAPI_CDECL* node_embedding_get_strings_callback)(
+    void* cb_data, int32_t strings_size, const char* strings[]);
 
 typedef node_embedding_status(
     NAPI_CDECL* node_embedding_configure_platform_callback)(
@@ -217,49 +220,69 @@ typedef node_embedding_status(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 
-typedef void(NAPI_CDECL* node_embedding_get_strings_callback)(
-    void* cb_data, int32_t string_count, const char* strings[]);
+typedef node_embedding_status(NAPI_CDECL* node_embedding_handle_error_callback)(
+    void* cb_data,
+    int32_t messages_size,
+    const char* messages[],
+    node_embedding_status status);
 
-typedef void(NAPI_CDECL* node_embedding_preload_callback)(
+typedef node_embedding_status(
+    NAPI_CDECL* node_embedding_create_platform_wrapper_callback)(
+    void* cb_data,
+    node_embedding_platform platform,
+    void** wrapper,
+    node_embedding_release_data_callback* release_wrapper);
+
+typedef node_embedding_status(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     napi_value process,
     napi_value require);
 
-typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
+typedef node_embedding_status(
+    NAPI_CDECL* node_embedding_start_execution_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     napi_value process,
     napi_value require,
-    napi_value run_cjs);
+    napi_value run_cjs,
+    napi_value* result);
 
-typedef void(NAPI_CDECL* node_embedding_handle_start_result_callback)(
+typedef node_embedding_status(
+    NAPI_CDECL* node_embedding_handle_execution_result_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
-    napi_value value);
+    napi_value execution_result);
 
-typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
+typedef node_embedding_status(
+    NAPI_CDECL* node_embedding_initialize_module_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     const char* module_name,
-    napi_value exports);
+    napi_value exports,
+    napi_value* result);
 
-typedef napi_value(NAPI_CDECL* node_embedding_create_wrapper_callback)(
-    void* cb_data, node_embedding_runtime runtime, void** result);
+typedef node_embedding_status(
+    NAPI_CDECL* node_embedding_create_runtime_wrapper_callback)(
+    void* cb_data,
+    node_embedding_runtime runtime,
+    void** wrapper,
+    node_embedding_release_data_callback* release_wrapper);
 
-typedef void(NAPI_CDECL* node_embedding_run_task_callback)(void* cb_data);
+typedef node_embedding_status(NAPI_CDECL* node_embedding_run_task_callback)(
+    void* cb_data);
 
-typedef void(NAPI_CDECL* node_embedding_post_task_callback)(
+typedef node_embedding_status(NAPI_CDECL* node_embedding_post_task_callback)(
     void* cb_data,
     node_embedding_run_task_callback run_task,
     void* task_data,
     node_embedding_release_data_callback release_task_data);
 
-typedef void(NAPI_CDECL* node_embedding_run_node_api_callback)(
+typedef node_embedding_status(NAPI_CDECL* node_embedding_run_node_api_callback)(
     void* cb_data, node_embedding_runtime runtime, napi_env env);
 
 //==============================================================================
@@ -279,8 +302,8 @@ node_embedding_get_last_error_message(
 
 // Sets the last error message for the current thread.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_last_error_message(int32_t message_line_count,
-                                      const char* message[]);
+node_embedding_set_last_error_message(int32_t messages_size,
+                                      const char* messages[]);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
@@ -290,7 +313,9 @@ node_embedding_set_last_error_message(int32_t message_line_count,
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
     const char* argv[],
-    const node_embedding_platform_info* platform_info,
+    const node_embedding_version_info* version_info,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data);
 
@@ -298,12 +323,36 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
     int32_t argc,
     const char* argv[],
-    const node_embedding_platform_info* platform_info,
+    const node_embedding_version_info* version_info,
+    node_embedding_configure_platform_callback configure_platform,
+    void* configure_platform_data,
     node_embedding_platform* result);
 
 // Deletes the Node.js platform instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
+
+// Sets the flags for the Node.js platform initialization.
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
+    node_embedding_platform_config platform_config,
+    node_embedding_platform_flags flags);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_platform_error(
+    node_embedding_platform_config platform_config,
+    node_embedding_handle_error_callback error_handler,
+    void* error_handler_data,
+    node_embedding_release_data_callback release_error_handler_data);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_on_create_platform_wrapper(
+    node_embedding_platform_config platform_config,
+    node_embedding_create_platform_wrapper_callback create_wrapper,
+    void* create_wrapper_data,
+    node_embedding_release_data_callback release_create_wrapper_data);
+
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_get_platform_wrapper(node_embedding_platform platform,
+                                    void** result);
 
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
@@ -365,9 +414,9 @@ node_embedding_on_start_runtime_execution(
     node_embedding_release_data_callback release_start_execution_data);
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_handle_runtime_start_result(
+node_embedding_on_handle_runtime_execution_result(
     node_embedding_runtime_config runtime_config,
-    node_embedding_handle_start_result_callback handle_result,
+    node_embedding_handle_execution_result_callback handle_result,
     void* handle_result_data,
     node_embedding_release_data_callback release_handle_result_data);
 
@@ -382,12 +431,10 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version);
 
-// TODO: Provide a better pattern for creating wrappers.
-
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_runtime_wrapper(
     node_embedding_runtime_config runtime_config,
-    node_embedding_create_wrapper_callback create_wrapper,
+    node_embedding_create_runtime_wrapper_callback create_wrapper,
     void* create_wrapper_data,
     node_embedding_release_data_callback release_create_wrapper_data);
 
@@ -742,6 +789,7 @@ class NodePlatform {
           configure_runtime) {
     return node_embedding_run_main(args.Argc(),
                                    args.Argv(),
+                                   nullptr,
                                    configure_platform.Callback(),
                                    configure_platform.Data(),
                                    configure_runtime.Callback(),
@@ -756,6 +804,7 @@ class NodePlatform {
     node_embedding_platform platform;
     return node_embedding_create_platform(args.Argc(),
                                           args.Argv(),
+                                          nullptr,
                                           configure_platform.Callback(),
                                           configure_platform.Data(),
                                           &platform) &&
@@ -777,8 +826,8 @@ class NodePlatform {
   }
 
   NodeExpected<void> GetParsedArgs(
-      NodeFunctorRef<node_embedding_get_args_callback> get_args,
-      NodeFunctorRef<node_embedding_get_args_callback> get_runtime_args) {
+      NodeFunctorRef<node_embedding_get_strings_callback> get_args,
+      NodeFunctorRef<node_embedding_get_strings_callback> get_runtime_args) {
     return node_embedding_get_platform_parsed_args(platform_.Get(),
                                                    get_args.Callback(),
                                                    get_args.Data(),
@@ -842,9 +891,9 @@ class NodeRuntimeConfig {
   }
 
   NodeExpected<void> OnHandleStartResult(
-      NodeFunctor<node_embedding_handle_start_result_callback>
+      NodeFunctor<node_embedding_handle_execution_result_callback>
           handle_start_result) {
-    return node_embedding_on_handle_runtime_start_result(
+    return node_embedding_on_handle_runtime_execution_result(
                runtime_config_.Get(),
                handle_start_result.Callback(),
                handle_start_result.Data(),
