@@ -297,9 +297,17 @@ class EmbeddedErrorHandling {
 
   static std::string FormatString(const char* format, ...);
 
+  static node_embedding_status GetLastErrorMessage(
+      node_embedding_get_strings_callback get_message, void* get_message_data);
+
+  static node_embedding_status SetLastErrorMessage(int32_t messages_size,
+                                                   const char* messages[]);
+
  private:
   static ErrorHandlerCallback* ErrorHandler();
   static std::mutex& ErrorHandlerMutex();
+  static const std::vector<std::string>* ErrorMessage(
+      std::optional<std::unique_ptr<std::vector<std::string>>> messages);
 
   static node_embedding_status DefaultErrorHandler(
       void* handler_data,
@@ -659,6 +667,25 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   return result;
 }
 
+node_embedding_status EmbeddedErrorHandling::GetLastErrorMessage(
+    node_embedding_get_strings_callback get_message, void* get_message_data) {
+  const std::vector<std::string>* messages_ptr = ErrorMessage(std::nullopt);
+  if (messages_ptr != nullptr) {
+    CStringArray message_arr(*messages_ptr);
+    return get_message(
+        get_message_data, message_arr.size(), message_arr.c_strs());
+  }
+  return get_message(get_message_data, 0, nullptr);
+}
+
+node_embedding_status EmbeddedErrorHandling::SetLastErrorMessage(
+    int32_t messages_size, const char* messages[]) {
+  auto message_strings = std::make_unique<std::vector<std::string>>(
+      messages, messages + messages_size);
+  ErrorMessage(std::move(message_strings));
+  return node_embedding_status::kOk;
+}
+
 EmbeddedErrorHandling::ErrorHandlerCallback*
 EmbeddedErrorHandling::ErrorHandler() {
   static ErrorHandlerCallback error_handler = {
@@ -669,6 +696,25 @@ EmbeddedErrorHandling::ErrorHandler() {
 std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
   static std::mutex mutex;
   return mutex;
+}
+
+const std::vector<std::string>* EmbeddedErrorHandling::ErrorMessage(
+    std::optional<std::unique_ptr<std::vector<std::string>>> messages) {
+  static thread_local const std::vector<std::string>* messages_ptr = nullptr;
+  static std::unordered_map<std::thread::id,
+                            std::unique_ptr<std::vector<std::string>>>
+      thread_messages;
+
+  if (messages.has_value()) {
+    std::scoped_lock lock(ErrorHandlerMutex());
+    messages_ptr = messages->get();
+    if (messages != nullptr) {
+      thread_messages[std::this_thread::get_id()] = std::move(*messages);
+    } else {
+      thread_messages.erase(std::this_thread::get_id());
+    }
+  }
+  return messages_ptr;
 }
 
 //-----------------------------------------------------------------------------
@@ -1636,6 +1682,18 @@ void EmbeddedRuntime::RegisterModules() {
 }
 
 }  // namespace node
+
+node_embedding_status NAPI_CDECL node_embedding_get_last_error_message(
+    node_embedding_get_strings_callback get_message, void* get_message_data) {
+  return node::EmbeddedErrorHandling::GetLastErrorMessage(get_message,
+                                                          get_message_data);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_set_last_error_message(
+    int32_t messages_size, const char* messages[]) {
+  return node::EmbeddedErrorHandling::SetLastErrorMessage(messages_size,
+                                                          messages);
+}
 
 node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t argc,
