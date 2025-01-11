@@ -311,8 +311,8 @@ class EmbeddedErrorHandling {
 
   static node_embedding_status DefaultErrorHandler(
       void* handler_data,
+      int32_t messages_size,
       const char* messages[],
-      size_t messages_size,
       node_embedding_status status);
 };
 
@@ -628,7 +628,8 @@ node_embedding_status EmbeddedErrorHandling::HandleError(
     const std::vector<std::string>& messages, node_embedding_status status) {
   CStringArray message_arr(messages);
   std::scoped_lock lock(ErrorHandlerMutex());
-  return (*ErrorHandler())(message_arr.size(), message_arr.c_strs(), status);
+  return (*ErrorHandler())(
+      static_cast<int32_t>(message_arr.size()), message_arr.c_strs(), status);
 }
 
 node_embedding_status EmbeddedErrorHandling::HandleError(
@@ -642,8 +643,8 @@ node_embedding_status EmbeddedErrorHandling::HandleError(
 
 node_embedding_status EmbeddedErrorHandling::DefaultErrorHandler(
     void* /*handler_data*/,
+    int32_t messages_size,
     const char* messages[],
-    size_t messages_size,
     node_embedding_status status) {
   // TODO: see how the rest of Node.js reports to console.
   FILE* stream = status != node_embedding_status::kOk ? stderr : stdout;
@@ -672,8 +673,9 @@ node_embedding_status EmbeddedErrorHandling::GetLastErrorMessage(
   const std::vector<std::string>* messages_ptr = ErrorMessage(std::nullopt);
   if (messages_ptr != nullptr) {
     CStringArray message_arr(*messages_ptr);
-    return get_message(
-        get_message_data, message_arr.size(), message_arr.c_strs());
+    return get_message(get_message_data,
+                       static_cast<int32_t>(message_arr.size()),
+                       message_arr.c_strs());
   }
   return get_message(get_message_data, 0, nullptr);
 }
