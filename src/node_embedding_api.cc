@@ -88,6 +88,9 @@ namespace node {
 // Declare functions implemented in embed_helpers.cc
 v8::Maybe<ExitCode> SpinEventLoopWithoutCleanup(Environment* env,
                                                 uv_run_mode run_mode);
+}  // namespace node
+
+namespace node::embedding {
 
 //------------------------------------------------------------------------------
 // Convenience functor struct adapter for C++ function object or lambdas.
@@ -278,42 +281,34 @@ class SmallTrivialStack {
 
 class EmbeddedErrorHandling {
  public:
-  using ErrorHandlerCallback =
-      UniqueFunction<node_embedding_handle_error_callback>;
+  static NodeStatus HandleError(NodeStatus status, std::string_view message);
 
-  static node_embedding_status SetErrorHandler(
-      ErrorHandlerCallback error_handler);
+  static NodeStatus HandleError(NodeStatus status,
+                                std::vector<std::string>&& messages);
 
-  static node_embedding_status HandleError(std::string_view message,
-                                           node_embedding_status status);
-
-  static node_embedding_status HandleError(
-      const std::vector<std::string>& messages, node_embedding_status status);
-
-  static node_embedding_status HandleError(const char* message,
-                                           const char* filename,
-                                           int32_t line,
-                                           node_embedding_status status);
+  static NodeStatus HandleError(NodeStatus status,
+                                const char* message,
+                                const char* filename,
+                                int32_t line);
 
   static std::string FormatString(const char* format, ...);
 
-  static node_embedding_status GetLastErrorMessage(
-      node_embedding_get_strings_callback get_message, void* get_message_data);
+  static const std::vector<std::string>* GetLastErrorMessage();
 
-  static node_embedding_status SetLastErrorMessage(int32_t messages_size,
-                                                   const char* messages[]);
+  static void SetLastErrorMessage(std::vector<std::string>&& message);
+
+  static void ClearLastErrorMessage();
 
  private:
-  static ErrorHandlerCallback* ErrorHandler();
-  static std::mutex& ErrorHandlerMutex();
-  static const std::vector<std::string>* ErrorMessage(
-      std::optional<std::unique_ptr<std::vector<std::string>>> messages);
+  enum class ErrorMessageAction {
+    kGet,
+    kSet,
+    kClear,
+  };
 
-  static node_embedding_status DefaultErrorHandler(
-      void* handler_data,
-      int32_t messages_size,
-      const char* messages[],
-      node_embedding_status status);
+ private:
+  static const std::vector<std::string>* DoErrorMessage(
+      ErrorMessageAction action, std::vector<std::string>* message);
 };
 
 class EmbeddedPlatform {
@@ -325,18 +320,18 @@ class EmbeddedPlatform {
   EmbeddedPlatform& operator=(const EmbeddedPlatform&) = delete;
 
   static node_embedding_status RunMain(
+      int32_t embedding_api_version,
       int32_t argc,
       const char* argv[],
-      const node_embedding_version_info* version_info,
       node_embedding_configure_platform_callback configure_platform,
       void* configure_platform_data,
       node_embedding_configure_runtime_callback configure_runtime,
       void* configure_runtime_data);
 
   static node_embedding_status Create(
+      int32_t embedding_api_version,
       int32_t argc,
       const char* argv[],
-      const node_embedding_version_info* version_info,
       node_embedding_configure_platform_callback configure_platform,
       void* configure_platform_data,
       node_embedding_platform* result);
@@ -360,23 +355,14 @@ class EmbeddedPlatform {
 
   node::MultiIsolatePlatform* get_v8_platform() { return v8_platform_.get(); }
 
-  static int32_t embedding_api_version() {
-    return embedding_api_version_ == 0 ? NODE_EMBEDDING_VERSION
-                                       : embedding_api_version_;
-  }
-
-  static int32_t node_api_version() {
-    return node_api_version_ == 0 ? NAPI_VERSION : node_api_version_;
-  }
+  int32_t embedding_api_version() { return embedding_api_version_; }
 
  private:
-  static node_embedding_status EmbeddedPlatform::SetApiVersion(
-      int32_t embedding_api_version, int32_t node_api_version);
-
   static node::ProcessInitializationFlags::Flags GetProcessInitializationFlags(
       node_embedding_platform_flags flags);
 
  private:
+  int32_t embedding_api_version_{0};
   bool is_initialized_{false};
   bool v8_is_initialized_{false};
   bool v8_is_uninitialized_{false};
@@ -388,13 +374,7 @@ class EmbeddedPlatform {
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
-
-  static int32_t embedding_api_version_;
-  static int32_t node_api_version_;
 };
-
-int32_t EmbeddedPlatform::embedding_api_version_{};
-int32_t EmbeddedPlatform::node_api_version_{};
 
 class EmbeddedRuntime {
  public:
@@ -610,52 +590,36 @@ class EmbeddedRuntime {
 // EmbeddedErrorHandling implementation.
 //-----------------------------------------------------------------------------
 
-node_embedding_status EmbeddedErrorHandling::SetErrorHandler(
-    ErrorHandlerCallback error_handler) {
-  std::scoped_lock lock(ErrorHandlerMutex());
-  *ErrorHandler() = std::move(error_handler);
-  return node_embedding_status::kOk;
-}
-
-node_embedding_status EmbeddedErrorHandling::HandleError(
-    std::string_view message, node_embedding_status status) {
-  const char* message_c_str = message.data();
-  std::scoped_lock lock(ErrorHandlerMutex());
-  return (*ErrorHandler())(1, &message_c_str, status);
-}
-
-node_embedding_status EmbeddedErrorHandling::HandleError(
-    const std::vector<std::string>& messages, node_embedding_status status) {
-  CStringArray message_arr(messages);
-  std::scoped_lock lock(ErrorHandlerMutex());
-  return (*ErrorHandler())(
-      static_cast<int32_t>(message_arr.size()), message_arr.c_strs(), status);
-}
-
-node_embedding_status EmbeddedErrorHandling::HandleError(
-    const char* message,
-    const char* filename,
-    int32_t line,
-    node_embedding_status status) {
-  return HandleError(
-      FormatString("Error: %s at %s:%d", message, filename, line), status);
-}
-
-node_embedding_status EmbeddedErrorHandling::DefaultErrorHandler(
-    void* /*handler_data*/,
-    int32_t messages_size,
-    const char* messages[],
-    node_embedding_status status) {
-  // TODO: see how the rest of Node.js reports to console.
-  FILE* stream = status != node_embedding_status::kOk ? stderr : stdout;
-  for (size_t i = 0; i < messages_size; ++i) {
-    fprintf(stream, "%s\n", messages[i]);
+/*static*/ NodeStatus EmbeddedErrorHandling::HandleError(
+    NodeStatus status, std::string_view message) {
+  if (status == NodeStatus::kOk) {
+    ClearLastErrorMessage();
+  } else {
+    SetLastErrorMessage({std::string(message)});
   }
-  fflush(stream);
   return status;
 }
 
-std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
+/*static*/ NodeStatus EmbeddedErrorHandling::HandleError(
+    NodeStatus status, std::vector<std::string>&& messages) {
+  if (status == NodeStatus::kOk) {
+    ClearLastErrorMessage();
+  } else {
+    SetLastErrorMessage(&messages);
+  }
+  return status;
+}
+
+/*static*/ NodeStatus EmbeddedErrorHandling::HandleError(NodeStatus status,
+                                                         const char* message,
+                                                         const char* filename,
+                                                         int32_t line) {
+  return HandleError(
+      status, FormatString("Error: %s at %s:%d", message, filename, line));
+}
+
+/*static*/ std::string EmbeddedErrorHandling::FormatString(const char* format,
+                                                           ...) {
   va_list args1;
   va_start(args1, format);
   va_list args2;  // Required for some compilers like GCC since we go over the
@@ -668,89 +632,85 @@ std::string EmbeddedErrorHandling::FormatString(const char* format, ...) {
   return result;
 }
 
-node_embedding_status EmbeddedErrorHandling::GetLastErrorMessage(
-    node_embedding_get_strings_callback get_message, void* get_message_data) {
-  const std::vector<std::string>* messages_ptr = ErrorMessage(std::nullopt);
-  if (messages_ptr != nullptr) {
-    CStringArray message_arr(*messages_ptr);
-    return get_message(get_message_data,
-                       static_cast<int32_t>(message_arr.size()),
-                       message_arr.c_strs());
-  }
-  return get_message(get_message_data, 0, nullptr);
+/*static*/ const std::vector<std::string>*
+EmbeddedErrorHandling::GetLastErrorMessage() {
+  return DoErrorMessage(ErrorMessageAction::kGet, nullptr);
 }
 
-node_embedding_status EmbeddedErrorHandling::SetLastErrorMessage(
-    int32_t messages_size, const char* messages[]) {
-  auto message_strings = std::make_unique<std::vector<std::string>>(
-      messages, messages + messages_size);
-  ErrorMessage(std::move(message_strings));
-  return node_embedding_status::kOk;
+/*static*/ void EmbeddedErrorHandling::SetLastErrorMessage(
+    std::vector<std::string>&& message) {
+  DoErrorMessage(ErrorMessageAction::kSet, &message);
 }
 
-EmbeddedErrorHandling::ErrorHandlerCallback*
-EmbeddedErrorHandling::ErrorHandler() {
-  static ErrorHandlerCallback error_handler = {
-      nullptr, &DefaultErrorHandler, nullptr};
-  return &error_handler;
+/*static*/ void EmbeddedErrorHandling::ClearLastErrorMessage() {
+  DoErrorMessage(ErrorMessageAction::kClear, nullptr);
 }
 
-std::mutex& EmbeddedErrorHandling::ErrorHandlerMutex() {
-  static std::mutex mutex;
-  return mutex;
-}
-
-const std::vector<std::string>* EmbeddedErrorHandling::ErrorMessage(
-    std::optional<std::unique_ptr<std::vector<std::string>>> messages) {
-  static thread_local const std::vector<std::string>* messages_ptr = nullptr;
+/*static*/ const std::vector<std::string>*
+EmbeddedErrorHandling::DoErrorMessage(
+    EmbeddedErrorHandling::ErrorMessageAction action,
+    std::vector<std::string>* message) {
+  static thread_local const std::vector<std::string>* thread_message_ptr =
+      nullptr;
   static std::unordered_map<std::thread::id,
                             std::unique_ptr<std::vector<std::string>>>
-      thread_messages;
+      thread_to_message;
+  static std::mutex mutex;
 
-  if (messages.has_value()) {
-    std::scoped_lock lock(ErrorHandlerMutex());
-    messages_ptr = messages->get();
-    if (messages != nullptr) {
-      thread_messages[std::this_thread::get_id()] = std::move(*messages);
-    } else {
-      thread_messages.erase(std::this_thread::get_id());
+  switch (action) {
+    case ErrorMessageAction::kGet:
+      break;  // Just return the message.
+    case ErrorMessageAction::kSet: {
+      auto message_ptr =
+          std::make_unique<std::vector<std::string>>(std::move(*message));
+      thread_message_ptr = message_ptr.get();
+      std::scoped_lock lock(mutex);
+      thread_to_message[std::this_thread::get_id()] = std::move(message_ptr);
+      break;
     }
+    case ErrorMessageAction::kClear:
+      if (thread_message_ptr != nullptr) {
+        std::scoped_lock lock(mutex);
+        thread_to_message.erase(std::this_thread::get_id());
+        thread_message_ptr = nullptr;
+      }
+      break;
   }
-  return messages_ptr;
+  return thread_message_ptr;
 }
 
 //-----------------------------------------------------------------------------
 // EmbeddedPlatform implementation.
 //-----------------------------------------------------------------------------
 
-/*static*/ node_embedding_status EmbeddedPlatform::SetApiVersion(
-    int32_t embedding_api_version, int32_t node_api_version) {
-  ASSERT_ARG(embedding_api_version,
-             embedding_api_version > 0 &&
-                 embedding_api_version <= NODE_EMBEDDING_VERSION);
-  ASSERT_ARG(node_api_version,
-             node_api_version >= NODE_API_DEFAULT_MODULE_API_VERSION &&
-                 (node_api_version <= NAPI_VERSION ||
-                  node_api_version == NAPI_VERSION_EXPERIMENTAL));
-
-  embedding_api_version_ = embedding_api_version;
-  node_api_version_ = node_api_version;
-
-  return node_embedding_status::kOk;
-}
+///*static*/ node_embedding_status EmbeddedPlatform::SetApiVersion(
+//    int32_t embedding_api_version, int32_t node_api_version) {
+//  ASSERT_ARG(embedding_api_version,
+//             embedding_api_version > 0 &&
+//                 embedding_api_version <= NODE_EMBEDDING_VERSION);
+//  ASSERT_ARG(node_api_version,
+//             node_api_version >= NODE_API_DEFAULT_MODULE_API_VERSION &&
+//                 (node_api_version <= NAPI_VERSION ||
+//                  node_api_version == NAPI_VERSION_EXPERIMENTAL));
+//
+//  embedding_api_version_ = embedding_api_version;
+//  node_api_version_ = node_api_version;
+//
+//  return node_embedding_status::kOk;
+//}
 
 node_embedding_status EmbeddedPlatform::RunMain(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data) {
   node_embedding_platform platform{};
-  CHECK_STATUS(EmbeddedPlatform::Create(argc,
+  CHECK_STATUS(EmbeddedPlatform::Create(embedding_api_version,
+                                        argc,
                                         argv,
-                                        version_info,
                                         configure_platform,
                                         configure_platform_data,
                                         &platform));
@@ -762,24 +722,20 @@ node_embedding_status EmbeddedPlatform::RunMain(
 }
 
 /*static*/ node_embedding_status EmbeddedPlatform::Create(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_platform* result) {
   CHECK_ARG_NOT_NULL(result);
-
-  if (version_info != nullptr) {
-    CHECK_STATUS(SetApiVersion(version_info->embedding_api_version,
-                               version_info->node_api_version));
-  }
 
   // Hack around with the argv pointer. Used for process.title = "blah".
   argv =
       const_cast<const char**>(uv_setup_args(argc, const_cast<char**>(argv)));
 
   auto platform_ptr = std::make_unique<EmbeddedPlatform>(argc, argv);
+  platform_ptr->SetApiVersion(embedding_api_version);
   bool early_return = false;
   CHECK_STATUS(platform_ptr->Initialize(
       configure_platform, configure_platform_data, &early_return));
@@ -1683,7 +1639,7 @@ void EmbeddedRuntime::RegisterModules() {
   }
 }
 
-}  // namespace node
+}  // namespace node::embedding
 
 node_embedding_status NAPI_CDECL node_embedding_get_last_error_message(
     node_embedding_get_strings_callback get_message, void* get_message_data) {
@@ -1698,16 +1654,16 @@ node_embedding_status NAPI_CDECL node_embedding_set_last_error_message(
 }
 
 node_embedding_status NAPI_CDECL node_embedding_run_main(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data) {
-  return node::EmbeddedPlatform::RunMain(argc,
+  return node::EmbeddedPlatform::RunMain(embedding_api_version,
+                                         argc,
                                          argv,
-                                         version_info,
                                          configure_platform,
                                          configure_platform_data,
                                          configure_runtime,
@@ -1715,15 +1671,15 @@ node_embedding_status NAPI_CDECL node_embedding_run_main(
 }
 
 node_embedding_status NAPI_CDECL node_embedding_create_platform(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_platform* result) {
-  return node::EmbeddedPlatform::Create(argc,
+  return node::EmbeddedPlatform::Create(embedding_api_version,
+                                        argc,
                                         argv,
-                                        version_info,
                                         configure_platform,
                                         configure_platform_data,
                                         result);

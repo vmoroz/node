@@ -61,11 +61,6 @@ typedef struct node_embedding_platform_config_s* node_embedding_platform_config;
 typedef struct node_embedding_runtime_config_s* node_embedding_runtime_config;
 typedef struct node_embedding_node_api_scope_s* node_embedding_node_api_scope;
 
-typedef struct {
-  int32_t embedding_api_version;
-  int32_t node_api_version;
-} node_embedding_version_info;
-
 #ifdef __cplusplus
 namespace node::embedding {
 #endif
@@ -220,11 +215,8 @@ typedef node_embedding_status(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_handle_error_callback)(
-    void* cb_data,
-    int32_t messages_size,
-    const char* messages[],
-    node_embedding_status status);
+typedef node_embedding_status(NAPI_CDECL* node_embedding_early_return_callback)(
+    void* cb_data, int32_t messages_size, const char* messages[]);
 
 typedef node_embedding_status(
     NAPI_CDECL* node_embedding_create_platform_wrapper_callback)(
@@ -302,8 +294,8 @@ node_embedding_get_last_error_message(
 
 // Sets the last error message for the current thread.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_last_error_message(int32_t messages_size,
-                                      const char* messages[]);
+node_embedding_set_last_error_message(int32_t message_stings_size,
+                                      const char* message_stings[]);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
@@ -311,9 +303,9 @@ node_embedding_set_last_error_message(int32_t messages_size,
 
 // Runs Node.js main function as if it is invoked from Node.js CLI.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_configure_runtime_callback configure_runtime,
@@ -321,9 +313,9 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
 
 // Creates and configures a new Node.js platform instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
+    int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
-    const node_embedding_version_info* version_info,
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
     node_embedding_platform* result);
@@ -337,11 +329,11 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
 
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_platform_error(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_platform_config platform_config,
-    node_embedding_handle_error_callback error_handler,
-    void* error_handler_data,
-    node_embedding_release_data_callback release_error_handler_data);
+    node_embedding_early_return_callback early_return_handler,
+    void* early_return_handler_data,
+    node_embedding_release_data_callback release_early_return_handler_data);
 
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_platform_wrapper(
@@ -383,6 +375,11 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
 // Deletes the Node.js runtime instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_runtime(node_embedding_runtime runtime);
+
+// Sets the Node-API version used for Node.js runtime.
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_set_runtime_node_api_version(
+    node_embedding_runtime_config runtime_config, int32_t node_api_version);
 
 // Sets the flags for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
