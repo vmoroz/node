@@ -294,8 +294,8 @@ node_embedding_get_last_error_message(
 
 // Sets the last error message for the current thread.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_last_error_message(int32_t message_stings_size,
-                                      const char* message_stings[]);
+node_embedding_set_last_error_message(int32_t message_strings_size,
+                                      const char* message_strings[]);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
@@ -784,9 +784,9 @@ class NodePlatform {
           configure_platform,
       NodeFunctorRef<node_embedding_configure_runtime_callback>
           configure_runtime) {
-    return node_embedding_run_main(args.Argc(),
+    return node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                   args.Argc(),
                                    args.Argv(),
-                                   nullptr,
                                    configure_platform.Callback(),
                                    configure_platform.Data(),
                                    configure_runtime.Callback(),
@@ -799,9 +799,9 @@ class NodePlatform {
       NodeFunctorRef<node_embedding_configure_platform_callback>
           configure_platform) {
     node_embedding_platform platform;
-    return node_embedding_create_platform(args.Argc(),
+    return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
+                                          args.Argc(),
                                           args.Argv(),
-                                          nullptr,
                                           configure_platform.Callback(),
                                           configure_platform.Data(),
                                           &platform) &&
