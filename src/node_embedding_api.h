@@ -297,11 +297,16 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_set_last_error_message(int32_t message_strings_size,
                                       const char* message_strings[]);
 
+// Clears the last error message for the current thread.
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_clear_last_error_message();
+
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
 //------------------------------------------------------------------------------
 
-// Runs Node.js main function as if it is invoked from Node.js CLI.
+// Runs Node.js main function.
+// By default it is the same as running Node.js from CLI.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     int32_t embedding_api_version,
     int32_t argc,
@@ -325,16 +330,24 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 
 // Sets the flags for the Node.js platform initialization.
+// It must be invoked from the configure_platform callback.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
 
+// Sets the callback for the Node.js early return case.
+// The early return happens when the Node.js platform arguments are --help,
+// --version, or --v8-options.
+// It must be invoked from the configure_platform callback.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_platform_config platform_config,
     node_embedding_early_return_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data);
 
+// Sets the callback that creates the platform wrapper class when the
+// node_embedding_platform is created.
+// It must be invoked from the configure_platform callback.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_platform_wrapper(
     node_embedding_platform_config platform_config,
@@ -342,6 +355,7 @@ node_embedding_on_create_platform_wrapper(
     void* create_wrapper_data,
     node_embedding_release_data_callback release_create_wrapper_data);
 
+// Gets the platform wrapper.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_get_platform_wrapper(node_embedding_platform platform,
                                     void** result);
