@@ -330,7 +330,6 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_delete_platform(node_embedding_platform platform);
 
 // Sets the flags for the Node.js platform initialization.
-// It must be invoked from the configure_platform callback.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
@@ -338,16 +337,13 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
 // Sets the callback for the Node.js early return case.
 // The early return happens when the Node.js platform arguments are --help,
 // --version, or --v8-options.
-// It must be invoked from the configure_platform callback.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_platform_config platform_config,
     node_embedding_early_return_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data);
 
-// Sets the callback that creates the platform wrapper class when the
-// node_embedding_platform is created.
-// It must be invoked from the configure_platform callback.
+// Creates the platform wrapper when the node_embedding_platform is initialized.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_platform_wrapper(
     node_embedding_platform_config platform_config,
@@ -410,6 +406,8 @@ node_embedding_set_runtime_args(node_embedding_runtime_config runtime_config,
                                 const char* runtime_argv[]);
 
 // Sets the preload callback for the Node.js runtime initialization.
+// It is invoked before any other code execution for the runtime Node-API
+// environment and for its worker thread environments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_preload_runtime(
     node_embedding_runtime_config runtime_config,
     node_embedding_preload_callback preload,
@@ -424,6 +422,7 @@ node_embedding_on_start_runtime_execution(
     void* start_execution_data,
     node_embedding_release_data_callback release_start_execution_data);
 
+// Handles the execution result for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_handle_runtime_execution_result(
     node_embedding_runtime_config runtime_config,
@@ -442,6 +441,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version);
 
+// Creates the runtime wrapper when the node_embedding_runtime is initialized.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_on_create_runtime_wrapper(
     node_embedding_runtime_config runtime_config,
@@ -449,6 +449,7 @@ node_embedding_on_create_runtime_wrapper(
     void* create_wrapper_data,
     node_embedding_release_data_callback release_create_wrapper_data);
 
+// Gets the runtime wrapper associated with the runtime.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_get_runtime_wrapper(
     node_embedding_runtime runtime, void** result);
 

@@ -34,7 +34,7 @@
 #define EMBEDDED_RUNTIME(runtime)                                              \
   CAST_NOT_NULL_TO(runtime, node::embedding::EmbeddedRuntime)
 
-#define ASSERT_ARG_NOT_NULL(arg)                                                \
+#define ASSERT_ARG_NOT_NULL(arg)                                               \
   do {                                                                         \
     if ((arg) == nullptr) {                                                    \
       return node::embedding::EmbeddedErrorHandling::HandleError(              \
@@ -449,6 +449,8 @@ class EmbeddedRuntime {
 
   node_embedding_status DeleteMe();
 
+  node_embedding_status SetNodeApiVersion(int32_t node_api_version);
+
   node_embedding_status SetFlags(node_embedding_runtime_flags flags);
 
   node_embedding_status SetArgs(int32_t argc,
@@ -466,7 +468,7 @@ class EmbeddedRuntime {
       void* start_execution_data,
       node_embedding_release_data_callback release_start_execution_data);
 
-  node_embedding_status OnHandleStartResult(
+  node_embedding_status OnHandleExecutionResult(
       node_embedding_handle_execution_result_callback handle_result,
       void* handle_result_data,
       node_embedding_release_data_callback release_handle_result_data);
@@ -612,8 +614,8 @@ class EmbeddedRuntime {
   UniqueFunction<node_embedding_handle_execution_result_callback>
       handle_result_{};
   UniqueFunction<node_embedding_create_runtime_wrapper_callback>
-      on_create_wrapper_{};
-  void* wrapper_{};
+      create_wrapper_{};
+  UniqueOwner runtime_wrapper_{};
   napi_env node_api_env_{};
 
   struct {
@@ -745,22 +747,6 @@ EmbeddedErrorHandling::DoErrorMessage(
 //-----------------------------------------------------------------------------
 // EmbeddedPlatform implementation.
 //-----------------------------------------------------------------------------
-
-///*static*/ node_embedding_status EmbeddedPlatform::SetApiVersion(
-//    int32_t embedding_api_version, int32_t node_api_version) {
-//  ASSERT_ARG(embedding_api_version,
-//             embedding_api_version > 0 &&
-//                 embedding_api_version <= NODE_EMBEDDING_VERSION);
-//  ASSERT_ARG(node_api_version,
-//             node_api_version >= NODE_API_DEFAULT_MODULE_API_VERSION &&
-//                 (node_api_version <= NAPI_VERSION ||
-//                  node_api_version == NAPI_VERSION_EXPERIMENTAL));
-//
-//  embedding_api_version_ = embedding_api_version;
-//  node_api_version_ = node_api_version;
-//
-//  return node_embedding_status::kOk;
-//}
 
 node_embedding_status EmbeddedPlatform::RunMain(
     int32_t embedding_api_version,
@@ -898,6 +884,7 @@ node_embedding_status EmbeddedPlatform::Initialize(
     return node_embedding_status::kOk;
   }
 
+  // Create the platform wrapper here to ensure its thread-safe creation.
   if (create_wrapper_) {
     void* wrapper{};
     node_embedding_release_data_callback release_wrapper{};
@@ -1054,6 +1041,18 @@ node_embedding_status EmbeddedRuntime::DeleteMe() {
   return node_embedding_status::kOk;
 }
 
+node_embedding_status EmbeddedRuntime::SetNodeApiVersion(
+    int32_t node_api_version) {
+  ASSERT_ARG(node_api_version,
+             node_api_version >= NODE_API_DEFAULT_MODULE_API_VERSION &&
+                 (node_api_version <= NAPI_VERSION ||
+                  node_api_version == NAPI_VERSION_EXPERIMENTAL));
+
+  node_api_version_ = node_api_version;
+
+  return node_embedding_status::kOk;
+}
+
 node_embedding_status EmbeddedRuntime::SetFlags(
     node_embedding_runtime_flags flags) {
   ASSERT_EXPR(!is_initialized_);
@@ -1161,7 +1160,7 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
   return node_embedding_status::kOk;
 }
 
-node_embedding_status EmbeddedRuntime::OnHandleStartResult(
+node_embedding_status EmbeddedRuntime::OnHandleExecutionResult(
     node_embedding_handle_execution_result_callback handle_result,
     void* handle_result_data,
     node_embedding_release_data_callback release_handle_result_data) {
@@ -1208,7 +1207,7 @@ node_embedding_status EmbeddedRuntime::OnCreateWrapper(
   ASSERT_ARG_NOT_NULL(create_wrapper);
   ASSERT_EXPR(!is_initialized_);
 
-  on_create_wrapper_ =
+  create_wrapper_ =
       UniqueFunction<node_embedding_create_runtime_wrapper_callback>{
           create_wrapper, create_wrapper_data, release_create_wrapper_data};
 
@@ -1219,7 +1218,7 @@ node_embedding_status EmbeddedRuntime::GetWrapper(void** result) {
   ASSERT_ARG_NOT_NULL(result);
   ASSERT_EXPR(is_initialized_);
 
-  *result = wrapper_;
+  *result = runtime_wrapper_.Get();
 
   return node_embedding_status::kOk;
 }
@@ -1259,6 +1258,14 @@ node_embedding_status EmbeddedRuntime::Initialize(
         node_embedding_status::kGenericError, errors);
   }
 
+  if (create_wrapper_) {
+    void* wrapper{};
+    node_embedding_release_data_callback release_wrapper{};
+    CHECK_STATUS(
+        create_wrapper_(node_embedding_runtime(), &wrapper, &release_wrapper));
+    runtime_wrapper_ = UniqueOwner(wrapper, release_wrapper);
+  }
+
   V8ScopeLocker v8_scope_locker(*this);
 
   std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
@@ -1271,9 +1278,10 @@ node_embedding_status EmbeddedRuntime::Initialize(
   v8::MaybeLocal<v8::Value> ret =
       node::LoadEnvironment(node_env, start_execution_cb_, preload_cb_);
 
-  if (ret.IsEmpty())
+  if (ret.IsEmpty()) {
     return EmbeddedErrorHandling::HandleError(
         node_embedding_status::kGenericError, "Failed to load environment");
+  }
 
   if (handle_result_) {
     node_api_env_->CallIntoModule(
@@ -1863,6 +1871,11 @@ node_embedding_delete_runtime(node_embedding_runtime runtime) {
   return EMBEDDED_RUNTIME(runtime)->DeleteMe();
 }
 
+node_embedding_status NAPI_CDECL node_embedding_set_runtime_node_api_version(
+    node_embedding_runtime_config runtime_config, int32_t node_api_version) {
+  return EMBEDDED_RUNTIME(runtime_config)->SetNodeApiVersion(node_api_version);
+}
+
 node_embedding_status NAPI_CDECL
 node_embedding_set_runtime_flags(node_embedding_runtime_config runtime_config,
                                  node_embedding_runtime_flags flags) {
@@ -1898,13 +1911,14 @@ node_embedding_status NAPI_CDECL node_embedding_on_start_runtime_execution(
           start_execution, start_execution_data, release_start_execution_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_on_handle_runtime_start_result(
+node_embedding_status NAPI_CDECL
+node_embedding_on_handle_runtime_execution_result(
     node_embedding_runtime_config runtime_config,
     node_embedding_handle_execution_result_callback handle_result,
     void* handle_result_data,
     node_embedding_release_data_callback release_handle_result_data) {
   return EMBEDDED_RUNTIME(runtime_config)
-      ->OnHandleStartResult(
+      ->OnHandleExecutionResult(
           handle_result, handle_result_data, release_handle_result_data);
 }
 
