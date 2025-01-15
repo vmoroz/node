@@ -182,38 +182,6 @@ class UniqueFunction<TResult (*)(void*, TArgs...)> {
   functor_struct<TCallback> functor_{};
 };
 
-class UniqueOwner {
- public:
-  UniqueOwner() = default;
-  UniqueOwner(void* data, node_embedding_release_data_callback release_data)
-      : data_(data), release_data_(release_data) {}
-
-  UniqueOwner(UniqueOwner&& other)
-      : data_(std::move(other.data_)),
-        release_data_(std::exchange(other.release_data_, nullptr)) {}
-
-  UniqueOwner& operator=(UniqueOwner&& other) {
-    if (this != &other) {
-      data_ = std::move(other.data_);
-      release_data_ = std::exchange(other.release_data_, nullptr);
-    }
-    return *this;
-  }
-
-  ~UniqueOwner() {
-    if (release_data_ != nullptr) {
-      release_data_(data_.Get());
-    }
-  }
-
-  void* Get() const { return data_.Get(); }
-  explicit operator bool() const { return static_cast<bool>(data_); }
-
- private:
-  NodePointer<void*> data_{};
-  node_embedding_release_data_callback release_data_;
-};
-
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
 // stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
@@ -381,17 +349,10 @@ class EmbeddedPlatform {
       void* early_return_handler_data,
       node_embedding_release_data_callback release_early_return_handler_data);
 
-  node_embedding_status OnCreateWrapper(
-      node_embedding_create_platform_wrapper_callback create_wrapper,
-      void* create_wrapper_data,
-      node_embedding_release_data_callback release_create_wrapper_data);
-
   node_embedding_status Initialize(
       node_embedding_configure_platform_callback configure_platform,
       void* configure_platform_data,
       bool* early_return);
-
-  node_embedding_status GetWrapper(void** result);
 
   node_embedding_status GetParsedArgs(
       node_embedding_get_strings_callback get_args,
@@ -421,9 +382,6 @@ class EmbeddedPlatform {
   } optional_bits_{};
 
   UniqueFunction<node_embedding_early_return_callback> early_return_handler_;
-  UniqueFunction<node_embedding_create_platform_wrapper_callback>
-      create_wrapper_;
-  UniqueOwner platform_wrapper_{};  // The platform wrapper is created lazily.
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
@@ -480,16 +438,9 @@ class EmbeddedRuntime {
       node_embedding_release_data_callback release_init_module_data,
       int32_t module_node_api_version);
 
-  node_embedding_status OnCreateWrapper(
-      node_embedding_create_runtime_wrapper_callback create_wrapper,
-      void* create_wrapper_data,
-      node_embedding_release_data_callback release_create_wrapper_data);
-
   node_embedding_status Initialize(
       node_embedding_configure_runtime_callback configure_runtime,
       void* configure_runtime_data);
-
-  node_embedding_status GetWrapper(void** result);
 
   node_embedding_status SetTaskRunner(
       node_embedding_post_task_callback post_task,
@@ -613,9 +564,6 @@ class EmbeddedRuntime {
   node::StartExecutionCallback start_execution_cb_{};
   UniqueFunction<node_embedding_handle_execution_result_callback>
       handle_result_{};
-  UniqueFunction<node_embedding_create_runtime_wrapper_callback>
-      create_wrapper_{};
-  UniqueOwner runtime_wrapper_{};
   napi_env node_api_env_{};
 
   struct {
@@ -838,18 +786,6 @@ node_embedding_status EmbeddedPlatform::OnEarlyReturn(
   return EmbeddedErrorHandling::ClearLastErrorMessage();
 }
 
-node_embedding_status EmbeddedPlatform::OnCreateWrapper(
-    node_embedding_create_platform_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data) {
-  ASSERT_EXPR(!is_initialized_);
-  ASSERT_ARG_NOT_NULL(create_wrapper);
-  create_wrapper_ =
-      UniqueFunction<node_embedding_create_platform_wrapper_callback>(
-          create_wrapper, create_wrapper_data, release_create_wrapper_data);
-  return EmbeddedErrorHandling::ClearLastErrorMessage();
-}
-
 node_embedding_status EmbeddedPlatform::Initialize(
     node_embedding_configure_platform_callback configure_platform,
     void* configure_platform_data,
@@ -884,15 +820,6 @@ node_embedding_status EmbeddedPlatform::Initialize(
     return node_embedding_status::kOk;
   }
 
-  // Create the platform wrapper here to ensure its thread-safe creation.
-  if (create_wrapper_) {
-    void* wrapper{};
-    node_embedding_release_data_callback release_wrapper{};
-    CHECK_STATUS(
-        create_wrapper_(node_embedding_platform(), &wrapper, &release_wrapper));
-    platform_wrapper_ = UniqueOwner(wrapper, release_wrapper);
-  }
-
   int32_t thread_pool_size =
       static_cast<int32_t>(node::per_process::cli_options->v8_thread_pool_size);
   v8_platform_ = node::MultiIsolatePlatform::Create(thread_pool_size);
@@ -902,13 +829,6 @@ node_embedding_status EmbeddedPlatform::Initialize(
   v8_is_initialized_ = true;
 
   return node_embedding_status::kOk;
-}
-
-node_embedding_status EmbeddedPlatform::GetWrapper(void** result) {
-  ASSERT_EXPR(is_initialized_);
-  ASSERT_ARG_NOT_NULL(result);
-  *result = platform_wrapper_.Get();
-  return EmbeddedErrorHandling::ClearLastErrorMessage();
 }
 
 node_embedding_status EmbeddedPlatform::GetParsedArgs(
@@ -1200,29 +1120,6 @@ node_embedding_status EmbeddedRuntime::AddModule(
   return node_embedding_status::kOk;
 }
 
-node_embedding_status EmbeddedRuntime::OnCreateWrapper(
-    node_embedding_create_runtime_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data) {
-  ASSERT_ARG_NOT_NULL(create_wrapper);
-  ASSERT_EXPR(!is_initialized_);
-
-  create_wrapper_ =
-      UniqueFunction<node_embedding_create_runtime_wrapper_callback>{
-          create_wrapper, create_wrapper_data, release_create_wrapper_data};
-
-  return node_embedding_status::kOk;
-}
-
-node_embedding_status EmbeddedRuntime::GetWrapper(void** result) {
-  ASSERT_ARG_NOT_NULL(result);
-  ASSERT_EXPR(is_initialized_);
-
-  *result = runtime_wrapper_.Get();
-
-  return node_embedding_status::kOk;
-}
-
 node_embedding_status EmbeddedRuntime::Initialize(
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data) {
@@ -1256,14 +1153,6 @@ node_embedding_status EmbeddedRuntime::Initialize(
   if (env_setup_ == nullptr || !errors.empty()) {
     return EmbeddedErrorHandling::HandleError(
         node_embedding_status::kGenericError, errors);
-  }
-
-  if (create_wrapper_) {
-    void* wrapper{};
-    node_embedding_release_data_callback release_wrapper{};
-    CHECK_STATUS(
-        create_wrapper_(node_embedding_runtime(), &wrapper, &release_wrapper));
-    runtime_wrapper_ = UniqueOwner(wrapper, release_wrapper);
   }
 
   V8ScopeLocker v8_scope_locker(*this);
@@ -1824,21 +1713,6 @@ node_embedding_status NAPI_CDECL node_embedding_on_early_return(
                       release_early_return_handler_data);
 }
 
-node_embedding_status NAPI_CDECL node_embedding_on_create_platform_wrapper(
-    node_embedding_platform_config platform_config,
-    node_embedding_create_platform_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data) {
-  return EMBEDDED_PLATFORM(platform_config)
-      ->OnCreateWrapper(
-          create_wrapper, create_wrapper_data, release_create_wrapper_data);
-}
-
-node_embedding_status NAPI_CDECL node_embedding_get_platform_wrapper(
-    node_embedding_platform platform, void** result) {
-  return EMBEDDED_PLATFORM(platform)->GetWrapper(result);
-}
-
 node_embedding_status NAPI_CDECL node_embedding_get_platform_parsed_args(
     node_embedding_platform platform,
     node_embedding_get_strings_callback get_args,
@@ -1935,21 +1809,6 @@ node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
                   init_module_data,
                   release_init_module_data,
                   module_node_api_version);
-}
-
-node_embedding_status NAPI_CDECL node_embedding_on_create_runtime_wrapper(
-    node_embedding_runtime_config runtime_config,
-    node_embedding_create_runtime_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data) {
-  return EMBEDDED_RUNTIME(runtime_config)
-      ->OnCreateWrapper(
-          create_wrapper, create_wrapper_data, release_create_wrapper_data);
-}
-
-node_embedding_status NAPI_CDECL node_embedding_get_runtime_wrapper(
-    node_embedding_runtime runtime, void** result) {
-  return EMBEDDED_RUNTIME(runtime)->GetWrapper(result);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_set_runtime_task_runner(

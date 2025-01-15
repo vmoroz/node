@@ -218,13 +218,6 @@ typedef node_embedding_status(
 typedef node_embedding_status(NAPI_CDECL* node_embedding_early_return_callback)(
     void* cb_data, int32_t messages_size, const char* messages[]);
 
-typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_create_platform_wrapper_callback)(
-    void* cb_data,
-    node_embedding_platform platform,
-    void** wrapper,
-    node_embedding_release_data_callback* release_wrapper);
-
 typedef node_embedding_status(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
@@ -257,13 +250,6 @@ typedef node_embedding_status(
     const char* module_name,
     napi_value exports,
     napi_value* result);
-
-typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_create_runtime_wrapper_callback)(
-    void* cb_data,
-    node_embedding_runtime runtime,
-    void** wrapper,
-    node_embedding_release_data_callback* release_wrapper);
 
 typedef node_embedding_status(NAPI_CDECL* node_embedding_run_task_callback)(
     void* cb_data);
@@ -342,19 +328,6 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_early_return_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data);
-
-// Creates the platform wrapper when the node_embedding_platform is initialized.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_create_platform_wrapper(
-    node_embedding_platform_config platform_config,
-    node_embedding_create_platform_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data);
-
-// Gets the platform wrapper.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_get_platform_wrapper(node_embedding_platform platform,
-                                    void** result);
 
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
@@ -440,18 +413,6 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
     void* init_module_data,
     node_embedding_release_data_callback release_init_module_data,
     int32_t module_node_api_version);
-
-// Creates the runtime wrapper when the node_embedding_runtime is initialized.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_create_runtime_wrapper(
-    node_embedding_runtime_config runtime_config,
-    node_embedding_create_runtime_wrapper_callback create_wrapper,
-    void* create_wrapper_data,
-    node_embedding_release_data_callback release_create_wrapper_data);
-
-// Gets the runtime wrapper associated with the runtime.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_get_runtime_wrapper(
-    node_embedding_runtime runtime, void** result);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the event loop.
@@ -790,7 +751,7 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   node_embedding_release_data_callback callback_release_{};
 };
 
-// Wraps
+// Wraps the Node.js platform instance.
 class NodePlatform {
  public:
   static NodeExpected<void> RunMain(
@@ -1016,14 +977,6 @@ class NodeRuntime {
   }
 
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
-
-  static NodeExpected<NodeRuntime*> FromRuntime(
-      node_embedding_runtime runtime) {
-    NodeRuntime* nodeRuntime{};
-    return node_embedding_get_runtime_wrapper(
-               runtime, reinterpret_cast<void**>(&nodeRuntime)) &&
-           NodeExpected<NodeRuntime*>(nodeRuntime);
-  }
 
   static NodeExpected<NodeRuntime> Create(
       NodePlatform platform,
