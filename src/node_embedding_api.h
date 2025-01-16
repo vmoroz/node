@@ -647,6 +647,20 @@ class NodeArgs {
   const char** argv_{};
 };
 
+template <typename TCallback, typename TFunctor, typename TEnable>
+class NodeFunctorInvoker;
+
+template <typename TFunctor, typename TResult, typename... TArgs>
+class NodeFunctorInvoker<
+    TResult (*)(void*, TArgs...),
+    TFunctor,
+    std::enable_if_t<std::is_invocable_r_v<TResult, TFunctor, TArgs...>>> {
+  static TResult Invoke(void* data, TArgs... args) {
+    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
+    return (*callback)(args...);
+  }
+};
+
 template <typename TCallback>
 class NodeFunctorRef;
 
@@ -662,11 +676,11 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
 
   template <typename TFunctor>
   NodeFunctorRef(TFunctor&& functor)
-      : callback_(&InvokeFunctor<TFunctor>), callback_data_(&functor) {}
+      : callback_(&NodeFunctorInvoker<TCallback, TFunctor>::Invoke),
+        callback_data_(&functor) {}
 
   NodeFunctorRef(const NodeFunctorRef&) = delete;
   NodeFunctorRef& operator=(const NodeFunctorRef&) = delete;
-
   NodeFunctorRef(NodeFunctorRef&& other) = default;
   NodeFunctorRef& operator=(NodeFunctorRef&& other) = default;
 
@@ -674,27 +688,9 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
   void* Data() const { return callback_data_; }
 
  private:
-  template <typename TFunctor>
-  static TResult InvokeFunctor(void* data, TArgs... args) {
-    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
-    return (*callback)(args...);
-  }
-
- private:
   TCallback callback_{};
   void* callback_data_{};
 };
-
-//template <typename TCallback, typename TFunctor>
-//class NodeFunctorInvoker;
-//
-//template <typename TFunctor, typename TResult, typename... TArgs>
-//class NodeFunctorInvoker<TResult (*)(void*, TArgs...), TFunctor> {
-//  static TResult Invoke(void* data, TArgs... args) {
-//    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
-//    return (*callback)(args...);
-//  }
-//};
 
 template <typename TCallback>
 class NodeFunctor;
@@ -704,6 +700,8 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   using TCallback = TResult (*)(void*, TArgs...);
 
  public:
+  NodeFunctor(std::nullptr_t) {}
+
   NodeFunctor(TCallback callback,
               void* callback_data,
               node_embedding_release_data_callback callback_release)
@@ -713,7 +711,7 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
   template <typename TFunctor>
   NodeFunctor(TFunctor&& functor)
-      : callback_(&InvokeFunctor<TFunctor>),
+      : callback_(&NodeFunctorInvoker<TCallback, TFunctor>::Invoke),
         callback_data_(
             std::unique_ptr<TFunctor>(std::forward<TFunctor>(functor))
                 .release()),
@@ -725,22 +723,12 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
   TCallback Callback() const { return callback_; }
-
   void* Data() const { return callback_data_; }
-
   node_embedding_release_data_callback Release() const {
     return callback_release_;
   }
 
  private:
-  template <typename TFunctor,
-            std::enable_if_t<std::is_invocable_r_v<TResult, TFunctor, TArgs...>,
-                             int> = 0>
-  static TResult InvokeFunctor(void* data, TArgs... args) {
-    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
-    return (*callback)(args...);
-  }
-
   template <typename TFunctor>
   static void ReleaseFunctor(void* data) {
     std::unique_ptr<TFunctor> callback(reinterpret_cast<TFunctor*>(data));
@@ -850,6 +838,22 @@ class NodePlatformConfig {
 
  private:
   NodePointer<node_embedding_platform_config> platform_config_{};
+};
+
+template <typename TFunctor>
+class NodeFunctorInvoker<
+    node_embedding_configure_platform_callback,
+    TFunctor,
+    std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
+                                           TFunctor,
+                                           NodePlatformConfig*>>> {
+  static NodeStatus Invoke(void* cb_data,
+                           node_embedding_platform_config platform_config) {
+    TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
+    NodePlatformConfig config(platform_config);
+    NodeExpected<void> result = (*callback)(&config);
+    return result.Status();
+  }
 };
 
 class NodeRuntimeConfig {
