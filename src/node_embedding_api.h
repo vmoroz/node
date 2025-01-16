@@ -20,7 +20,7 @@
 
 #define NODE_EMBEDDING_VERSION 1
 
-#ifdef __cplusplus
+#if defined(__cplusplus) && !defined(NODE_EMBEDDING_DISABLE_CPP_ENUMS)
 
 #define NODE_ENUM(c_name, cpp_name)                                            \
   enum class cpp_name : int32_t cpp_name;                                      \
