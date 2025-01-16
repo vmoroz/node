@@ -345,7 +345,7 @@ class EmbeddedPlatform {
   node_embedding_status SetFlags(node_embedding_platform_flags flags);
 
   node_embedding_status OnEarlyReturn(
-      node_embedding_early_return_callback early_return_handler,
+      node_embedding_get_strings_callback early_return_handler,
       void* early_return_handler_data,
       node_embedding_release_data_callback release_early_return_handler_data);
 
@@ -381,7 +381,7 @@ class EmbeddedPlatform {
     bool flags : 1;
   } optional_bits_{};
 
-  UniqueFunction<node_embedding_early_return_callback> early_return_handler_;
+  UniqueFunction<node_embedding_get_strings_callback> early_return_handler_;
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
@@ -775,11 +775,11 @@ node_embedding_status EmbeddedPlatform::SetFlags(
 }
 
 node_embedding_status EmbeddedPlatform::OnEarlyReturn(
-    node_embedding_early_return_callback early_return_handler,
+    node_embedding_get_strings_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data) {
   ASSERT_EXPR(!is_initialized_);
-  early_return_handler_ = UniqueFunction<node_embedding_early_return_callback>(
+  early_return_handler_ = UniqueFunction<node_embedding_get_strings_callback>(
       early_return_handler,
       early_return_handler_data,
       release_early_return_handler_data);
@@ -1704,7 +1704,7 @@ node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
 
 node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_platform_config platform_config,
-    node_embedding_early_return_callback early_return_handler,
+    node_embedding_get_strings_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data) {
   return EMBEDDED_PLATFORM(platform_config)

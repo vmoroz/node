@@ -215,9 +215,6 @@ typedef node_embedding_status(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_early_return_callback)(
-    void* cb_data, int32_t messages_size, const char* messages[]);
-
 typedef node_embedding_status(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
@@ -325,7 +322,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
 // --version, or --v8-options.
 NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
     node_embedding_platform_config platform_config,
-    node_embedding_early_return_callback early_return_handler,
+    node_embedding_get_strings_callback early_return_handler,
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data);
 
@@ -632,7 +629,17 @@ NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
   return success_value;
 }
 
+template <typename T>
+NodeExpected<T> operator&&(NodeExpected<void> expected,
+                           NodeExpected<T> success_value) {
+  if (expected.HasError()) {
+    return NodeExpected<T>(expected.Status());
+  }
+  return success_value;
+}
+
 // Wraps command line arguments.
+// TODO: vector of strings?
 class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
@@ -647,7 +654,7 @@ class NodeArgs {
   const char** argv_{};
 };
 
-template <typename TCallback, typename TFunctor, typename TEnable>
+template <typename TCallback, typename TFunctor, typename TEnable = void>
 class NodeFunctorInvoker;
 
 template <typename TFunctor, typename TResult, typename... TArgs>
@@ -655,6 +662,7 @@ class NodeFunctorInvoker<
     TResult (*)(void*, TArgs...),
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<TResult, TFunctor, TArgs...>>> {
+ public:
   static TResult Invoke(void* data, TArgs... args) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(data);
     return (*callback)(args...);
@@ -671,25 +679,26 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
  public:
   NodeFunctorRef(std::nullptr_t) {}
 
-  NodeFunctorRef(TCallback callback, void* callback_data)
-      : callback_(callback), callback_data_(callback_data) {}
+  NodeFunctorRef(TCallback callback, void* data)
+      : callback_(callback), data_(data) {}
 
   template <typename TFunctor>
   NodeFunctorRef(TFunctor&& functor)
       : callback_(&NodeFunctorInvoker<TCallback, TFunctor>::Invoke),
-        callback_data_(&functor) {}
+        data_(&functor) {}
 
-  NodeFunctorRef(const NodeFunctorRef&) = delete;
-  NodeFunctorRef& operator=(const NodeFunctorRef&) = delete;
   NodeFunctorRef(NodeFunctorRef&& other) = default;
   NodeFunctorRef& operator=(NodeFunctorRef&& other) = default;
 
-  TCallback Callback() const { return callback_; }
-  void* Data() const { return callback_data_; }
+  TCallback callback() const { return callback_.Get(); }
+
+  void* data() const { return data_.Get(); }
+
+  explicit operator bool() const { return static_cast<bool>(callback_); }
 
  private:
-  TCallback callback_{};
-  void* callback_data_{};
+  NodePointer<TCallback> callback_;
+  NodePointer<void*> data_;
 };
 
 template <typename TCallback>
@@ -703,30 +712,31 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   NodeFunctor(std::nullptr_t) {}
 
   NodeFunctor(TCallback callback,
-              void* callback_data,
-              node_embedding_release_data_callback callback_release)
+              void* data,
+              node_embedding_release_data_callback data_release)
       : callback_(callback),
-        callback_data_(callback_data),
-        callback_release_(callback_release) {}
+        data_(callback_data),
+        data_release_(callback_release) {}
 
   template <typename TFunctor>
   NodeFunctor(TFunctor&& functor)
       : callback_(&NodeFunctorInvoker<TCallback, TFunctor>::Invoke),
-        callback_data_(
-            std::unique_ptr<TFunctor>(std::forward<TFunctor>(functor))
-                .release()),
-        callback_release_(&ReleaseFunctor<TFunctor>) {}
+        data_(std::unique_ptr<TFunctor>(std::forward<TFunctor>(functor))
+                  .release()),
+        data_release_(&ReleaseFunctor<TFunctor>) {}
 
-  NodeFunctor(const NodeFunctor&) = delete;
-  NodeFunctor& operator=(const NodeFunctor&) = delete;
   NodeFunctor(NodeFunctor&& other) = default;
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
-  TCallback Callback() const { return callback_; }
-  void* Data() const { return callback_data_; }
-  node_embedding_release_data_callback Release() const {
-    return callback_release_;
+  TCallback callback() const { return callback_.Get(); }
+
+  void* data() const { return data_.Get(); }
+
+  node_embedding_release_data_callback data_release() const {
+    return data_release_.Get();
   }
+
+  explicit operator bool() const { return static_cast<bool>(callback_); }
 
  private:
   template <typename TFunctor>
@@ -735,49 +745,111 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   }
 
  private:
-  TCallback callback_{};
-  void* callback_data_{};
-  node_embedding_release_data_callback callback_release_{};
+  NodePointer<TCallback> callback_;
+  NodePointer<void*> data_;
+  NodePointer<node_embedding_release_data_callback> data_release_;
 };
+
+// NodeGetStringsCallback supported signatures:
+// - node_embedding_status(int32_t strings_size, const char* strings[]);
+// - NodeExpected<void>(std::vector<std::string> strings);
+using NodeGetStringsCallback =
+    NodeFunctorRef<node_embedding_get_strings_callback>;
+
+// NodeConfigurePlatformCallback supported signatures:
+// - node_embedding_status(node_embedding_platform_config platform_config);
+// - NodeExpected<void>(NodePlatformConfig* platform_config);
+using NodeConfigurePlatformCallback =
+    NodeFunctorRef<node_embedding_configure_platform_callback>;
+
+// NodeGetStringsCallback supported signatures:
+// - node_embedding_status(int32_t strings_size, const char* strings[]);
+// - NodeExpected<void>(std::vector<std::string> strings);
+using NodeEarlyReturnCallback =
+    NodeFunctor<node_embedding_get_strings_callback>;
+
+// NodeConfigureRuntimeCallback supported signatures:
+// - node_embedding_status(node_embedding_platform platform,
+//                         node_embedding_runtime_config runtime_config);
+// - NodeExpected<void>(NodePlatform* platform,
+//                      NodeRuntimeConfig* runtime_config);
+using NodeConfigureRuntimeCallback =
+    NodeFunctorRef<node_embedding_configure_runtime_callback>;
+
+// NodePreloadCallback supported signatures:
+// - node_embedding_status(node_embedding_runtime runtime,
+//                         napi_env env,
+//                         napi_value process,
+//                         napi_value require);
+// - NodeExpected<void>(NodeRuntime* runtime,
+//                      napi_env env,
+//                      napi_value process,
+//                      napi_value require);
+using NodePreloadCallback = NodeFunctor<node_embedding_preload_callback>;
+
+// NodeStartExecutionCallback supported signatures:
+// - node_embedding_status(node_embedding_runtime runtime,
+//                         napi_env env,
+//                         napi_value process,
+//                         napi_value require,
+//                         napi_value run_cjs,
+//                         napi_value* result);
+// - NodeExpected<napi_value>(NodeRuntime* runtime,
+//                            napi_env env,
+//                            napi_value process,
+//                            napi_value require,
+//                            napi_value run_cjs);
+using NodeStartExecutionCallback =
+    NodeFunctor<node_embedding_start_execution_callback>;
+
+// NodeHandleExecutionResultCallback supported signatures:
+// - node_embedding_status(node_embedding_runtime runtime,
+//                         napi_env env,
+//                         napi_value execution_result);
+// - NodeExpected<void>(NodeRuntime* runtime,
+//                      napi_env env,
+//                      napi_value execution_result);
+using NodeHandleExecutionResultCallback =
+    NodeFunctor<node_embedding_handle_execution_result_callback>;
+
+// NodeInitializeModuleCallback supported signatures:
+// - node_embedding_status(node_embedding_runtime runtime,
+//                         napi_env env,
+//                         const char* module_name,
+//                         napi_value exports,
+//                         napi_value* result);
+// - NodeExpected<napi_value>(NodeRuntime* runtime,
+//                            napi_env env,
+//                            std::string_view module_name,
+//                            napi_value exports);
+using NodeInitializeModuleCallback =
+    NodeFunctor<node_embedding_initialize_module_callback>;
+
+// NodeRunTaskCallback supported signatures:
+// - node_embedding_status();
+// - NodeExpected<void>();
+using NodeRunTaskCallback = NodeFunctor<node_embedding_run_task_callback>;
+
+// NodePostTaskCallback supported signatures:
+// - node_embedding_status(node_embedding_run_task_callback run_task,
+//                         void* task_data,
+//                         node_embedding_release_data_callback
+//                             release_task_data);
+// - NodeExpected<void>(NodeRunTaskCallback run_task);
+using NodePostTaskCallback = NodeFunctor<node_embedding_post_task_callback>;
+
+// NodeRunNodeApiCallback supported signatures:
+// - node_embedding_status(node_embedding_runtime runtime, napi_env env);
+// - NodeExpected<void>(NodeRuntime* runtime, napi_env env);
+using NodeRunNodeApiCallback =
+    NodeFunctorRef<node_embedding_run_node_api_callback>;
 
 // Wraps the Node.js platform instance.
 class NodePlatform {
  public:
-  static NodeExpected<void> RunMain(
-      NodeArgs args,
-      NodeFunctorRef<node_embedding_configure_platform_callback>
-          configure_platform,
-      NodeFunctorRef<node_embedding_configure_runtime_callback>
-          configure_runtime) {
-    return node_embedding_run_main(NODE_EMBEDDING_VERSION,
-                                   args.Argc(),
-                                   args.Argv(),
-                                   configure_platform.Callback(),
-                                   configure_platform.Data(),
-                                   configure_runtime.Callback(),
-                                   configure_runtime.Data()) &&
-           NodeExpected<void>();
-  }
-
-  static NodeExpected<NodePlatform> Create(
-      NodeArgs args,
-      NodeFunctorRef<node_embedding_configure_platform_callback>
-          configure_platform) {
-    node_embedding_platform platform;
-    return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
-                                          args.Argc(),
-                                          args.Argv(),
-                                          configure_platform.Callback(),
-                                          configure_platform.Data(),
-                                          &platform) &&
-           NodeExpected<NodePlatform>(NodePlatform(platform));
-  }
-
   explicit NodePlatform(node_embedding_platform platform)
       : platform_(platform) {}
 
-  NodePlatform(const NodePlatform&) = delete;
-  NodePlatform& operator=(const NodePlatform&) = delete;
   NodePlatform(NodePlatform&& other) = default;
   NodePlatform& operator=(NodePlatform&& other) = default;
 
@@ -787,25 +859,82 @@ class NodePlatform {
     }
   }
 
+  explicit operator bool() const { return static_cast<bool>(platform_); }
+
   operator node_embedding_platform() const { return platform_.Get(); }
 
   node_embedding_platform Detach() {
     return std::exchange(platform_, nullptr).Get();
   }
 
-  NodeExpected<void> GetParsedArgs(
-      NodeFunctorRef<node_embedding_get_strings_callback> get_args,
-      NodeFunctorRef<node_embedding_get_strings_callback> get_runtime_args) {
-    return node_embedding_get_platform_parsed_args(platform_.Get(),
-                                                   get_args.Callback(),
-                                                   get_args.Data(),
-                                                   get_runtime_args.Callback(),
-                                                   get_runtime_args.Data()) &&
+  static NodeExpected<void> RunMain(
+      NodeArgs args,
+      NodeConfigurePlatformCallback configure_platform,
+      NodeConfigureRuntimeCallback configure_runtime) {
+    return node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                   args.Argc(),
+                                   args.Argv(),
+                                   configure_platform.callback(),
+                                   configure_platform.data(),
+                                   configure_runtime.callback(),
+                                   configure_runtime.data()) &&
            NodeExpected<void>();
   }
 
+  static NodeExpected<NodePlatform> Create(
+      NodeArgs args, NodeConfigurePlatformCallback configure_platform) {
+    node_embedding_platform platform;
+    return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
+                                          args.Argc(),
+                                          args.Argv(),
+                                          configure_platform.callback(),
+                                          configure_platform.data(),
+                                          &platform) &&
+           NodeExpected<NodePlatform>(NodePlatform(platform));
+  }
+
+  NodeExpected<void> GetParsedArgs(NodeGetStringsCallback get_args,
+                                   NodeGetStringsCallback get_runtime_args) {
+    return node_embedding_get_platform_parsed_args(platform_.Get(),
+                                                   get_args.callback(),
+                                                   get_args.data(),
+                                                   get_runtime_args.callback(),
+                                                   get_runtime_args.data()) &&
+           NodeExpected<void>();
+  }
+
+  NodeExpected<std::vector<std::string>> GetArgs() {
+    std::vector<std::string> result_args;
+    return GetParsedArgs(
+               [&result_args](std::vector<std::string> args) {
+                 result_args = std::move(args);
+                 return NodeExpected<void>();
+               },
+               nullptr) &&
+           NodeExpected<std::vector<std::string>>(std::move(result_args));
+  }
+
+  NodeExpected<std::vector<std::string>> GetRuntimeArgs() {
+    std::vector<std::string> result_args;
+    return GetParsedArgs(nullptr,
+                         [&result_args](std::vector<std::string> args) {
+                           result_args = std::move(args);
+                           return NodeExpected<void>();
+                         }) &&
+           NodeExpected<std::vector<std::string>>(std::move(result_args));
+  }
+
  private:
-  NodePointer<node_embedding_platform> platform_{};
+  NodePointer<node_embedding_platform> platform_;
+};
+
+// The NodePlatform that does not delete the platform on destruction.
+class NodeDetachedPlatform : public NodePlatform {
+ public:
+  explicit NodeDetachedPlatform(node_embedding_platform platform)
+      : NodePlatform(platform) {}
+
+  ~NodeDetachedPlatform() { Detach(); }
 };
 
 class NodePlatformConfig {
@@ -813,8 +942,6 @@ class NodePlatformConfig {
   explicit NodePlatformConfig(node_embedding_platform_config platform_config)
       : platform_config_(platform_config) {}
 
-  NodePlatformConfig(const NodePlatformConfig&) = delete;
-  NodePlatformConfig& operator=(const NodePlatformConfig&) = delete;
   NodePlatformConfig(NodePlatformConfig&& other) = default;
   NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
 
@@ -828,11 +955,12 @@ class NodePlatformConfig {
   }
 
   NodeExpected<void> OnEarlyReturn(
-      NodeFunctor<node_embedding_early_return_callback> early_return_handler) {
-    return node_embedding_on_early_return(platform_config_.Get(),
-                                          early_return_handler.Callback(),
-                                          early_return_handler.Data(),
-                                          early_return_handler.Release()) &&
+      NodeEarlyReturnCallback early_return_handler) {
+    return node_embedding_on_early_return(
+               platform_config_.Get(),
+               early_return_handler.callback(),
+               early_return_handler.data(),
+               early_return_handler.data_release()) &&
            NodeExpected<void>();
   }
 
@@ -873,8 +1001,17 @@ class NodeApiScope {
 
 class NodeRuntime {
  public:
-  NodeRuntime(const NodeRuntime&) = delete;
-  NodeRuntime& operator=(const NodeRuntime&) = delete;
+  static NodeExpected<NodeRuntime> Create(
+      NodePlatform platform, NodeConfigureRuntimeCallback configure_runtime) {
+    node_embedding_runtime runtime;
+    return node_embedding_create_runtime(platform,
+                                         configure_runtime.callback(),
+                                         configure_runtime.data(),
+                                         &runtime) &&
+           NodeExpected<NodeRuntime>(NodeRuntime(runtime));
+  }
+
+  explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
 
   NodeRuntime(NodeRuntime&& other) = default;
   NodeRuntime& operator=(NodeRuntime&& other) = default;
@@ -884,7 +1021,12 @@ class NodeRuntime {
       node_embedding_delete_runtime(runtime_.Get());
     }
   }
+
   operator node_embedding_runtime() const { return runtime_.Get(); }
+
+  node_embedding_runtime Detach() {
+    return std::exchange(runtime_, nullptr).Get();
+  }
 
   NodeExpected<void> RunEventLoop() {
     return node_embedding_run_event_loop(runtime_.Get()) &&
@@ -909,53 +1051,29 @@ class NodeRuntime {
            NodeExpected<bool>(has_more_work);
   }
 
-  NodeExpected<void> RunNodeApi(
-      NodeFunctorRef<node_embedding_run_node_api_callback> runNodeApi) {
+  NodeExpected<void> RunNodeApi(NodeRunNodeApiCallback run_node_api) {
     return node_embedding_run_node_api(
-               runtime_.Get(), runNodeApi.Callback(), runNodeApi.Data()) &&
+               runtime_.Get(), run_node_api.callback(), run_node_api.data()) &&
            NodeExpected<void>();
   }
 
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
 
-  static NodeExpected<NodeRuntime> Create(
-      NodePlatform platform,
-      NodeFunctorRef<node_embedding_configure_runtime_callback>
-          configure_runtime) {
-    node_embedding_runtime runtime;
-    return node_embedding_create_runtime(platform,
-                                         &ConfigureRuntimeCallback,
-                                         &configure_runtime,
-                                         &runtime) &&
-           NodeExpected<NodeRuntime>(NodeRuntime(runtime));
-  }
-
- protected:
-  explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
-
- private:
-  static node_embedding_status NAPI_CDECL
-  ConfigureRuntimeCallback(void* cb_data,
-                           node_embedding_platform platform,
-                           node_embedding_runtime_config runtime_config) {
-    NodeFunctorRef<node_embedding_configure_runtime_callback>* callback =
-        reinterpret_cast<
-            NodeFunctorRef<node_embedding_configure_runtime_callback>*>(
-            cb_data);
-    return callback->Callback()(callback->Data(), platform, runtime_config);
-  }
-
  private:
   NodePointer<node_embedding_runtime> runtime_{};
+};
+
+class NodeDetachedRuntime : public NodeRuntime {
+ public:
+  explicit NodeDetachedRuntime(node_embedding_runtime runtime)
+      : NodeRuntime(runtime) {}
+  ~NodeDetachedRuntime() { Detach(); }
 };
 
 class NodeRuntimeConfig {
  public:
   explicit NodeRuntimeConfig(node_embedding_runtime_config runtime_config)
       : runtime_config_(runtime_config) {}
-
-  NodeRuntimeConfig(const NodeRuntimeConfig&) = delete;
-  NodeRuntimeConfig& operator=(const NodeRuntimeConfig&) = delete;
 
   NodeRuntimeConfig(NodeRuntimeConfig&& other) = default;
   NodeRuntimeConfig& operator=(NodeRuntimeConfig&& other) = default;
@@ -978,55 +1096,51 @@ class NodeRuntimeConfig {
            NodeExpected<void>();
   }
 
-  NodeExpected<void> OnPreload(
-      NodeFunctor<node_embedding_preload_callback> preload) {
+  NodeExpected<void> OnPreload(NodePreloadCallback preload) {
     return node_embedding_on_preload_runtime(runtime_config_.Get(),
-                                             preload.Callback(),
-                                             preload.Data(),
-                                             preload.Release()) &&
+                                             preload.callback(),
+                                             preload.data(),
+                                             preload.data_release()) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> OnStartExecution(
-      NodeFunctor<node_embedding_start_execution_callback> start_execution) {
+      NodeStartExecutionCallback start_execution) {
     return node_embedding_on_start_runtime_execution(
                runtime_config_.Get(),
-               start_execution.Callback(),
-               start_execution.Data(),
-               start_execution.Release()) &&
+               start_execution.callback(),
+               start_execution.data(),
+               start_execution.data_release()) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> OnHandleStartResult(
-      NodeFunctor<node_embedding_handle_execution_result_callback>
-          handle_start_result) {
+      NodeHandleExecutionResultCallback handle_start_result) {
     return node_embedding_on_handle_runtime_execution_result(
                runtime_config_.Get(),
-               handle_start_result.Callback(),
-               handle_start_result.Data(),
-               handle_start_result.Release()) &&
+               handle_start_result.callback(),
+               handle_start_result.data(),
+               handle_start_result.data_release()) &&
            NodeExpected<void>();
   }
 
-  NodeExpected<void> AddModule(
-      const char* moduleName,
-      NodeFunctor<node_embedding_initialize_module_callback> init_module,
-      int32_t moduleNodeApiVersion) {
+  NodeExpected<void> AddModule(std::string_view module_name,
+                               NodeInitializeModuleCallback init_module,
+                               int32_t moduleNodeApiVersion) {
     return node_embedding_add_runtime_module(runtime_config_.Get(),
-                                             moduleName,
-                                             init_module.Callback(),
-                                             init_module.Data(),
-                                             init_module.Release(),
+                                             module_name.data(),
+                                             init_module.callback(),
+                                             init_module.data(),
+                                             init_module.data_release(),
                                              moduleNodeApiVersion) &&
            NodeExpected<void>();
   }
 
-  NodeExpected<void> SetTaskRunner(
-      NodeFunctor<node_embedding_post_task_callback> post_task) {
+  NodeExpected<void> SetTaskRunner(NodePostTaskCallback post_task) {
     return node_embedding_set_runtime_task_runner(runtime_config_.Get(),
-                                                  post_task.Callback(),
-                                                  post_task.Data(),
-                                                  post_task.Release()) &&
+                                                  post_task.callback(),
+                                                  post_task.data(),
+                                                  post_task.data_release()) &&
            NodeExpected<void>();
   }
 
@@ -1041,13 +1155,14 @@ class NodeFunctorInvoker<
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
                                            TFunctor,
                                            std::vector<std::string>>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            int32_t strings_size,
                            const char* strings[]) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     std::vector<std::string> strings_cpp(strings, strings + strings_size);
-    NodeExpected<void> result = (*callback)(std::move(strings_cpp));
-    return result.Status();
+    NodeExpected<void> result_cpp = (*callback)(std::move(strings_cpp));
+    return result_cpp.Status();
   }
 };
 
@@ -1058,12 +1173,13 @@ class NodeFunctorInvoker<
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
                                            TFunctor,
                                            NodePlatformConfig*>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_platform_config platform_config) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodePlatformConfig platform_config_cpp(platform_config);
-    NodeExpected<void> result = (*callback)(&platform_config_cpp);
-    return result.Status();
+    NodeExpected<void> result_cpp = (*callback)(&platform_config_cpp);
+    return result_cpp.Status();
   }
 };
 
@@ -1075,32 +1191,16 @@ class NodeFunctorInvoker<
                                            TFunctor,
                                            NodePlatform*,
                                            NodeRuntimeConfig*>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_platform platform,
                            node_embedding_runtime_config runtime_config) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodePlatform platform_cpp(platform);
+    NodeDeatchedPlatform platform_cpp(platform);
     NodePlatformConfig runtime_config_cpp(runtime_config);
-    NodeExpected<void> result = (*callback)(&platform_cpp, &runtime_config_cpp);
-    platform_cpp.Detach();
-    return result.Status();
-  }
-};
-
-template <typename TFunctor>
-class NodeFunctorInvoker<
-    node_embedding_early_return_callback,
-    TFunctor,
-    std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
-                                           TFunctor,
-                                           NodePlatformConfig*>>> {
-  static NodeStatus Invoke(void* cb_data,
-                           int32_t messages_size,
-                           const char* messages[]) {
-    TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    std::vector<std::string> strings_cpp(messages, messages + messages_size);
-    NodeExpected<void> result = (*callback)(std::move(strings_cpp));
-    return result.Status();
+    NodeExpected<void> result_cpp =
+        (*callback)(&platform_cpp, &runtime_config_cpp);
+    return result_cpp.Status();
   }
 };
 
@@ -1114,15 +1214,17 @@ class NodeFunctorInvoker<
                                            napi_env,
                                            napi_value,
                                            napi_value>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env,
                            napi_value process,
                            napi_value require) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
-    NodeExpected<void> result = (*callback)(&runtime_cpp, env, process, value);
-    return result.Status();
+    NodeDetachedRuntime runtime_cpp(runtime);
+    NodeExpected<void> result_cpp =
+        (*callback)(&runtime_cpp, env, process, value);
+    return result_cpp.Status();
   }
 };
 
@@ -1137,6 +1239,7 @@ class NodeFunctorInvoker<
                                            napi_value,
                                            napi_value,
                                            napi_value>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env,
@@ -1145,7 +1248,7 @@ class NodeFunctorInvoker<
                            napi_value run_cjs,
                            napi_value* result) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
+    NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<napi_value> result_cpp =
         (*callback)(&runtime_cpp, env, process, require, run_cjs);
     if (result_cpp.HasValue()) {
@@ -1164,12 +1267,13 @@ class NodeFunctorInvoker<
                                            NodeRuntime*,
                                            napi_env,
                                            napi_value>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env,
                            napi_value execution_result) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
+    NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp =
         (*callback)(&runtime_cpp, env, execution_result);
     return result_cpp.Status();
@@ -1186,6 +1290,7 @@ class NodeFunctorInvoker<
                                            napi_env,
                                            std::string_view,
                                            napi_value>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env,
@@ -1193,7 +1298,7 @@ class NodeFunctorInvoker<
                            napi_value exports,
                            napi_value* result) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
+    NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<napi_value> result_cpp =
         (*callback)(&runtime_cpp, env, module_name, exports);
     if (result_cpp.HasValue()) {
@@ -1208,6 +1313,7 @@ class NodeFunctorInvoker<
     node_embedding_run_task_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>, TFunctor>>> {
+ public:
   static NodeStatus Invoke(void* cb_data) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeExpected<void> result_cpp = (*callback)();
@@ -1216,23 +1322,23 @@ class NodeFunctorInvoker<
 };
 
 template <typename TFunctor>
-class NodeFunctorInvoker<node_embedding_post_task_callback,
-                         TFunctor,
-                         std::enable_if_t<std::is_invocable_r_v<
-                             NodeExpected<void>,
-                             TFunctor,
-                             NodeFunctor<node_embedding_run_task_callback>>>> {
+class NodeFunctorInvoker<
+    node_embedding_post_task_callback,
+    TFunctor,
+    std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
+                                           TFunctor,
+                                           NodeRunTaskCallback>>> {
+ public:
   static NodeStatus Invoke(
       void* cb_data,
       node_embedding_run_task_callback run_task,
       void* task_data,
       node_embedding_release_data_callback release_task_data) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
-    NodeExpected<void> result_cpp =
-        (*callback)(&runtime_cpp,
-                    NodeFunctor<node_embedding_run_task_callback>(
-                        run_task, task_data, release_task_data));
+    NodeDetachedRuntime runtime_cpp(runtime);
+    NodeExpected<void> result_cpp = (*callback)(
+        &runtime_cpp,
+        NodeRunTaskCallback(run_task, task_data, release_task_data));
     return result_cpp.Status();
   }
 };
@@ -1245,11 +1351,12 @@ class NodeFunctorInvoker<
                                            TFunctor,
                                            NodeRuntime*,
                                            napi_env>>> {
+ public:
   static NodeStatus Invoke(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeRuntime runtime_cpp(runtime);
+    NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp = (*callback)(&runtime_cpp, env);
     return result_cpp.Status();
   }
