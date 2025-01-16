@@ -475,6 +475,13 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
+#include <memory>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <utility>
+#include <vector>
+
 namespace node::embedding {
 
 //==============================================================================
@@ -483,6 +490,8 @@ namespace node::embedding {
 //==============================================================================
 
 // Move-only pointer wrapper.
+// The class does not own the pointer and does not delete it.
+// It simplifies implementation of the C++ API classes that wrap pointers.
 template <typename TPointer>
 class NodePointer {
  public:
@@ -493,9 +502,10 @@ class NodePointer {
   NodePointer(const NodePointer&) = delete;
   NodePointer& operator=(const NodePointer&) = delete;
 
-  NodePointer(NodePointer&& other) : ptr_(std::exchange(other.ptr_, nullptr)) {}
+  NodePointer(NodePointer&& other) noexcept
+      : ptr_(std::exchange(other.ptr_, nullptr)) {}
 
-  NodePointer& operator=(NodePointer&& other) {
+  NodePointer& operator=(NodePointer&& other) noexcept {
     if (this != &other) {
       ptr_ = std::exchange(other.ptr_, nullptr);
     }
@@ -507,22 +517,15 @@ class NodePointer {
     return *this;
   }
 
-  TPointer Get() const { return ptr_; }
-  TPointer operator->() const { return ptr_; }
+  TPointer ptr() const { return ptr_; }
 
   explicit operator bool() const { return ptr_ != nullptr; }
-
-  friend bool operator==(const NodePointer& lhs, const NodePointer& rhs) {
-    return lhs.ptr_ == rhs.ptr_;
-  }
-
-  friend bool operator!=(const NodePointer& lhs, const NodePointer& rhs) {
-    return lhs.ptr_ != rhs.ptr_;
-  }
 
  private:
   TPointer ptr_{};
 };
+
+// TODO: Add wrappers for the last error message
 
 template <typename T>
 class [[nodiscard]] NodeExpected {
@@ -534,19 +537,19 @@ class [[nodiscard]] NodeExpected {
   NodeExpected(const NodeExpected&) = delete;
   NodeExpected& operator=(const NodeExpected&) = delete;
 
-  NodeExpected(NodeExpected&& other) : status_(other.status_) {
-    if (other.HasValue()) {
+  NodeExpected(NodeExpected&& other) noexcept : status_(other.status_) {
+    if (other.has_value()) {
       new (std::addressof(value_)) T(std::move(other.value_));
     }
   }
 
-  NodeExpected& operator=(NodeExpected&& other) {
+  NodeExpected& operator=(NodeExpected&& other) noexcept {
     if (this != &other) {
-      if (HasValue()) {
+      if (has_value()) {
         value_.~T();
       }
       status_ = other.status_;
-      if (other.HasValue()) {
+      if (other.has_value()) {
         new (std::addressof(value_)) T(std::move(other.value_));
       }
     }
@@ -554,22 +557,22 @@ class [[nodiscard]] NodeExpected {
   }
 
   ~NodeExpected() {
-    if (HasValue()) {
+    if (has_value()) {
       value_.~T();
     }
   }
 
-  bool HasValue() const { return status_ == NodeStatus::kOk; }
-  bool HasError() const { return status_ != NodeStatus::kOk; }
+  bool has_value() const { return status_ == NodeStatus::kOk; }
+  bool has_error() const { return status_ != NodeStatus::kOk; }
 
-  T& Value() & { return value_; }
-  const T& Value() const& { return value_; }
-  T&& Value() && { return std::move(value_); }
-  const T&& Value() const&& { return std::move(value_); }
+  T& value() & { return value_; }
+  const T& value() const& { return value_; }
+  T&& value() && { return std::move(value_); }
+  const T&& value() const&& { return std::move(value_); }
 
-  NodeStatus Status() const { return status_; }
+  NodeStatus status() const { return status_; }
 
-  int32_t ExitCode() const {
+  int32_t exit_code() const {
     if (status_ == NodeStatus::kOk) {
       return 0;
     } else if ((static_cast<int32_t>(status_) &
@@ -584,7 +587,7 @@ class [[nodiscard]] NodeExpected {
   NodeStatus status_{NodeStatus::kOk};
   union {
     T value_;  // The value is uninitialized if status_ is not kOk.
-    char padding[sizeof(T)];
+    char padding_[sizeof(T)];
   };
 };
 
@@ -601,10 +604,12 @@ class [[nodiscard]] NodeExpected<void> {
   NodeExpected(NodeExpected&& other) = default;
   NodeExpected& operator=(NodeExpected&& other) = default;
 
-  bool HasValue() const { return status_ == NodeStatus::kOk; }
-  bool HasError() const { return status_ != NodeStatus::kOk; }
+  bool has_value() const { return status_ == NodeStatus::kOk; }
+  bool has_error() const { return status_ != NodeStatus::kOk; }
 
-  int32_t ExitCode() const {
+  NodeStatus status() const { return status_; }
+
+  int32_t exit_code() const {
     if (status_ == NodeStatus::kOk) {
       return 0;
     } else if ((static_cast<int32_t>(status_) &
@@ -614,8 +619,6 @@ class [[nodiscard]] NodeExpected<void> {
     }
     return 1;
   }
-
-  NodeStatus Status() const { return status_; }
 
  private:
   NodeStatus status_{NodeStatus::kOk};
@@ -632,8 +635,8 @@ NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
 template <typename T>
 NodeExpected<T> operator&&(NodeExpected<void> expected,
                            NodeExpected<T> success_value) {
-  if (expected.HasError()) {
-    return NodeExpected<T>(expected.Status());
+  if (expected.has_error()) {
+    return NodeExpected<T>(expected.status());
   }
   return success_value;
 }
@@ -690,9 +693,9 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
   NodeFunctorRef(NodeFunctorRef&& other) = default;
   NodeFunctorRef& operator=(NodeFunctorRef&& other) = default;
 
-  TCallback callback() const { return callback_.Get(); }
+  TCallback callback() const { return callback_.ptr(); }
 
-  void* data() const { return data_.Get(); }
+  void* data() const { return data_.ptr(); }
 
   explicit operator bool() const { return static_cast<bool>(callback_); }
 
@@ -728,12 +731,12 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   NodeFunctor(NodeFunctor&& other) = default;
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
-  TCallback callback() const { return callback_.Get(); }
+  TCallback callback() const { return callback_.ptr(); }
 
-  void* data() const { return data_.Get(); }
+  void* data() const { return data_.ptr(); }
 
   node_embedding_release_data_callback data_release() const {
-    return data_release_.Get();
+    return data_release_.ptr();
   }
 
   explicit operator bool() const { return static_cast<bool>(callback_); }
@@ -855,16 +858,16 @@ class NodePlatform {
 
   ~NodePlatform() {
     if (platform_) {
-      node_embedding_delete_platform(platform_.Get());
+      node_embedding_delete_platform(platform_.ptr());
     }
   }
 
   explicit operator bool() const { return static_cast<bool>(platform_); }
 
-  operator node_embedding_platform() const { return platform_.Get(); }
+  operator node_embedding_platform() const { return platform_.ptr(); }
 
   node_embedding_platform Detach() {
-    return std::exchange(platform_, nullptr).Get();
+    return std::exchange(platform_, nullptr).ptr();
   }
 
   static NodeExpected<void> RunMain(
@@ -895,7 +898,7 @@ class NodePlatform {
 
   NodeExpected<void> GetParsedArgs(NodeGetStringsCallback get_args,
                                    NodeGetStringsCallback get_runtime_args) {
-    return node_embedding_get_platform_parsed_args(platform_.Get(),
+    return node_embedding_get_platform_parsed_args(platform_.ptr(),
                                                    get_args.callback(),
                                                    get_args.data(),
                                                    get_runtime_args.callback(),
@@ -946,18 +949,18 @@ class NodePlatformConfig {
   NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
 
   operator node_embedding_platform_config() const {
-    return platform_config_.Get();
+    return platform_config_.ptr();
   }
 
   NodeExpected<void> SetFlags(NodePlatformFlags flags) {
-    return node_embedding_set_platform_flags(platform_config_.Get(), flags) &&
+    return node_embedding_set_platform_flags(platform_config_.ptr(), flags) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> OnEarlyReturn(
       NodeEarlyReturnCallback early_return_handler) {
     return node_embedding_on_early_return(
-               platform_config_.Get(),
+               platform_config_.ptr(),
                early_return_handler.callback(),
                early_return_handler.data(),
                early_return_handler.data_release()) &&
@@ -987,7 +990,7 @@ class NodeApiScope {
 
   ~NodeApiScope() {
     if (runtime_) {
-      node_embedding_close_node_api_scope(runtime_.Get(), node_api_scope_);
+      node_embedding_close_node_api_scope(runtime_.ptr(), node_api_scope_);
     }
   }
 
@@ -1018,46 +1021,46 @@ class NodeRuntime {
 
   ~NodeRuntime() {
     if (runtime_) {
-      node_embedding_delete_runtime(runtime_.Get());
+      node_embedding_delete_runtime(runtime_.ptr());
     }
   }
 
-  operator node_embedding_runtime() const { return runtime_.Get(); }
+  operator node_embedding_runtime() const { return runtime_.ptr(); }
 
   node_embedding_runtime Detach() {
-    return std::exchange(runtime_, nullptr).Get();
+    return std::exchange(runtime_, nullptr).ptr();
   }
 
   NodeExpected<void> RunEventLoop() {
-    return node_embedding_run_event_loop(runtime_.Get()) &&
+    return node_embedding_run_event_loop(runtime_.ptr()) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> TerminateEventLoop() {
-    return node_embedding_terminate_event_loop(runtime_.Get()) &&
+    return node_embedding_terminate_event_loop(runtime_.ptr()) &&
            NodeExpected<void>();
   }
 
   NodeExpected<bool> RunEventLoopOnce() {
     bool has_more_work{};
-    return node_embedding_run_event_loop_once(runtime_.Get(), &has_more_work) &&
+    return node_embedding_run_event_loop_once(runtime_.ptr(), &has_more_work) &&
            NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<bool> RunEventLoopNoWait() {
     bool has_more_work{};
-    return node_embedding_run_event_loop_no_wait(runtime_.Get(),
+    return node_embedding_run_event_loop_no_wait(runtime_.ptr(),
                                                  &has_more_work) &&
            NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<void> RunNodeApi(NodeRunNodeApiCallback run_node_api) {
     return node_embedding_run_node_api(
-               runtime_.Get(), run_node_api.callback(), run_node_api.data()) &&
+               runtime_.ptr(), run_node_api.callback(), run_node_api.data()) &&
            NodeExpected<void>();
   }
 
-  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.Get()); }
+  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.ptr()); }
 
  private:
   NodePointer<node_embedding_runtime> runtime_{};
@@ -1079,16 +1082,16 @@ class NodeRuntimeConfig {
   NodeRuntimeConfig& operator=(NodeRuntimeConfig&& other) = default;
 
   operator node_embedding_runtime_config() const {
-    return runtime_config_.Get();
+    return runtime_config_.ptr();
   }
 
   NodeExpected<void> SetFlags(NodeRuntimeFlags flags) {
-    return node_embedding_set_runtime_flags(runtime_config_.Get(), flags) &&
+    return node_embedding_set_runtime_flags(runtime_config_.ptr(), flags) &&
            NodeExpected<void>();
   }
 
   NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) {
-    return node_embedding_set_runtime_args(runtime_config_.Get(),
+    return node_embedding_set_runtime_args(runtime_config_.ptr(),
                                            args.Argc(),
                                            args.Argv(),
                                            runtime_args.Argc(),
@@ -1097,7 +1100,7 @@ class NodeRuntimeConfig {
   }
 
   NodeExpected<void> OnPreload(NodePreloadCallback preload) {
-    return node_embedding_on_preload_runtime(runtime_config_.Get(),
+    return node_embedding_on_preload_runtime(runtime_config_.ptr(),
                                              preload.callback(),
                                              preload.data(),
                                              preload.data_release()) &&
@@ -1107,7 +1110,7 @@ class NodeRuntimeConfig {
   NodeExpected<void> OnStartExecution(
       NodeStartExecutionCallback start_execution) {
     return node_embedding_on_start_runtime_execution(
-               runtime_config_.Get(),
+               runtime_config_.ptr(),
                start_execution.callback(),
                start_execution.data(),
                start_execution.data_release()) &&
@@ -1117,7 +1120,7 @@ class NodeRuntimeConfig {
   NodeExpected<void> OnHandleStartResult(
       NodeHandleExecutionResultCallback handle_start_result) {
     return node_embedding_on_handle_runtime_execution_result(
-               runtime_config_.Get(),
+               runtime_config_.ptr(),
                handle_start_result.callback(),
                handle_start_result.data(),
                handle_start_result.data_release()) &&
@@ -1127,7 +1130,7 @@ class NodeRuntimeConfig {
   NodeExpected<void> AddModule(std::string_view module_name,
                                NodeInitializeModuleCallback init_module,
                                int32_t moduleNodeApiVersion) {
-    return node_embedding_add_runtime_module(runtime_config_.Get(),
+    return node_embedding_add_runtime_module(runtime_config_.ptr(),
                                              module_name.data(),
                                              init_module.callback(),
                                              init_module.data(),
@@ -1137,7 +1140,7 @@ class NodeRuntimeConfig {
   }
 
   NodeExpected<void> SetTaskRunner(NodePostTaskCallback post_task) {
-    return node_embedding_set_runtime_task_runner(runtime_config_.Get(),
+    return node_embedding_set_runtime_task_runner(runtime_config_.ptr(),
                                                   post_task.callback(),
                                                   post_task.data(),
                                                   post_task.data_release()) &&
@@ -1162,7 +1165,7 @@ class NodeFunctorInvoker<
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     std::vector<std::string> strings_cpp(strings, strings + strings_size);
     NodeExpected<void> result_cpp = (*callback)(std::move(strings_cpp));
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1179,7 +1182,7 @@ class NodeFunctorInvoker<
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodePlatformConfig platform_config_cpp(platform_config);
     NodeExpected<void> result_cpp = (*callback)(&platform_config_cpp);
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1200,7 +1203,7 @@ class NodeFunctorInvoker<
     NodePlatformConfig runtime_config_cpp(runtime_config);
     NodeExpected<void> result_cpp =
         (*callback)(&platform_cpp, &runtime_config_cpp);
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1224,7 +1227,7 @@ class NodeFunctorInvoker<
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp =
         (*callback)(&runtime_cpp, env, process, value);
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1251,10 +1254,10 @@ class NodeFunctorInvoker<
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<napi_value> result_cpp =
         (*callback)(&runtime_cpp, env, process, require, run_cjs);
-    if (result_cpp.HasValue()) {
-      *result = result_cpp.Value();
+    if (result_cpp.has_value()) {
+      *result = result_cpp.value();
     }
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1276,7 +1279,7 @@ class NodeFunctorInvoker<
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp =
         (*callback)(&runtime_cpp, env, execution_result);
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1301,10 +1304,10 @@ class NodeFunctorInvoker<
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<napi_value> result_cpp =
         (*callback)(&runtime_cpp, env, module_name, exports);
-    if (result_cpp.HasValue()) {
-      *result = result_cpp.Value();
+    if (result_cpp.has_value()) {
+      *result = result_cpp.value();
     }
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1317,7 +1320,7 @@ class NodeFunctorInvoker<
   static NodeStatus Invoke(void* cb_data) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeExpected<void> result_cpp = (*callback)();
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1339,7 +1342,7 @@ class NodeFunctorInvoker<
     NodeExpected<void> result_cpp = (*callback)(
         &runtime_cpp,
         NodeRunTaskCallback(run_task, task_data, release_task_data));
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
@@ -1358,7 +1361,7 @@ class NodeFunctorInvoker<
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp = (*callback)(&runtime_cpp, env);
-    return result_cpp.Status();
+    return result_cpp.status();
   }
 };
 
