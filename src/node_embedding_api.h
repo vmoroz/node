@@ -1002,6 +1002,9 @@ class NodeApiScope {
   napi_env env_{};
 };
 
+// TODO: add node_embedding_run_runtime
+// TODO: node_embedding_set_runtime_node_api_version
+
 class NodeRuntime {
  public:
   static NodeExpected<NodeRuntime> Create(
@@ -1060,6 +1063,7 @@ class NodeRuntime {
            NodeExpected<void>();
   }
 
+  // TODO: change the signature of the result
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.ptr()); }
 
  private:
@@ -1117,7 +1121,7 @@ class NodeRuntimeConfig {
            NodeExpected<void>();
   }
 
-  NodeExpected<void> OnHandleStartResult(
+  NodeExpected<void> OnHandleeEecutionResult(
       NodeHandleExecutionResultCallback handle_start_result) {
     return node_embedding_on_handle_runtime_execution_result(
                runtime_config_.ptr(),
