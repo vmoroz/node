@@ -13,6 +13,13 @@
 // C-based API.
 //
 
+// TODO: Add wrappers for the last error message
+// TODO: Add support for a struct of callbacks
+// TODO: NodeArgs - vector of strings?
+// TODO: Add node_embedding_run_runtime
+// TODO: Add node_embedding_set_runtime_node_api_version
+// TODO: OpenNodeApiScope: change the signature of the result
+
 #ifndef SRC_NODE_EMBEDDING_API_H_
 #define SRC_NODE_EMBEDDING_API_H_
 
@@ -525,8 +532,6 @@ class NodePointer {
   TPointer ptr_{};
 };
 
-// TODO: Add wrappers for the last error message
-
 template <typename T>
 class [[nodiscard]] NodeExpected {
  public:
@@ -642,7 +647,6 @@ NodeExpected<T> operator&&(NodeExpected<void> expected,
 }
 
 // Wraps command line arguments.
-// TODO: vector of strings?
 class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
@@ -1002,9 +1006,6 @@ class NodeApiScope {
   napi_env env_{};
 };
 
-// TODO: add node_embedding_run_runtime
-// TODO: node_embedding_set_runtime_node_api_version
-
 class NodeRuntime {
  public:
   static NodeExpected<NodeRuntime> Create(
@@ -1063,7 +1064,6 @@ class NodeRuntime {
            NodeExpected<void>();
   }
 
-  // TODO: change the signature of the result
   NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.ptr()); }
 
  private:
