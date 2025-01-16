@@ -496,12 +496,17 @@ class NodePointer {
   NodePointer(const NodePointer&) = delete;
   NodePointer& operator=(const NodePointer&) = delete;
 
-  NodePointer(NodePointer&& other) : ptr_(other.ptr_) { other.ptr_ = nullptr; }
+  NodePointer(NodePointer&& other) : ptr_(std::exchange(other.ptr_, nullptr)) {}
+
   NodePointer& operator=(NodePointer&& other) {
     if (this != &other) {
-      ptr_ = other.ptr_;
-      other.ptr_ = nullptr;
+      ptr_ = std::exchange(other.ptr_, nullptr);
     }
+    return *this;
+  }
+
+  NodePointer& operator=(std::nullptr_t) {
+    ptr_ = nullptr;
     return *this;
   }
 
@@ -509,6 +514,14 @@ class NodePointer {
   TPointer operator->() const { return ptr_; }
 
   explicit operator bool() const { return ptr_ != nullptr; }
+
+  friend bool operator==(const NodePointer& lhs, const NodePointer& rhs) {
+    return lhs.ptr_ == rhs.ptr_;
+  }
+
+  friend bool operator!=(const NodePointer& lhs, const NodePointer& rhs) {
+    return lhs.ptr_ != rhs.ptr_;
+  }
 
  private:
   TPointer ptr_{};
@@ -619,30 +632,6 @@ NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
   return success_value;
 }
 
-class NodePlatformConfig {
- public:
-  explicit NodePlatformConfig(node_embedding_platform_config platform_config)
-      : platform_config_(platform_config) {}
-
-  NodePlatformConfig(const NodePlatformConfig&) = delete;
-  NodePlatformConfig& operator=(const NodePlatformConfig&) = delete;
-
-  NodePlatformConfig(NodePlatformConfig&& other) = default;
-  NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
-
-  operator node_embedding_platform_config() const {
-    return platform_config_.Get();
-  }
-
-  NodeExpected<void> SetFlags(NodePlatformFlags flags) {
-    return node_embedding_set_platform_flags(platform_config_.Get(), flags) &&
-           NodeExpected<void>();
-  }
-
- private:
-  NodePointer<node_embedding_platform_config> platform_config_{};
-};
-
 // Wraps command line arguments.
 class NodeArgs {
  public:
@@ -696,6 +685,17 @@ class NodeFunctorRef<TResult (*)(void*, TArgs...)> {
   void* callback_data_{};
 };
 
+//template <typename TCallback, typename TFunctor>
+//class NodeFunctorInvoker;
+//
+//template <typename TFunctor, typename TResult, typename... TArgs>
+//class NodeFunctorInvoker<TResult (*)(void*, TArgs...), TFunctor> {
+//  static TResult Invoke(void* data, TArgs... args) {
+//    TFunctor* callback = reinterpret_cast<TFunctor*>(data);
+//    return (*callback)(args...);
+//  }
+//};
+
 template <typename TCallback>
 class NodeFunctor;
 
@@ -721,7 +721,6 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
   NodeFunctor(const NodeFunctor&) = delete;
   NodeFunctor& operator=(const NodeFunctor&) = delete;
-
   NodeFunctor(NodeFunctor&& other) = default;
   NodeFunctor& operator=(NodeFunctor&& other) = default;
 
@@ -734,7 +733,9 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   }
 
  private:
-  template <typename TFunctor>
+  template <typename TFunctor,
+            std::enable_if_t<std::is_invocable_r_v<TResult, TFunctor, TArgs...>,
+                             int> = 0>
   static TResult InvokeFunctor(void* data, TArgs... args) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(data);
     return (*callback)(args...);
@@ -798,6 +799,12 @@ class NodePlatform {
     }
   }
 
+  operator node_embedding_platform() const { return platform_.Get(); }
+
+  node_embedding_platform Detach() {
+    return std::exchange(platform_, nullptr).Get();
+  }
+
   NodeExpected<void> GetParsedArgs(
       NodeFunctorRef<node_embedding_get_strings_callback> get_args,
       NodeFunctorRef<node_embedding_get_strings_callback> get_runtime_args) {
@@ -809,10 +816,40 @@ class NodePlatform {
            NodeExpected<void>();
   }
 
-  operator node_embedding_platform() const { return platform_.Get(); }
-
  private:
   NodePointer<node_embedding_platform> platform_{};
+};
+
+class NodePlatformConfig {
+ public:
+  explicit NodePlatformConfig(node_embedding_platform_config platform_config)
+      : platform_config_(platform_config) {}
+
+  NodePlatformConfig(const NodePlatformConfig&) = delete;
+  NodePlatformConfig& operator=(const NodePlatformConfig&) = delete;
+  NodePlatformConfig(NodePlatformConfig&& other) = default;
+  NodePlatformConfig& operator=(NodePlatformConfig&& other) = default;
+
+  operator node_embedding_platform_config() const {
+    return platform_config_.Get();
+  }
+
+  NodeExpected<void> SetFlags(NodePlatformFlags flags) {
+    return node_embedding_set_platform_flags(platform_config_.Get(), flags) &&
+           NodeExpected<void>();
+  }
+
+  NodeExpected<void> OnEarlyReturn(
+      NodeFunctor<node_embedding_early_return_callback> early_return_handler) {
+    return node_embedding_on_early_return(platform_config_.Get(),
+                                          early_return_handler.Callback(),
+                                          early_return_handler.Data(),
+                                          early_return_handler.Release()) &&
+           NodeExpected<void>();
+  }
+
+ private:
+  NodePointer<node_embedding_platform_config> platform_config_{};
 };
 
 class NodeRuntimeConfig {
