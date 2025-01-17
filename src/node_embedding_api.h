@@ -15,7 +15,6 @@
 
 // TODO: Add support for a struct of callbacks
 // TODO: const constT& instead of pointers for required parameters
-// TODO: How to handle node_embedding_close_node_api_scope result?
 
 #ifndef SRC_NODE_EMBEDDING_API_H_
 #define SRC_NODE_EMBEDDING_API_H_
@@ -477,11 +476,15 @@ node_embedding_close_node_api_scope(
 
 EXTERN_C_END
 
+//==============================================================================
+// The C++ wrappers for the Node.js embedding API.
+//==============================================================================
 #ifdef __cplusplus
 
 #include <cstdarg>
 #include <cstdio>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -951,6 +954,56 @@ class NodeErrorInfo {
   }
 };
 
+class NodeScopedErrorHandler {
+ public:
+  static void SetStatus(NodeStatus status) {
+    if (status == NodeStatus::kOk) return;
+    NodeScopedErrorHandler* current_handler = Current();
+    if (current_handler != nullptr) {
+      napi_fatal_error("NodeScopedErrorHandler::SetStatus",
+                       NAPI_AUTO_LENGTH,
+                       "NodeScopedErrorHandler is not found om the stack.",
+                       NAPI_AUTO_LENGTH);
+    }
+    current_handler->SetStatusInternal(status);
+  }
+
+  NodeScopedErrorHandler() {}
+
+  ~NodeScopedErrorHandler() {
+    if (status_.has_value()) {
+      napi_fatal_error("NodeScopedErrorHandler::~NodeScopedErrorHandler",
+                       NAPI_AUTO_LENGTH,
+                       "NodeScopedErrorHandler status is not read and cleared.",
+                       NAPI_AUTO_LENGTH);
+    }
+    Current() = previous_handler_;
+  }
+
+  NodeStatus GetAndClearStatus() {
+    NodeStatus result_status = status_.value_or(NodeStatus::kOk);
+    status_.reset();
+    return result_status;
+  }
+
+ private:
+  static NodeScopedErrorHandler*& Current() {
+    static thread_local NodeScopedErrorHandler* current_handler = nullptr;
+    return current_handler;
+  }
+
+  void SetStatusInternal(NodeStatus status) {
+    if (status_ != NodeStatus::kOk) return;
+    status_ = status;
+    error_message_ = NodeErrorInfo::GetLastErrorMessage().value();
+  }
+
+ private:
+  std::optional<NodeStatus> status_;
+  std::vector<std::string> error_message_;
+  NodeScopedErrorHandler* previous_handler_{Current()};
+};
+
 // Wraps the Node.js platform instance.
 class NodePlatform {
  public:
@@ -962,7 +1015,8 @@ class NodePlatform {
 
   ~NodePlatform() {
     if (platform_) {
-      node_embedding_delete_platform(platform_.ptr());
+      NodeScopedErrorHandler::SetStatus(
+          node_embedding_delete_platform(platform_.ptr()));
     }
   }
 
@@ -1095,8 +1149,8 @@ class NodeApiScope {
 
   ~NodeApiScope() {
     if (runtime_) {
-      node_embedding_close_node_api_scope(runtime_.ptr(),
-                                          node_api_scope_.ptr());
+      NodeScopedErrorHandler::SetStatus(node_embedding_close_node_api_scope(
+          runtime_.ptr(), node_api_scope_.ptr()));
     }
   }
 
@@ -1137,7 +1191,9 @@ class NodeRuntime {
 
   ~NodeRuntime() {
     if (runtime_) {
-      node_embedding_delete_runtime(runtime_.ptr());
+      NodeScopedErrorHandler::SetStatus(
+          node_embedding_delete_runtime(runtime_.ptr()));
+      ;
     }
   }
 
