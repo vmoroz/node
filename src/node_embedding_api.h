@@ -482,6 +482,8 @@ EXTERN_C_END
 
 #ifdef __cplusplus
 
+#include <cstdarg>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -646,15 +648,55 @@ NodeExpected<T> operator&&(NodeExpected<void> expected,
   return success_value;
 }
 
+// A helper class to convert std::vector<std::string> to an array of C strings.
+// If the number of strings is less than kInplaceBufferSize, the strings are
+// stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
+// allocated_buffer_ array.
+// Ideally the class must be allocated on the stack.
+// In any case it must not outlive the passed vector since it keeps only the
+// string pointers returned by std::string::c_str() method.
+template <size_t kInplaceBufferSize = 32>
+class NodeCStringArray {
+ public:
+  explicit NodeCStringArray(const std::vector<std::string>& strings) noexcept
+      : size_(strings.size()) {
+    if (size_ <= inplace_buffer_.size()) {
+      c_strs_ = inplace_buffer_.data();
+    } else {
+      allocated_buffer_ = std::make_unique<const char*[]>(size_);
+      c_strs_ = allocated_buffer_.get();
+    }
+    for (size_t i = 0; i < size_; ++i) {
+      c_strs_[i] = strings[i].c_str();
+    }
+  }
+
+  NodeCStringArray(const NodeCStringArray&) = delete;
+  NodeCStringArray& operator=(const NodeCStringArray&) = delete;
+
+  const char** c_strs() const { return c_strs_; }
+  int32_t size() const { return static_cast<int32_t>(size_); }
+
+ private:
+  const char** c_strs_{};
+  size_t size_{};
+  std::array<const char*, kInplaceBufferSize> inplace_buffer_;
+  std::unique_ptr<const char*[]> allocated_buffer_;
+};
+
 // Wraps command line arguments.
 class NodeArgs {
  public:
   NodeArgs(int32_t argc, const char* argv[]) : argc_(argc), argv_(argv) {}
+
   NodeArgs(int32_t argc, char* argv[])
       : argc_(argc), argv_(const_cast<const char**>(argv)) {}
 
-  int32_t Argc() const { return argc_; }
-  const char** Argv() const { return argv_; }
+  NodeArgs(const NodeCStringArray<>& string_array_view)
+      : argc_(string_array_view.size()), argv_(string_array_view.c_strs()) {}
+
+  int32_t argc() const { return argc_; }
+  const char** argv() const { return argv_; }
 
  private:
   int32_t argc_{};
@@ -851,6 +893,67 @@ using NodePostTaskCallback = NodeFunctor<node_embedding_post_task_callback>;
 using NodeRunNodeApiCallback =
     NodeFunctorRef<node_embedding_run_node_api_callback>;
 
+inline std::string NodeFormatString(const char* format, ...) {
+  va_list args1;
+  va_start(args1, format);
+  va_list args2;  // Required for some compilers like GCC since we go over the
+                  // args twice.
+  va_copy(args2, args1);
+  std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
+  va_end(args1);
+  std::vsnprintf(&result[0], result.size() + 1, format, args2);
+  va_end(args2);
+  return result;
+}
+
+class NodeErrorInfo {
+ public:
+  static NodeExpected<void> GetLastErrorMessage(
+      NodeGetStringsCallback get_message) {
+    return NodeExpected<void>(node_embedding_get_last_error_message(
+        get_message.callback(), get_message.data()));
+  }
+
+  static NodeExpected<std::vector<std::string>> GetLastErrorMessage() {
+    std::vector<std::string> result_message;
+    return GetLastErrorMessage(
+               [&result_message](std::vector<std::string> message) {
+                 result_message = std::move(message);
+                 return NodeExpected<void>();
+               }) &&
+           NodeExpected<std::vector<std::string>>(std::move(result_message));
+  }
+
+  static NodeExpected<void> SetLastErrorMessage(int32_t message_strings_size,
+                                                const char* message_strings[]) {
+    return NodeExpected<void>(node_embedding_set_last_error_message(
+        message_strings_size, message_strings));
+  }
+
+  static NodeExpected<void> SetLastErrorMessage(std::string_view message) {
+    const char* message_data = message.data();
+    return SetLastErrorMessage(1, &message_data);
+  }
+
+  static NodeExpected<void> SetLastErrorMessage(std::string_view message,
+                                                std::string_view filename,
+                                                int32_t line) {
+    return SetLastErrorMessage(NodeFormatString(
+        "Error: %s at %s:%d", message.data(), filename.data(), line));
+  }
+
+  static NodeExpected<void> SetLastErrorMessage(
+      const std::vector<std::string>& message) {
+    NodeCStringArray message_strings(message);
+    return SetLastErrorMessage(message_strings.size(),
+                               message_strings.c_strs());
+  }
+
+  static NodeExpected<void> ClearLastErrorMessage() {
+    return NodeExpected<void>(node_embedding_clear_last_error_message());
+  }
+};
+
 // Wraps the Node.js platform instance.
 class NodePlatform {
  public:
@@ -879,8 +982,8 @@ class NodePlatform {
       NodeConfigurePlatformCallback configure_platform,
       NodeConfigureRuntimeCallback configure_runtime) {
     return node_embedding_run_main(NODE_EMBEDDING_VERSION,
-                                   args.Argc(),
-                                   args.Argv(),
+                                   args.argc(),
+                                   args.argv(),
                                    configure_platform.callback(),
                                    configure_platform.data(),
                                    configure_runtime.callback(),
@@ -892,8 +995,8 @@ class NodePlatform {
       NodeArgs args, NodeConfigurePlatformCallback configure_platform) {
     node_embedding_platform platform;
     return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
-                                          args.Argc(),
-                                          args.Argv(),
+                                          args.argc(),
+                                          args.argv(),
                                           configure_platform.callback(),
                                           configure_platform.data(),
                                           &platform) &&
@@ -998,7 +1101,7 @@ class NodeApiScope {
     }
   }
 
-  napi_env GetEnv() const { return env_; }
+  napi_env env() const { return env_; }
 
  private:
   NodePointer<node_embedding_runtime> runtime_{};
@@ -1096,10 +1199,10 @@ class NodeRuntimeConfig {
 
   NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) {
     return node_embedding_set_runtime_args(runtime_config_.ptr(),
-                                           args.Argc(),
-                                           args.Argv(),
-                                           runtime_args.Argc(),
-                                           runtime_args.Argv()) &&
+                                           args.argc(),
+                                           args.argv(),
+                                           runtime_args.argc(),
+                                           runtime_args.argv()) &&
            NodeExpected<void>();
   }
 

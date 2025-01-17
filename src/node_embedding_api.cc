@@ -182,45 +182,6 @@ class UniqueFunction<TResult (*)(void*, TArgs...)> {
   functor_struct<TCallback> functor_{};
 };
 
-// A helper class to convert std::vector<std::string> to an array of C strings.
-// If the number of strings is less than kInplaceBufferSize, the strings are
-// stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
-// allocated_buffer_ array.
-// Ideally the class must be allocated on the stack.
-// In any case it must not outlive the passed vector since it keeps only the
-// string pointers returned by std::string::c_str() method.
-template <size_t kInplaceBufferSize = 32>
-class CStringArray {
- public:
-  explicit CStringArray(const std::vector<std::string>& strings) noexcept
-      : size_(strings.size()) {
-    if (size_ <= inplace_buffer_.size()) {
-      c_strs_ = inplace_buffer_.data();
-    } else {
-      allocated_buffer_ = std::make_unique<const char*[]>(size_);
-      c_strs_ = allocated_buffer_.get();
-    }
-    for (size_t i = 0; i < size_; ++i) {
-      c_strs_[i] = strings[i].c_str();
-    }
-  }
-
-  CStringArray(const CStringArray&) = delete;
-  CStringArray& operator=(const CStringArray&) = delete;
-
-  const char** c_strs() const { return c_strs_; }
-  size_t size() const { return size_; }
-
-  const char** argv() const { return c_strs_; }
-  int32_t argc() const { return static_cast<int32_t>(size_); }
-
- private:
-  const char** c_strs_{};
-  size_t size_{};
-  std::array<const char*, kInplaceBufferSize> inplace_buffer_;
-  std::unique_ptr<const char*[]> allocated_buffer_;
-};
-
 // Stack implementation that works only with trivially constructible,
 // destructible, and copyable types. It uses the small value optimization where
 // several elements are stored in the in-place array.
@@ -287,8 +248,8 @@ class EmbeddedErrorHandling {
                                 std::vector<std::string> messages);
 
   static NodeStatus HandleError(NodeStatus status,
-                                const char* message,
-                                const char* filename,
+                                std::string_view message,
+                                std::string_view filename,
                                 int32_t line);
 
   static std::string FormatString(const char* format, ...);
@@ -614,12 +575,15 @@ class EmbeddedRuntime {
   return status;
 }
 
-/*static*/ NodeStatus EmbeddedErrorHandling::HandleError(NodeStatus status,
-                                                         const char* message,
-                                                         const char* filename,
-                                                         int32_t line) {
+/*static*/ NodeStatus EmbeddedErrorHandling::HandleError(
+    NodeStatus status,
+    std::string_view message,
+    std::string_view filename,
+    int32_t line) {
   return HandleError(
-      status, FormatString("Error: %s at %s:%d", message, filename, line));
+      status,
+      FormatString(
+          "Error: %s at %s:%d", message.data(), filename.data(), line));
 }
 
 /*static*/ std::string EmbeddedErrorHandling::FormatString(const char* format,
@@ -814,8 +778,8 @@ node_embedding_status EmbeddedPlatform::Initialize(
   if (init_result_->early_return()) {
     *early_return = true;
     if (early_return_handler_) {
-      CStringArray messages(init_result_->errors());
-      CHECK_STATUS(early_return_handler_(messages.argc(), messages.argv()));
+      NodeCStringArray messages(init_result_->errors());
+      CHECK_STATUS(early_return_handler_(messages.size(), messages.c_strs()));
     }
     return node_embedding_status::kOk;
   }
@@ -839,14 +803,14 @@ node_embedding_status EmbeddedPlatform::GetParsedArgs(
   ASSERT_EXPR(is_initialized_);
 
   if (get_args != nullptr) {
-    CStringArray args(init_result_->args());
-    CHECK_STATUS(get_args(get_args_data, args.argc(), args.argv()));
+    NodeCStringArray args(init_result_->args());
+    CHECK_STATUS(get_args(get_args_data, args.size(), args.c_strs()));
   }
 
   if (get_exec_args != nullptr) {
-    CStringArray exec_args(init_result_->exec_args());
-    CHECK_STATUS(
-        get_exec_args(get_exec_args_data, exec_args.argc(), exec_args.argv()));
+    NodeCStringArray exec_args(init_result_->exec_args());
+    CHECK_STATUS(get_exec_args(
+        get_exec_args_data, exec_args.size(), exec_args.c_strs()));
   }
 
   return node_embedding_status::kOk;
@@ -1641,9 +1605,9 @@ node_embedding_status NAPI_CDECL node_embedding_get_last_error_message(
   if (message == nullptr) {
     return get_message(get_message_data, 0, nullptr);
   }
-  node::embedding::CStringArray message_array(*message);
+  node::embedding::NodeCStringArray message_array(*message);
   return get_message(
-      get_message_data, message_array.argc(), message_array.argv());
+      get_message_data, message_array.size(), message_array.c_strs());
 }
 
 node_embedding_status NAPI_CDECL node_embedding_set_last_error_message(
