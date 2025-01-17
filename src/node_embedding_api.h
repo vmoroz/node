@@ -13,8 +13,6 @@
 // C-based API.
 //
 
-// TODO: Add support for a struct of callbacks
-
 #ifndef SRC_NODE_EMBEDDING_API_H_
 #define SRC_NODE_EMBEDDING_API_H_
 
