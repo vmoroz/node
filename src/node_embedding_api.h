@@ -13,11 +13,8 @@
 // C-based API.
 //
 
-// TODO: Add wrappers for the last error message
 // TODO: Add support for a struct of callbacks
-// TODO: NodeArgs - vector of strings?
-// TODO: Add node_embedding_run_runtime
-// TODO: Add node_embedding_set_runtime_node_api_version
+// TODO: const constT& instead of pointers for required parameters
 // TODO: OpenNodeApiScope: change the signature of the result
 
 #ifndef SRC_NODE_EMBEDDING_API_H_
@@ -1111,6 +1108,16 @@ class NodeApiScope {
 
 class NodeRuntime {
  public:
+  static NodeExpected<void> Run(
+      const NodePlatform& platform,
+      NodeConfigureRuntimeCallback configure_runtime) {
+    return node_embedding_run_runtime(
+               static_cast<node_embedding_platform>(platform),
+               configure_runtime.callback(),
+               configure_runtime.data()) &&
+           NodeExpected<void>();
+  }
+
   static NodeExpected<NodeRuntime> Create(
       NodePlatform platform, NodeConfigureRuntimeCallback configure_runtime) {
     node_embedding_runtime runtime;
@@ -1190,6 +1197,12 @@ class NodeRuntimeConfig {
 
   operator node_embedding_runtime_config() const {
     return runtime_config_.ptr();
+  }
+
+  NodeExpected<void> SetNodeApiVersion(int32_t node_api_version) {
+    return node_embedding_set_runtime_node_api_version(runtime_config_.ptr(),
+                                                       node_api_version) &&
+           NodeExpected<void>();
   }
 
   NodeExpected<void> SetFlags(NodeRuntimeFlags flags) {
