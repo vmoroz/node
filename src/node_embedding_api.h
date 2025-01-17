@@ -15,7 +15,7 @@
 
 // TODO: Add support for a struct of callbacks
 // TODO: const constT& instead of pointers for required parameters
-// TODO: OpenNodeApiScope: change the signature of the result
+// TODO: How to handle node_embedding_close_node_api_scope result?
 
 #ifndef SRC_NODE_EMBEDDING_API_H_
 #define SRC_NODE_EMBEDDING_API_H_
@@ -671,12 +671,12 @@ class NodeCStringArray {
   NodeCStringArray(const NodeCStringArray&) = delete;
   NodeCStringArray& operator=(const NodeCStringArray&) = delete;
 
-  const char** c_strs() const { return c_strs_; }
   int32_t size() const { return static_cast<int32_t>(size_); }
+  const char** c_strs() const { return c_strs_; }
 
  private:
-  const char** c_strs_{};
   size_t size_{};
+  const char** c_strs_{};
   std::array<const char*, kInplaceBufferSize> inplace_buffer_;
   std::unique_ptr<const char*[]> allocated_buffer_;
 };
@@ -1077,33 +1077,35 @@ class NodePlatformConfig {
 
 class NodeApiScope {
  public:
-  NodeApiScope(node_embedding_runtime runtime) : runtime_(runtime) {
-    node_embedding_open_node_api_scope(runtime, &node_api_scope_, &env_);
+  static NodeExpected<NodeApiScope> Open(node_embedding_runtime runtime) {
+    node_embedding_node_api_scope node_api_scope{};
+    napi_env env{};
+    return node_embedding_open_node_api_scope(runtime, &node_api_scope, &env) &&
+           NodeExpected<NodeApiScope>(
+               NodeApiScope(runtime, node_api_scope, env));
   }
 
-  NodeApiScope(node_embedding_runtime runtime,
-               node_embedding_node_api_scope node_api_scope,
-               napi_env env)
+  explicit NodeApiScope(node_embedding_runtime runtime,
+                        node_embedding_node_api_scope node_api_scope,
+                        napi_env env)
       : runtime_(runtime), node_api_scope_(node_api_scope), env_(env) {}
-
-  NodeApiScope(const NodeApiScope&) = delete;
-  NodeApiScope& operator=(const NodeApiScope&) = delete;
 
   NodeApiScope(NodeApiScope&&) = default;
   NodeApiScope& operator=(NodeApiScope&&) = default;
 
   ~NodeApiScope() {
     if (runtime_) {
-      node_embedding_close_node_api_scope(runtime_.ptr(), node_api_scope_);
+      node_embedding_close_node_api_scope(runtime_.ptr(),
+                                          node_api_scope_.ptr());
     }
   }
 
-  napi_env env() const { return env_; }
+  napi_env env() const { return env_.ptr(); }
 
  private:
-  NodePointer<node_embedding_runtime> runtime_{};
-  node_embedding_node_api_scope node_api_scope_{};
-  napi_env env_{};
+  NodePointer<node_embedding_runtime> runtime_;
+  NodePointer<node_embedding_node_api_scope> node_api_scope_;
+  NodePointer<napi_env> env_;
 };
 
 class NodeRuntime {
@@ -1174,7 +1176,9 @@ class NodeRuntime {
            NodeExpected<void>();
   }
 
-  NodeApiScope OpenNodeApiScope() { return NodeApiScope(runtime_.ptr()); }
+  NodeExpected<NodeApiScope> OpenNodeApiScope() {
+    return NodeApiScope::Open(runtime_.ptr());
+  }
 
  private:
   NodePointer<node_embedding_runtime> runtime_{};
