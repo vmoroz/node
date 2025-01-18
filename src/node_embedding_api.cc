@@ -98,42 +98,12 @@ namespace node::embedding {
 //------------------------------------------------------------------------------
 
 template <typename TCallback>
-struct functor_struct {
-  void* data{};
-  TCallback invoke{};
-  node_embedding_release_data_callback release{};
-
-  functor_struct() = default;
-
-  functor_struct(void* data,
-                 TCallback invoke,
-                 node_embedding_release_data_callback release)
-      : data(data), invoke(invoke), release(release) {}
-
-  ~functor_struct() {
-    if (release != nullptr) {
-      release(data);
-    }
-  }
-};
-
-template <typename TCallback>
-std::shared_ptr<functor_struct<TCallback>> MakeSharedFunctorPtr(
+std::shared_ptr<NodeFunctor<TCallback>> MakeSharedFunctorPtr(
     TCallback callback,
     void* callback_data,
     node_embedding_release_data_callback release_callback_data) {
-  return callback ? std::make_shared<functor_struct<TCallback>>(
-                        callback_data, callback, release_callback_data)
-                  : nullptr;
-}
-
-template <typename TCallback>
-std::unique_ptr<functor_struct<TCallback>> MakeUniqueFunctorPtr(
-    TCallback callback,
-    void* callback_data,
-    node_embedding_release_data_callback release_callback_data) {
-  return callback ? std::make_unique_ptr<functor_struct<TCallback>>(
-                        callback_data, callback, release_callback_data)
+  return callback ? std::make_shared<NodeFunctor<TCallback>>(
+                        callback, callback_data, release_callback_data)
                   : nullptr;
 }
 
@@ -932,8 +902,7 @@ node_embedding_status EmbeddedRuntime::OnPreload(
                     v8impl::JsValueFromV8LocalValue(process);
                 napi_value require_value =
                     v8impl::JsValueFromV8LocalValue(require);
-                run_preload_ptr->invoke(
-                    run_preload_ptr->data,
+                (*run_preload_ptr)(
                     reinterpret_cast<node_embedding_runtime>(this),
                     env,
                     process_value,
@@ -972,8 +941,7 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
                     v8impl::JsValueFromV8LocalValue(info.native_require);
                 napi_value run_cjs_value =
                     v8impl::JsValueFromV8LocalValue(info.run_cjs);
-                return start_execution_ptr->invoke(
-                    start_execution_ptr->data,
+                return (*start_execution_ptr)(
                     reinterpret_cast<node_embedding_runtime>(this),
                     env,
                     process_value,
