@@ -77,6 +77,7 @@
 
 namespace v8impl {
 
+// Creates new Node-API environment. It is defined in node_api.cc.
 napi_env NewEnv(v8::Local<v8::Context> context,
                 const std::string& module_filename,
                 int32_t module_api_version);
@@ -426,8 +427,8 @@ class EmbeddedRuntime {
       node_embedding_node_api_scope node_api_scope);
   bool IsNodeApiScopeOpened() const;
 
-  static napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
-                                        const std::string& module_filename);
+  napi_env GetOrCreateNodeApiEnv(node::Environment* node_env,
+                                 const std::string& module_filename);
 
   size_t OpenV8Scope();
   void CloseV8Scope(size_t nest_level);
@@ -458,16 +459,6 @@ class EmbeddedRuntime {
     std::string module_name;
     UniqueFunction<node_embedding_initialize_module_callback> init_module;
     int32_t module_node_api_version;
-  };
-
-  struct SharedData {
-    std::mutex mutex;
-    std::unordered_map<node::Environment*, napi_env> node_env_to_node_api_env;
-
-    static SharedData& Get() {
-      static SharedData shared_data;
-      return shared_data;
-    }
   };
 
   struct V8ScopeLocker {
@@ -525,7 +516,6 @@ class EmbeddedRuntime {
   node::StartExecutionCallback start_execution_cb_{};
   UniqueFunction<node_embedding_handle_execution_result_callback>
       handle_result_{};
-  napi_env node_api_env_{};
 
   struct {
     bool flags : 1;
@@ -549,6 +539,13 @@ class EmbeddedRuntime {
 #endif
 
   SmallTrivialStack<NodeApiScopeData> node_api_scope_data_{};
+
+  // The node API associated with the runtime's environment.
+  napi_env node_api_env_{};
+
+  // Map from worker thread node::Environment* to napi_env.
+  std::mutex worker_env_mutex_;
+  std::unordered_map<node::Environment*, napi_env> worker_env_to_node_api_;
 };
 
 //-----------------------------------------------------------------------------
@@ -969,7 +966,7 @@ node_embedding_status EmbeddedRuntime::OnPreload(
 
   if (run_preload != nullptr) {
     preload_cb_ = node::EmbedderPreloadCallback(
-        [runtime = reinterpret_cast<node_embedding_runtime>(this),
+        [this,
          run_preload_ptr = MakeSharedFunctorPtr(
              run_preload, preload_data, release_preload_data)](
             node::Environment* node_env,
@@ -982,11 +979,12 @@ node_embedding_status EmbeddedRuntime::OnPreload(
                     v8impl::JsValueFromV8LocalValue(process);
                 napi_value require_value =
                     v8impl::JsValueFromV8LocalValue(require);
-                run_preload_ptr->invoke(run_preload_ptr->data,
-                                        runtime,
-                                        env,
-                                        process_value,
-                                        require_value);
+                run_preload_ptr->invoke(
+                    run_preload_ptr->data,
+                    reinterpret_cast<node_embedding_runtime>(this),
+                    env,
+                    process_value,
+                    require_value);
               },
               TriggerFatalException);
         });
@@ -1122,7 +1120,8 @@ node_embedding_status EmbeddedRuntime::Initialize(
   V8ScopeLocker v8_scope_locker(*this);
 
   std::string filename = args_.size() > 1 ? args_[1] : "<internal>";
-  node_api_env_ = GetOrCreateNodeApiEnv(env_setup_->env(), filename);
+  node_api_env_ =
+      v8impl::NewEnv(env_setup_->env()->context(), filename, node_api_version_);
 
   node::Environment* node_env = env_setup_->env();
 
@@ -1474,23 +1473,45 @@ bool EmbeddedRuntime::IsNodeApiScopeOpened() const {
 
 napi_env EmbeddedRuntime::GetOrCreateNodeApiEnv(
     node::Environment* node_env, const std::string& module_filename) {
-  SharedData& shared_data = SharedData::Get();
-
-  {
-    std::scoped_lock<std::mutex> lock(shared_data.mutex);
-    auto it = shared_data.node_env_to_node_api_env.find(node_env);
-    if (it != shared_data.node_env_to_node_api_env.end()) return it->second;
+  // Check if this is the main environment associated with the runtime.
+  if (node_env == env_setup_->env()) {
+    return node_api_env_;
   }
 
-  // Avoid creating the environment under the lock.
-  // TODO: Fix the version
-  napi_env env = v8impl::NewEnv(node_env->context(), module_filename, 0);
+  {
+    // Return Node-API env if it already exists.
+    std::scoped_lock<std::mutex> lock(worker_env_mutex_);
+    auto it = worker_env_to_node_api_.find(node_env);
+    if (it != worker_env_to_node_api_.end()) {
+      return it->second;
+    }
+  }
+
+  // Create new Node-API env. We avoid creating the environment under the lock.
+  napi_env env =
+      v8impl::NewEnv(node_env->context(), module_filename, node_api_version_);
 
   // In case if we cannot insert the new env, we are just going to have an
   // unused env which will be deleted in the end with other environments.
-  std::scoped_lock<std::mutex> lock(shared_data.mutex);
-  auto insert_result =
-      shared_data.node_env_to_node_api_env.try_emplace(node_env, env);
+  std::scoped_lock<std::mutex> lock(worker_env_mutex_);
+  auto insert_result = worker_env_to_node_api_.try_emplace(node_env, env);
+  if (insert_result.second) {
+    // If the environment is successfully inserted, add a cleanup hook to delete
+    // it from the worker_env_to_node_api_ later.
+    struct CleanupContext {
+      EmbeddedRuntime* runtime_;
+      node::Environment* node_env_;
+    };
+    node_env->AddCleanupHook(
+        [](void* arg) {
+          std::unique_ptr<CleanupContext> context{
+              static_cast<CleanupContext*>(arg)};
+          std::scoped_lock<std::mutex> lock(
+              context->runtime_->worker_env_mutex_);
+          context->runtime_->worker_env_to_node_api_.erase(context->node_env_);
+        },
+        static_cast<void*>(new CleanupContext{this, node_env}));
+  }
 
   // Return either the inserted or the existing environment.
   return insert_result.first->second;
