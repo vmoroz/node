@@ -137,52 +137,6 @@ std::unique_ptr<functor_struct<TCallback>> MakeUniqueFunctorPtr(
                   : nullptr;
 }
 
-// TODO: consider better name for this class.
-template <typename TCallback>
-class UniqueFunction;
-
-template <typename TResult, typename... TArgs>
-class UniqueFunction<TResult (*)(void*, TArgs...)> {
- public:
-  using TCallback = TResult (*)(void*, TArgs...);
-
-  UniqueFunction() = default;
-  UniqueFunction(TCallback callback,
-                 void* callback_data,
-                 node_embedding_release_data_callback release_callback_data)
-      : functor_{callback_data, callback, release_callback_data} {}
-
-  ~UniqueFunction() {
-    if (functor_.release != nullptr) {
-      functor_.release(functor_.data);
-    }
-  }
-
-  UniqueFunction(const UniqueFunction&) = delete;
-  UniqueFunction& operator=(const UniqueFunction&) = delete;
-
-  UniqueFunction(UniqueFunction&& other)
-      : functor_{std::exchange(other.functor_, {})} {}
-
-  UniqueFunction& operator=(UniqueFunction&& other) {
-    if (this != &other) {
-      UniqueFunction temp(std::move(other));
-      functor_ = std::exchange(other.functor_, {});
-    }
-    return *this;
-  }
-
-  TResult operator()(TArgs... args) const {
-    return functor_.invoke ? functor_.invoke(functor_.data, args...)
-                           : TResult();
-  }
-
-  explicit operator bool() const { return functor_.invoke != nullptr; }
-
- private:
-  functor_struct<TCallback> functor_{};
-};
-
 // Stack implementation that works only with trivially constructible,
 // destructible, and copyable types. It uses the small value optimization where
 // several elements are stored in the in-place array.
@@ -343,7 +297,7 @@ class EmbeddedPlatform {
     bool flags : 1;
   } optional_bits_{};
 
-  UniqueFunction<node_embedding_get_strings_callback> early_return_handler_;
+  NodeEarlyReturnCallback early_return_handler_;
 
   std::shared_ptr<node::InitializationResult> init_result_;
   std::unique_ptr<node::MultiIsolatePlatform> v8_platform_;
@@ -457,7 +411,7 @@ class EmbeddedRuntime {
   struct ModuleInfo {
     node_embedding_runtime runtime;
     std::string module_name;
-    UniqueFunction<node_embedding_initialize_module_callback> init_module;
+    NodeInitializeModuleCallback init_module;
     int32_t module_node_api_version;
   };
 
@@ -514,8 +468,7 @@ class EmbeddedRuntime {
   std::vector<std::string> exec_args_;
   node::EmbedderPreloadCallback preload_cb_{};
   node::StartExecutionCallback start_execution_cb_{};
-  UniqueFunction<node_embedding_handle_execution_result_callback>
-      handle_result_{};
+  NodeHandleExecutionResultCallback handle_result_{};
 
   struct {
     bool flags : 1;
@@ -528,7 +481,7 @@ class EmbeddedRuntime {
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<V8ScopeData> v8_scope_data_;
 
-  UniqueFunction<node_embedding_post_task_callback> post_task_{};
+  NodePostTaskCallback post_task_{};
   uv_async_t polling_async_handle_{};
   uv_sem_t polling_sem_{};
   uv_thread_t polling_thread_{};
@@ -740,10 +693,10 @@ node_embedding_status EmbeddedPlatform::OnEarlyReturn(
     void* early_return_handler_data,
     node_embedding_release_data_callback release_early_return_handler_data) {
   ASSERT_EXPR(!is_initialized_);
-  early_return_handler_ = UniqueFunction<node_embedding_get_strings_callback>(
-      early_return_handler,
-      early_return_handler_data,
-      release_early_return_handler_data);
+  early_return_handler_ =
+      NodeEarlyReturnCallback(early_return_handler,
+                              early_return_handler_data,
+                              release_early_return_handler_data);
   return EmbeddedErrorHandling::ClearLastErrorMessage();
 }
 
@@ -1048,9 +1001,8 @@ node_embedding_status EmbeddedRuntime::OnHandleExecutionResult(
     node_embedding_release_data_callback release_handle_result_data) {
   ASSERT_EXPR(!is_initialized_);
 
-  handle_result_ =
-      UniqueFunction<node_embedding_handle_execution_result_callback>{
-          handle_result, handle_result_data, release_handle_result_data};
+  handle_result_ = NodeHandleExecutionResultCallback(
+      handle_result, handle_result_data, release_handle_result_data);
 
   return node_embedding_status::kOk;
 }
@@ -1069,7 +1021,7 @@ node_embedding_status EmbeddedRuntime::AddModule(
       module_name,
       ModuleInfo{reinterpret_cast<node_embedding_runtime>(this),
                  module_name,
-                 UniqueFunction<node_embedding_initialize_module_callback>{
+                 NodeInitializeModuleCallback{
                      init_module, init_module_data, release_init_module_data},
                  module_node_api_version});
   if (!insert_result.second) {
@@ -1315,8 +1267,8 @@ node_embedding_status EmbeddedRuntime::SetTaskRunner(
     void* post_task_data,
     node_embedding_release_data_callback release_post_task_data) {
   ASSERT_EXPR(!is_initialized_);
-  post_task_ = UniqueFunction<node_embedding_post_task_callback>{
-      post_task, post_task_data, release_post_task_data};
+  post_task_ =
+      NodePostTaskCallback{post_task, post_task_data, release_post_task_data};
   return node_embedding_status::kOk;
 }
 

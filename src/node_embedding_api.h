@@ -755,14 +755,13 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   using TCallback = TResult (*)(void*, TArgs...);
 
  public:
+  NodeFunctor() = default;
   NodeFunctor(std::nullptr_t) {}
 
   NodeFunctor(TCallback callback,
               void* data,
               node_embedding_release_data_callback data_release)
-      : callback_(callback),
-        data_(callback_data),
-        data_release_(callback_release) {}
+      : callback_(callback), data_(data), data_release_(data_release) {}
 
   template <typename TFunctor>
   NodeFunctor(TFunctor&& functor)
@@ -783,6 +782,11 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
   }
 
   explicit operator bool() const { return static_cast<bool>(callback_); }
+
+  TResult operator()(TArgs... args) const {
+    return callback_.ptr() ? (*callback_.ptr())(data_.ptr(), args...)
+                           : TResult();
+  }
 
  private:
   template <typename TFunctor>
