@@ -226,6 +226,7 @@
       'src/node_dir.h',
       'src/node_dotenv.h',
       'src/node_embedding_api.h',
+      'src/node_embedding_api_cpp.h',
       'src/node_errors.h',
       'src/node_exit_code.h',
       'src/node_external_reference.h',
