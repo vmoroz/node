@@ -971,7 +971,7 @@ class NodeFunctorInvoker<
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeDetachedRuntime runtime_cpp(runtime);
     NodeExpected<void> result_cpp =
-        (*callback)(runtime_cpp, env, process, value);
+        (*callback)(runtime_cpp, env, process, require);
     return result_cpp.status();
   }
 };

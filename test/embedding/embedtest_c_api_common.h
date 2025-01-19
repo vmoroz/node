@@ -64,6 +64,13 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
   NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
 #endif
 
+#define CHECK_EXPECTED(expected)                                               \
+  do {                                                                         \
+    if (expected.has_error()) {                                                \
+      return expected;                                                         \
+    }                                                                          \
+  } while (0)
+
 #define NODE_API_CALL_BASE(expr, ret_val)                                      \
   do {                                                                         \
     if ((expr) != napi_ok) {                                                   \
