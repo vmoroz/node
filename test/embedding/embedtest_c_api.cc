@@ -76,19 +76,18 @@ NodeExpected<void> CallMe(const NodeRuntime& runtime, napi_env env) {
   return NodeExpected<void>();
 }
 
-// char callback_buf[32];
-// size_t callback_buf_len;
-// napi_value c_cb(napi_env env, napi_callback_info info) {
-//   size_t argc = 1;
-//   napi_value arg;
-//   NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
-//   NODE_API_CALL(napi_get_value_string_utf8(
-//       env, arg, callback_buf, 32, &callback_buf_len));
-//   return nullptr;
-// }
+char callback_buf[32];
+size_t callback_buf_len;
+napi_value c_cb(napi_env env, napi_callback_info info) {
+  size_t argc = 1;
+  napi_value arg;
+  NODE_API_CALL2(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
+  NODE_API_CALL2(napi_get_value_string_utf8(
+      env, arg, callback_buf, 32, &callback_buf_len));
+  return nullptr;
+}
 
 NodeExpected<void> WaitMe(const NodeRuntime& runtime, napi_env env) {
-#if 0
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -119,8 +118,9 @@ NodeExpected<void> WaitMe(const NodeRuntime& runtime, napi_env env) {
       NODE_API_FAIL_RETURN_VOID("Anachronism detected: %s\n", callback_buf);
     }
 
-    node_embedding_run_event_loop(
-        runtime, node_embedding_event_loop_run_mode_default, nullptr);
+    // TODO: Implement
+    // node_embedding_run_event_loop(
+    //    runtime, node_embedding_event_loop_run_mode_default, nullptr);
 
     if (strcmp(callback_buf, "waited you") != 0) {
       NODE_API_FAIL_RETURN_VOID("Invalid value received: %s\n", callback_buf);
@@ -129,12 +129,10 @@ NodeExpected<void> WaitMe(const NodeRuntime& runtime, napi_env env) {
   } else if (cb_type != napi_undefined) {
     NODE_API_FAIL_RETURN_VOID("Invalid waitMe value\n");
   }
-#endif
   return NodeExpected<void>();
 }
 
 NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
-#if 0
   enum class PromiseState {
     kPending,
     kFulfilled,
@@ -158,7 +156,7 @@ NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
 
   // Only evaluate waitPromise if it was registered as a function.
   if (wait_promise_type == napi_undefined) {
-    return;
+    return NodeExpected<void>();
   } else if (wait_promise_type != napi_function) {
     NODE_API_FAIL_RETURN_VOID("Invalid waitPromise value\n");
   }
@@ -222,10 +220,11 @@ NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   NODE_API_CALL_RETURN_VOID(
       napi_call_function(env, promise, then, 2, then_args, nullptr));
 
-  while (promise_state == PromiseState::kPending) {
-    node_embedding_run_event_loop(
-        runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
-  }
+  // TODO: Implement
+  // while (promise_state == PromiseState::kPending) {
+  //  node_embedding_run_event_loop(
+  //      runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
+  //}
 
   expected = (promise_state == PromiseState::kFulfilled)
                  ? "waited with cheese"
@@ -235,6 +234,5 @@ NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
     NODE_API_FAIL_RETURN_VOID("Invalid value received: %s\n", callback_buf);
   }
   printf("%s", callback_buf);
-#endif
   return NodeExpected<void>();
 }

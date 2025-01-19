@@ -76,6 +76,8 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 #define NODE_API_CALL(expr)                                                    \
   NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
 
+#define NODE_API_CALL2(expr) NODE_API_CALL_BASE(expr, nullptr)
+
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
