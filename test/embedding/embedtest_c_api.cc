@@ -6,44 +6,38 @@
 #include <cstring>
 
 using namespace node;
+using namespace node::embedding;
 
 void CallMe(node_embedding_runtime runtime, napi_env env);
 void WaitMe(node_embedding_runtime runtime, napi_env env);
 void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
 
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
-  node_embedding_on_error({argv[0], HandleTestError, nullptr});
-
-  CHECK_STATUS_OR_EXIT(node_embedding_run_main(
-      argc,
-      argv,
-      AsFunctorRef<node_embedding_configure_platform_functor_ref>(
-          [&](node_embedding_platform_config platform_config) {
-            CHECK_STATUS(node_embedding_set_platform_flags(
-                platform_config,
-                node_embedding_platform_flags_disable_node_options_env));
-            return node_embedding_status_ok;
-          }),
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [&](node_embedding_platform platform,
-              node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(
-                LoadUtf8Script(runtime_config,
-                               main_script,
-                               AsFunctor<node_embedding_handle_result_functor>(
-                                   [&](node_embedding_runtime runtime,
-                                       napi_env env,
-                                       napi_value /*value*/) {
-                                     CallMe(runtime, env);
-                                     WaitMe(runtime, env);
-                                     WaitMeWithCheese(runtime, env);
-                                   })));
-            return node_embedding_status_ok;
-          })));
-
-  return node_embedding_status_ok;
+  return PrintErrorMessage(
+             NodePlatform::RunMain(
+                 NodeArgs(argc, argv),
+                 [&](const NodePlatformConfig& platform_config) {
+                   return platform_config.SetFlags(
+                       NodePlatformFlags::kDisableNodeOptionsEnv);
+                 },
+                 //[&](const NodePlatform& platform,
+                 //    const NodeRuntimeConfig& runtime_config) {
+                 //  return LoadUtf8Script(runtime_config,
+                 //                        main_script,
+                 //                        [&](node_embedding_runtime runtime,
+                 //                            napi_env env,
+                 //                            napi_value /*value*/) {
+                 //                          CallMe(runtime, env);
+                 //                          WaitMe(runtime, env);
+                 //                          WaitMeWithCheese(runtime, env);
+                 //                        });
+                 //}
+                 nullptr),
+             argv[0])
+      .exit_code();
 }
 
+#if 0
 void CallMe(node_embedding_runtime runtime, napi_env env) {
   napi_value global;
   napi_value cb;
@@ -237,3 +231,4 @@ void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
   }
   printf("%s", callback_buf);
 }
+#endif

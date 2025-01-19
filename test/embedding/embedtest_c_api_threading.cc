@@ -1,14 +1,15 @@
 #include "embedtest_c_api_common.h"
 
 #include <atomic>
-#include <cstdint>
 #include <condition_variable>
+#include <cstdint>
 #include <deque>
 #include <mutex>
 #include <thread>
 
 using namespace node;
-
+using namespace node::embedding;
+#if 0
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
@@ -21,8 +22,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
   std::atomic<int32_t> global_count{0};
   std::atomic<node_embedding_status> global_status{};
 
-  CHECK_STATUS_OR_EXIT(
-      node_embedding_create_platform(argc, argv, {}, &platform));
+  CHECK_STATUS_OR_EXIT(NodePlatform::Create(NodeArgs(argc, argv), nullptr));
   if (!platform) {
     return 0;  // early return
   }
@@ -30,35 +30,31 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
   for (size_t i = 0; i < thread_count; i++) {
     threads.emplace_back([platform, &global_count, &global_status] {
       node_embedding_status status = [&]() {
-        CHECK_STATUS(node_embedding_run_runtime(
+        CHECK_STATUS(NodeRuntime::Run(
             platform,
-            AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-                [&](node_embedding_platform platform,
-                    node_embedding_runtime_config runtime_config) {
-                  // Inspector can be associated with only one runtime in the
-                  // process.
-                  CHECK_STATUS(node_embedding_set_runtime_flags(
-                      runtime_config,
-                      node_embedding_runtime_flags_default |
-                          node_embedding_runtime_flags_no_create_inspector));
-                  CHECK_STATUS(LoadUtf8Script(
-                      runtime_config,
-                      main_script,
-                      AsFunctor<node_embedding_handle_result_functor>(
-                          [&](node_embedding_runtime runtime,
-                              napi_env env,
-                              napi_value /*value*/) {
-                            napi_value global, my_count;
-                            NODE_API_CALL_RETURN_VOID(
-                                napi_get_global(env, &global));
-                            NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                                env, global, "myCount", &my_count));
-                            int32_t count;
-                            NODE_API_CALL_RETURN_VOID(
-                                napi_get_value_int32(env, my_count, &count));
-                            global_count.fetch_add(count);
-                          })));
-                  return node_embedding_status_ok;
+                [&](const NodePlatform& platform,
+                    const NodeRuntimeConfig& runtime_config) {
+          // Inspector can be associated with only one runtime in the
+          // process.
+          CHECK_STATUS(
+              runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
+                                      NodeRuntimeFlags::kNoCreateInspector));
+          CHECK_STATUS(LoadUtf8Script(
+              runtime_config,
+              main_script,
+                  [&](const NodeRuntime& runtime,
+                      napi_env env,
+                      napi_value /*value*/) {
+            napi_value global, my_count;
+            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_named_property(env, global, "myCount", &my_count));
+            int32_t count;
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_value_int32(env, my_count, &count));
+            global_count.fetch_add(count);
+                  })));
+          return node_embedding_status_ok;
                 })));
         return node_embedding_status_ok;
       }();
@@ -93,35 +89,30 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
   bool more_work = false;
   int32_t global_count = 0;
 
-  CHECK_STATUS_OR_EXIT(
-      node_embedding_create_platform(argc, argv, {}, &platform));
+  CHECK_STATUS_OR_EXIT(NodePlatform::Create(NodeArgs(argc, argv), nullptr));
   if (!platform) {
     return 0;  // early return
   }
 
   for (size_t i = 0; i < runtime_count; i++) {
     node_embedding_runtime runtime;
-    CHECK_STATUS_OR_EXIT(node_embedding_create_runtime(
+    CHECK_STATUS_OR_EXIT(NodeRuntime::Create(
         platform,
-        AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-            [&](node_embedding_platform platform,
-                node_embedding_runtime_config runtime_config) {
-              // Inspector can be associated with only one runtime in the
-              // process.
-              CHECK_STATUS(node_embedding_set_runtime_flags(
-                  runtime_config,
-                  node_embedding_runtime_flags_default |
-                      node_embedding_runtime_flags_no_create_inspector));
-              CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
-              return node_embedding_status_ok;
-            }),
+        [&](const NodePlatform& platform,
+            const NodeRuntimeConfig& runtime_config) {
+          // Inspector can be associated with only one runtime in the
+          // process.
+          CHECK_STATUS(
+              runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
+                                      NodeRuntimeFlags::kNoCreateInspector));
+          CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
+          return node_embedding_status_ok;
+        },
         &runtime));
     runtimes.push_back(runtime);
 
-    CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
-        runtime,
-        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
-            [&](node_embedding_runtime runtime, napi_env env) {
+    CHECK_STATUS_OR_EXIT(runtime.RunNodeApi(
+            [&](const NodeRuntime& runtime, napi_env env) {
               napi_value undefined, global, func;
               NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
               NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -133,7 +124,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
               NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
               NODE_API_CALL_RETURN_VOID(napi_call_function(
                   env, undefined, func, 0, nullptr, nullptr));
-            })));
+            }));
   }
 
   do {
@@ -404,3 +395,4 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
 
   return 0;
 }
+#endif

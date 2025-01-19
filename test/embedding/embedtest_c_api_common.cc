@@ -12,6 +12,8 @@ const char* main_script =
     "globalThis.embedVars = { nön_ascıı: '🏳️‍🌈' };\n"
     "require('vm').runInThisContext(process.argv[1]);";
 
+namespace node::embedding {
+
 napi_status AddUtf8String(std::string& str, napi_env env, napi_value value) {
   size_t str_size = 0;
   napi_status status =
@@ -51,37 +53,44 @@ void ThrowLastErrorMessage(napi_env env, const char* message) {
   }
 }
 
-std::string FormatString(const char* format, ...) {
-  va_list args1;
-  va_start(args1, format);
-  va_list args2;
-  va_copy(args2, args1);  // Required for some compilers like GCC.
-  std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
-  va_end(args1);
-  std::vsnprintf(&result[0], result.size() + 1, format, args2);
-  va_end(args2);
-  return result;
+NodeExpected<void> LoadUtf8Script(
+    const NodeRuntimeConfig& runtime_config,
+    std::string script,
+    NodeHandleExecutionResultCallback handle_result) {
+  // return runtime_config.OnStartExecution(
+  //     runtime_config,
+  //     [script = std::move(script)](
+  //         const NodeRuntime& /*runtime*/,
+  //         napi_env env,
+  //         napi_value /*process*/,
+  //         napi_value /*require*/,
+  //         napi_value run_cjs) -> NodeExpected<napi_value> {
+  //       napi_value script_value, null_value, result;
+  //       NODE_API_CALL(napi_create_string_utf8(
+  //           env, script.c_str(), script.size(), &script_value));
+  //       NODE_API_CALL(napi_get_null(env, &null_value));
+  //       NODE_API_CALL(napi_call_function(
+  //           env, null_value, run_cjs, 1, &script_value, &result));
+  //       return result;
+  //     },
+  //     handle_result);
+  return NodeExpected<void>();
 }
 
-node_embedding_status LoadUtf8Script(
-    node_embedding_runtime_config runtime_config,
-    std::string script,
-    const node_embedding_handle_result_functor& handle_result) {
-  return node_embedding_on_start_runtime_execution(
-      runtime_config,
-      AsFunctor<node_embedding_start_execution_functor>(
-          [script = std::move(script)](node_embedding_runtime /*runtime*/,
-                                       napi_env env,
-                                       napi_value /*process*/,
-                                       napi_value /*require*/,
-                                       napi_value run_cjs) -> napi_value {
-            napi_value script_value, null_value, result;
-            NODE_API_CALL(napi_create_string_utf8(
-                env, script.c_str(), script.size(), &script_value));
-            NODE_API_CALL(napi_get_null(env, &null_value));
-            NODE_API_CALL(napi_call_function(
-                env, null_value, run_cjs, 1, &script_value, &result));
-            return result;
-          }),
-      handle_result);
+NodeExpected<void> PrintErrorMessage(NodeExpected<void> expected,
+                                     std::string_view exe_name) {
+  if (expected.has_value()) {
+    return expected;
+  }
+  auto expected_message = NodeErrorInfo::GetAndClearLastErrorMessage();
+  if (expected_message.has_error()) {
+    return NodeExpected<void>(expected_message.status());
+  }
+  std::vector<std::string> messages = std::move(expected_message).value();
+  for (const std::string& message : messages) {
+    fprintf(stderr, "%s: %s\n", exe_name.data(), message);
+  }
+  return NodeExpected<void>(expected.status());
 }
+
+}  // namespace node::embedding

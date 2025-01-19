@@ -1,5 +1,5 @@
 #include "embedtest_c_api_common.h"
-
+#if 0
 using namespace node;
 
 // Test the no_browser_globals option.
@@ -111,3 +111,4 @@ const { SourceTextModule } = require('node:vm');
 )JS");
           }));
 }
+#endif

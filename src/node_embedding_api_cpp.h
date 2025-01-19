@@ -22,6 +22,7 @@
 
 #include "node_embedding_api.h"
 
+#include <array>
 #include <cstdarg>
 #include <cstdio>
 #include <memory>
@@ -496,6 +497,18 @@ class NodeErrorInfo {
 
   static NodeExpected<void> ClearLastErrorMessage() {
     return NodeExpected<void>(node_embedding_clear_last_error_message());
+  }
+
+  static NodeExpected<std::vector<std::string>> GetAndClearLastErrorMessage() {
+    auto expected_message = GetLastErrorMessage();
+    if (expected_message.has_error()) {
+      return expected_message;
+    }
+    auto expected_clear = ClearLastErrorMessage();
+    if (expected_clear.has_error()) {
+      return NodeExpected<std::vector<std::string>>(expected_clear.status());
+    }
+    return expected_message;
   }
 };
 

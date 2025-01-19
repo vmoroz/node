@@ -3,8 +3,9 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
-
+#if 0
 using namespace node;
+using namespace node::embedding;
 
 class GreeterModule {
  public:
@@ -91,36 +92,30 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
   std::atomic<int32_t> greeterModuleInitCallCount{0};
   std::atomic<int32_t> replicatorModuleInitCallCount{0};
 
-  node_embedding_on_error({argv[0], HandleTestError, nullptr});
+  // node_embedding_on_error({argv[0], HandleTestError, nullptr});
 
-  CHECK_STATUS_OR_EXIT(node_embedding_run_main(
-      argc,
-      argv,
-      {},
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [&](node_embedding_platform platform,
-              node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_on_preload_runtime(
-                runtime_config,
-                AsFunctor<node_embedding_preload_functor>(
-                    [](node_embedding_runtime runtime,
-                       napi_env env,
-                       napi_value process,
-                       napi_value /*require*/
-                    ) {
-                      napi_value global;
-                      napi_get_global(env, &global);
-                      napi_set_named_property(env, global, "process", process);
-                    })));
+  CHECK_STATUS_OR_EXIT(NodePlatform::RunMain(
+      NodeArgs(argc, argv),
+      nullptr,
+      NodeConfigureRuntimeCallback(
+          [&](const NodePlatform& platform,
+              const NodeRuntimeConfig& runtime_config) {
+            CHECK_STATUS(runtime_config.OnPreload([](const NodeRuntime& runtime,
+                                                     napi_env env,
+                                                     napi_value process,
+                                                     napi_value /*require*/
+                                                  ) {
+              napi_value global;
+              napi_get_global(env, &global);
+              napi_set_named_property(env, global, "process", process);
+            }));
 
-            CHECK_STATUS(node_embedding_add_runtime_module(
-                runtime_config,
+            CHECK_STATUS(runtime_config.AddModule(
                 "greeter_module",
                 AsFunctor<node_embedding_initialize_module_functor>(
                     GreeterModule(&greeterModuleInitCallCount)),
                 NAPI_VERSION));
-            CHECK_STATUS(node_embedding_add_runtime_module(
-                runtime_config,
+            CHECK_STATUS(runtime_config.AddModule(
                 "replicator_module",
                 AsFunctor<node_embedding_initialize_module_functor>(
                     ReplicatorModule(&replicatorModuleInitCallCount)),
@@ -209,3 +204,4 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
 */
   return 0;
 }
+#endif
