@@ -169,6 +169,11 @@ class [[nodiscard]] NodeExpected<void> {
     return 1;
   }
 
+  template <typename T>
+  NodeExpected<void> AndThen(T&& lambda) && {
+    return (status_ == NodeStatus::kOk) ? lambda() : std::move(*this);
+  }
+
  private:
   NodeStatus status_{NodeStatus::kOk};
 };
@@ -308,11 +313,11 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
               node_embedding_release_data_callback data_release)
       : callback_(callback), data_(data), data_release_(data_release) {}
 
+  // TODO: add overload for stateless lambdas.
   template <typename TFunctor>
   NodeFunctor(TFunctor&& functor)
       : callback_(&NodeFunctorInvoker<TCallback, TFunctor>::Invoke),
-        data_(std::unique_ptr<TFunctor>(std::forward<TFunctor>(functor))
-                  .release()),
+        data_(new TFunctor(std::forward<TFunctor>(functor))),
         data_release_(&ReleaseFunctor<TFunctor>) {}
 
   NodeFunctor(NodeFunctor&& other) = default;
@@ -335,8 +340,9 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
  private:
   template <typename TFunctor>
-  static void ReleaseFunctor(void* data) {
-    std::unique_ptr<TFunctor> callback(reinterpret_cast<TFunctor*>(data));
+  static NodeStatus ReleaseFunctor(void* data) {
+    delete reinterpret_cast<TFunctor*>(data);
+    return NodeStatus::kOk;
   }
 
  private:
@@ -939,7 +945,7 @@ class NodeFunctorInvoker<
                            node_embedding_runtime_config runtime_config) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeDetachedPlatform platform_cpp(platform);
-    NodePlatformConfig runtime_config_cpp(runtime_config);
+    NodeRuntimeConfig runtime_config_cpp(runtime_config);
     NodeExpected<void> result_cpp =
         (*callback)(platform_cpp, runtime_config_cpp);
     return result_cpp.status();

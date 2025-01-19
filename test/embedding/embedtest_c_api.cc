@@ -8,37 +8,37 @@
 using namespace node;
 using namespace node::embedding;
 
-void CallMe(node_embedding_runtime runtime, napi_env env);
-void WaitMe(node_embedding_runtime runtime, napi_env env);
-void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
+NodeExpected<void> CallMe(const NodeRuntime& runtime, napi_env env);
+NodeExpected<void> WaitMe(const NodeRuntime& runtime, napi_env env);
+NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
   return PrintErrorMessage(
+             argv[0],
              NodePlatform::RunMain(
                  NodeArgs(argc, argv),
-                 [&](const NodePlatformConfig& platform_config) {
+                 [](const NodePlatformConfig& platform_config) {
                    return platform_config.SetFlags(
                        NodePlatformFlags::kDisableNodeOptionsEnv);
                  },
-                 //[&](const NodePlatform& platform,
-                 //    const NodeRuntimeConfig& runtime_config) {
-                 //  return LoadUtf8Script(runtime_config,
-                 //                        main_script,
-                 //                        [&](node_embedding_runtime runtime,
-                 //                            napi_env env,
-                 //                            napi_value /*value*/) {
-                 //                          CallMe(runtime, env);
-                 //                          WaitMe(runtime, env);
-                 //                          WaitMeWithCheese(runtime, env);
-                 //                        });
-                 //}
-                 nullptr),
-             argv[0])
+                 [](const NodePlatform& platform,
+                    const NodeRuntimeConfig& runtime_config) {
+                   return LoadUtf8Script(
+                       runtime_config,
+                       main_script,
+                       [](const NodeRuntime& runtime, napi_env env, napi_value
+                          /*value*/) {
+                         return CallMe(runtime, env)
+                             .AndThen([&] { return WaitMe(runtime, env); })
+                             .AndThen([&] {
+                               return WaitMeWithCheese(runtime, env);
+                             });
+                       });
+                 }))
       .exit_code();
 }
 
-#if 0
-void CallMe(node_embedding_runtime runtime, napi_env env) {
+NodeExpected<void> CallMe(const NodeRuntime& runtime, napi_env env) {
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -73,20 +73,22 @@ void CallMe(node_embedding_runtime runtime, napi_env env) {
   } else if (cb_type != napi_undefined) {
     NODE_API_FAIL_RETURN_VOID("Invalid callMe value\n");
   }
+  return NodeExpected<void>();
 }
 
-char callback_buf[32];
-size_t callback_buf_len;
-napi_value c_cb(napi_env env, napi_callback_info info) {
-  size_t argc = 1;
-  napi_value arg;
-  NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
-  NODE_API_CALL(napi_get_value_string_utf8(
-      env, arg, callback_buf, 32, &callback_buf_len));
-  return nullptr;
-}
+// char callback_buf[32];
+// size_t callback_buf_len;
+// napi_value c_cb(napi_env env, napi_callback_info info) {
+//   size_t argc = 1;
+//   napi_value arg;
+//   NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
+//   NODE_API_CALL(napi_get_value_string_utf8(
+//       env, arg, callback_buf, 32, &callback_buf_len));
+//   return nullptr;
+// }
 
-void WaitMe(node_embedding_runtime runtime, napi_env env) {
+NodeExpected<void> WaitMe(const NodeRuntime& runtime, napi_env env) {
+#if 0
   napi_value global;
   napi_value cb;
   napi_value key;
@@ -127,9 +129,12 @@ void WaitMe(node_embedding_runtime runtime, napi_env env) {
   } else if (cb_type != napi_undefined) {
     NODE_API_FAIL_RETURN_VOID("Invalid waitMe value\n");
   }
+#endif
+  return NodeExpected<void>();
 }
 
-void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
+NodeExpected<void> WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
+#if 0
   enum class PromiseState {
     kPending,
     kFulfilled,
@@ -230,5 +235,6 @@ void WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
     NODE_API_FAIL_RETURN_VOID("Invalid value received: %s\n", callback_buf);
   }
   printf("%s", callback_buf);
-}
 #endif
+  return NodeExpected<void>();
+}

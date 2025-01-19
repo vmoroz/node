@@ -4,11 +4,6 @@
 #define NAPI_EXPERIMENTAL
 #include <node_embedding_api_cpp.h>
 
-#include <array>
-#include <functional>
-#include <string>
-#include <vector>
-
 namespace node::embedding {
 
 extern const char* main_script;
@@ -21,24 +16,24 @@ void ThrowLastErrorMessage(napi_env env, const char* message);
 
 NodeExpected<void> LoadUtf8Script(
     const NodeRuntimeConfig& runtime_config,
-    std::string script,
+    std::string_view script,
     NodeHandleExecutionResultCallback handle_result = {});
 
-NodeExpected<void> PrintErrorMessage(NodeExpected<void> expected,
-                                     std::string_view exe_name);
+NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
+                                     NodeExpected<void> expected);
 
 }  // namespace node::embedding
 
 //
 // Error handling macros copied from test/js_native_api/common.h
 //
-#if 0
+
 // Empty value so that macros here are able to return NULL or void
-#define NODE_API_RETVAL_NOTHING  // Intentionally blank #define
+#define NODE_API_RETVAL_NOTHING NodeExpected<void>()
 
 #define NODE_API_FAIL_BASE(ret_val, ...)                                       \
   do {                                                                         \
-    ThrowLastErrorMessage(env, FormatString(__VA_ARGS__).c_str());             \
+    ThrowLastErrorMessage(env, NodeFormatString(__VA_ARGS__).c_str());         \
     return ret_val;                                                            \
   } while (0)
 
@@ -50,7 +45,7 @@ NodeExpected<void> PrintErrorMessage(NodeExpected<void> expected,
 // This is meant to be used inside functions with void return type.
 #define NODE_API_FAIL_RETURN_VOID(...)                                         \
   NODE_API_FAIL_BASE(NODE_API_RETVAL_NOTHING, __VA_ARGS__)
-
+#if 0
 #define NODE_API_ASSERT_BASE(expr, ret_val)                                    \
   do {                                                                         \
     if (!(expr)) {                                                             \
@@ -67,6 +62,7 @@ NodeExpected<void> PrintErrorMessage(NodeExpected<void> expected,
 // This is meant to be used inside functions with void return type.
 #define NODE_API_ASSERT_RETURN_VOID(expr)                                      \
   NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
+#endif
 
 #define NODE_API_CALL_BASE(expr, ret_val)                                      \
   do {                                                                         \
@@ -77,12 +73,14 @@ NodeExpected<void> PrintErrorMessage(NodeExpected<void> expected,
   } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
-#define NODE_API_CALL(expr) NODE_API_CALL_BASE(expr, NULL)
+#define NODE_API_CALL(expr)                                                    \
+  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
 
+#if 0
 #define CHECK_STATUS(expr)                                                     \
   do {                                                                         \
     node_embedding_status status_ = (expr);                                    \
