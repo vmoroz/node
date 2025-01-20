@@ -437,6 +437,17 @@ class NodeErrorInfo {
            NodeExpected<std::vector<std::string>>(std::move(result_message));
   }
 
+  static std::string GetLastErrorMessageString() {
+    auto expected_message = GetLastErrorMessage();
+    if (expected_message.has_error()) {
+      return NodeFormatString("Error: %s", "TODO");
+      // TODO: fix
+      // node_embedding_status_to_string(expected_message.status()));
+    }
+    return NodeFormatString("Error: %s",
+                            expected_message.value().front().c_str());
+  }
+
   static NodeExpected<void> SetLastErrorMessage(int32_t message_strings_size,
                                                 const char* message_strings[]) {
     return NodeExpected<void>(node_embedding_set_last_error_message(
