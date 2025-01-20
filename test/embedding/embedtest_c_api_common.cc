@@ -49,24 +49,23 @@ NodeExpected<void> LoadUtf8Script(
     const NodeRuntimeConfig& runtime_config,
     std::string_view script,
     NodeHandleExecutionResultCallback handle_result) {
-  return runtime_config
-      .OnStartExecution([script = std::string(script)](
-                            const NodeRuntime& /*runtime*/,
-                            napi_env env,
-                            napi_value /*process*/,
-                            napi_value /*require*/,
-                            napi_value run_cjs) -> NodeExpected<napi_value> {
+  NODE_EMBEDDED_CALL(runtime_config.OnStartExecution(
+      [script = std::string(script)](const NodeRuntime& /*runtime*/,
+                                     napi_env env,
+                                     napi_value /*process*/,
+                                     napi_value /*require*/,
+                                     napi_value run_cjs) -> napi_value {
         napi_value script_value, null_value, result;
         NODE_API_CALL(napi_create_string_utf8(
             env, script.c_str(), script.size(), &script_value));
         NODE_API_CALL(napi_get_null(env, &null_value));
         NODE_API_CALL(napi_call_function(
             env, null_value, run_cjs, 1, &script_value, &result));
-        return NodeExpected<napi_value>(result);
-      })
-      .AndThen([&] {
-        return runtime_config.OnHandleExecutionResult(std::move(handle_result));
-      });
+        return result;
+      }));
+  NODE_EMBEDDED_CALL(
+      runtime_config.OnHandleExecutionResult(std::move(handle_result)));
+  return NodeExpected<void>();
 }
 
 NodeExpected<void> PrintErrorMessage(std::string_view exe_name,

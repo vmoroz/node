@@ -80,14 +80,22 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
   } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
-#define NODE_API_CALL(expr)                                                    \
-  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
+#define NODE_API_CALL(expr) NODE_API_CALL_BASE(expr, nullptr)
 
-#define NODE_API_CALL2(expr) NODE_API_CALL_BASE(expr, nullptr)
+#define NODE_API_CALL_EXPECTED(expr)                                           \
+  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
+
+#define NODE_EMBEDDED_CALL(expr)                                               \
+  do {                                                                         \
+    auto ret_val = expr;                                                       \
+    if (ret_val.has_error()) {                                                 \
+      return ret_val;                                                          \
+    }                                                                          \
+  } while (0)
 
 #if 0
 #define CHECK_STATUS(expr)                                                     \

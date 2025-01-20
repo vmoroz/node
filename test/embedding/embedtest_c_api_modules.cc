@@ -3,10 +3,10 @@
 #include <atomic>
 #include <cstdio>
 #include <cstring>
-#if 0
+
 using namespace node;
 using namespace node::embedding;
-
+#if 0
 class GreeterModule {
  public:
   explicit GreeterModule(std::atomic<int32_t>* counter_ptr)

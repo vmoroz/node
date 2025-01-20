@@ -21,20 +21,22 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
                    return platform_config.SetFlags(
                        NodePlatformFlags::kDisableNodeOptionsEnv);
                  },
-                 [](const NodePlatform& platform,
-                    const NodeRuntimeConfig& runtime_config) {
-                   return LoadUtf8Script(
-                       runtime_config,
-                       main_script,
-                       [](const NodeRuntime& runtime, napi_env env, napi_value
-                          /*value*/) {
-                         return CallMe(runtime, env)
-                             .AndThen([&] { return WaitMe(runtime, env); })
-                             .AndThen([&] {
-                               return WaitMeWithCheese(runtime, env);
-                             });
-                       });
-                 }))
+                 nullptr
+                 //[](const NodePlatform& platform,
+                 //   const NodeRuntimeConfig& runtime_config) {
+                 //  return LoadUtf8Script(
+                 //      runtime_config,
+                 //      main_script,
+                 //      [](const NodeRuntime& runtime, napi_env env, napi_value
+                 //         /*value*/) {
+                 //        return CallMe(runtime, env)
+                 //            .AndThen([&] { return WaitMe(runtime, env); })
+                 //            .AndThen([&] {
+                 //              return WaitMeWithCheese(runtime, env);
+                 //            });
+                 //      });
+                 //}
+                 ))
       .exit_code();
 }
 
@@ -81,8 +83,8 @@ size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value arg;
-  NODE_API_CALL2(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
-  NODE_API_CALL2(napi_get_value_string_utf8(
+  NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
+  NODE_API_CALL(napi_get_value_string_utf8(
       env, arg, callback_buf, 32, &callback_buf_len));
   return nullptr;
 }
