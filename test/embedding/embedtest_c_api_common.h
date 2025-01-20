@@ -39,12 +39,13 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 
 // Returns NULL on failed assertion.
 // This is meant to be used inside napi_callback methods.
-#define NODE_API_FAIL(...) NODE_API_FAIL_BASE(NULL, __VA_ARGS__)
+#define NODE_API_FAIL(...) NODE_API_FAIL_BASE(napi_generic_failure, __VA_ARGS__)
 
 // Returns empty on failed assertion.
 // This is meant to be used inside functions with void return type.
 #define NODE_API_FAIL_RETURN_VOID(...)                                         \
   NODE_API_FAIL_BASE(NODE_API_RETVAL_NOTHING, __VA_ARGS__)
+
 #if 0
 #define NODE_API_ASSERT_BASE(expr, ret_val)                                    \
   do {                                                                         \
@@ -73,14 +74,22 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
   } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
-#define NODE_API_CALL(expr) NODE_API_CALL_BASE(expr, nullptr)
-
-#define NODE_API_CALL_EXPECTED(expr)                                           \
-  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
+#define NODE_API_CALL_RETURN(expr) NODE_API_CALL_BASE(expr, nullptr)
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
   NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
+
+#define NODE_API_CALL_EXPECTED(expr)                                           \
+  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
+
+#define NODE_API_CALL(expr)                                                    \
+  do {                                                                         \
+    napi_status status = (expr);                                               \
+    if (status != napi_ok) {                                                   \
+      return status;                                                           \
+    }                                                                          \
+  } while (0)
 
 #define NODE_EMBEDDED_CALL(expr)                                               \
   do {                                                                         \

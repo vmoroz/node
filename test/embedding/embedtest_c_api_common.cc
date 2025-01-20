@@ -56,10 +56,10 @@ NodeExpected<void> LoadUtf8Script(
                                      napi_value /*require*/,
                                      napi_value run_cjs) -> napi_value {
         napi_value script_value, null_value, result;
-        NODE_API_CALL(napi_create_string_utf8(
+        NODE_API_CALL_RETURN(napi_create_string_utf8(
             env, script.c_str(), script.size(), &script_value));
-        NODE_API_CALL(napi_get_null(env, &null_value));
-        NODE_API_CALL(napi_call_function(
+        NODE_API_CALL_RETURN(napi_get_null(env, &null_value));
+        NODE_API_CALL_RETURN(napi_call_function(
             env, null_value, run_cjs, 1, &script_value, &result));
         return result;
       }));
