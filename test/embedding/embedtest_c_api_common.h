@@ -29,7 +29,7 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 //
 
 // Empty value so that macros here are able to return NULL or void
-#define NODE_API_RETVAL_NOTHING NodeExpected<void>()
+#define NODE_API_RETVAL_NOTHING
 
 #define NODE_API_FAIL_BASE(ret_val, ...)                                       \
   do {                                                                         \
@@ -63,13 +63,6 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 #define NODE_API_ASSERT_RETURN_VOID(expr)                                      \
   NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
 #endif
-
-#define CHECK_EXPECTED(expected)                                               \
-  do {                                                                         \
-    if (expected.has_error()) {                                                \
-      return expected;                                                         \
-    }                                                                          \
-  } while (0)
 
 #define NODE_API_CALL_BASE(expr, ret_val)                                      \
   do {                                                                         \
