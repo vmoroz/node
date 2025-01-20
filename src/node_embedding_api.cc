@@ -941,13 +941,12 @@ node_embedding_status EmbeddedRuntime::OnStartExecution(
                     v8impl::JsValueFromV8LocalValue(info.native_require);
                 napi_value run_cjs_value =
                     v8impl::JsValueFromV8LocalValue(info.run_cjs);
-                return (*start_execution_ptr)(
+                result = (*start_execution_ptr)(
                     reinterpret_cast<node_embedding_runtime>(this),
                     env,
                     process_value,
                     require_value,
-                    run_cjs_value,
-                    &result);
+                    run_cjs_value);
               },
               TriggerFatalException);
 
@@ -1162,13 +1161,21 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
     if (runtime->polling_thread_closed_) break;
 
     // Deal with event in the task runner thread.
-    runtime->post_task_(
+    bool succeeded = false;
+    node_embedding_status post_result = runtime->post_task_(
         [](void* task_data) {
           auto* runtime = static_cast<EmbeddedRuntime*>(task_data);
           return runtime->RunEventLoopNoWait(nullptr);
         },
         runtime,
-        nullptr);
+        nullptr,
+        &succeeded);
+
+    // TODO: Handle post_result
+    if (!succeeded) {
+      // The task runner is shutting down.
+      break;
+    }
   }
 }
 
@@ -1519,11 +1526,11 @@ void EmbeddedRuntime::RegisterModules() {
 
   napi_value node_api_exports = nullptr;
   env->CallIntoModule([&](napi_env env) {
-    return module_info->init_module(module_info->runtime,
-                                    env,
-                                    module_info->module_name.c_str(),
-                                    v8impl::JsValueFromV8LocalValue(exports),
-                                    &node_api_exports);
+    node_api_exports =
+        module_info->init_module(module_info->runtime,
+                                 env,
+                                 module_info->module_name.c_str(),
+                                 v8impl::JsValueFromV8LocalValue(exports));
   });
 
   // If register function returned a non-null exports object different from

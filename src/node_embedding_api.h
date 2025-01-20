@@ -215,38 +215,37 @@ typedef node_embedding_status(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config);
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_preload_callback)(
+// The error is to be handled by using napi_env.
+typedef void(NAPI_CDECL* node_embedding_preload_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     napi_value process,
     napi_value require);
 
-typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_start_execution_callback)(
+// The error is to be handled by using napi_env.
+typedef napi_value(NAPI_CDECL* node_embedding_start_execution_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     napi_value process,
     napi_value require,
-    napi_value run_cjs,
-    napi_value* result);
+    napi_value run_cjs);
 
-typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_handle_execution_result_callback)(
+// The error is to be handled by using napi_env.
+typedef void(NAPI_CDECL* node_embedding_handle_execution_result_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     napi_value execution_result);
 
-typedef node_embedding_status(
-    NAPI_CDECL* node_embedding_initialize_module_callback)(
+// The error is to be handled by using napi_env.
+typedef napi_value(NAPI_CDECL* node_embedding_initialize_module_callback)(
     void* cb_data,
     node_embedding_runtime runtime,
     napi_env env,
     const char* module_name,
-    napi_value exports,
-    napi_value* result);
+    napi_value exports);
 
 typedef node_embedding_status(NAPI_CDECL* node_embedding_run_task_callback)(
     void* cb_data);
@@ -255,9 +254,11 @@ typedef node_embedding_status(NAPI_CDECL* node_embedding_post_task_callback)(
     void* cb_data,
     node_embedding_run_task_callback run_task,
     void* task_data,
-    node_embedding_release_data_callback release_task_data);
+    node_embedding_release_data_callback release_task_data,
+    bool* succeeded);
 
-typedef node_embedding_status(NAPI_CDECL* node_embedding_run_node_api_callback)(
+// The error is to be handled by using napi_env.
+typedef void(NAPI_CDECL* node_embedding_run_node_api_callback)(
     void* cb_data, node_embedding_runtime runtime, napi_env env);
 
 //==============================================================================
