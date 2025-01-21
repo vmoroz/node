@@ -40,10 +40,9 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
 
   if (argc > 1) {
     const char* arg1 = argv[1];
-    //   if (strcmp(arg1, "cpp-api") == 0) {
-    //     return CallWithoutArg1(test_main_cpp_api, argc, argv);
-    //   } else
-    if (strcmp(arg1, "node-api") == 0) {
+    if (strcmp(arg1, "cpp-api") == 0) {
+      return CallWithoutArg1(test_main_cpp_api, argc, argv);
+    } else if (strcmp(arg1, "node-api") == 0) {
       return CallWithoutArg1(test_main_node_api, argc, argv);
       //   } else if (strcmp(arg1, "nodejs-main-node-api") == 0) {
       //     return CallWithoutArg1(test_main_nodejs_main_node_api, argc, argv);

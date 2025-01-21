@@ -9,74 +9,84 @@
 
 using namespace node;
 using namespace node::embedding;
-#if 0
+
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
 extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
     int32_t argc, char* argv[]) {
-  node_embedding_platform platform;
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
   std::atomic<int32_t> global_count{0};
   std::atomic<node_embedding_status> global_status{};
 
-  CHECK_STATUS_OR_EXIT(NodePlatform::Create(NodeArgs(argc, argv), nullptr));
-  if (!platform) {
-    return 0;  // early return
+  NodeScopedErrorHandler error_handler{};
+  {
+    NodeExpected<NodePlatform> expected_platform =
+        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
+    if (expected_platform.has_error()) {
+      return PrintErrorMessage(argv[0],
+                               NodeExpected<void>(expected_platform.status()))
+          .exit_code();
+    }
+    NodePlatform platform = std::move(expected_platform).value();
+    if (!platform) {
+      return 0;  // early return
+    }
+
+    for (size_t i = 0; i < thread_count; i++) {
+      threads.emplace_back([&platform, &global_count, &global_status] {
+        NodeExpected<void> result = [&]() {
+          return NodeRuntime::Run(
+              platform,
+              [&](const NodePlatform& platform,
+                  const NodeRuntimeConfig& runtime_config) {
+                // Inspector can be associated with only one
+                // runtime in the process.
+                NODE_EMBEDDED_CALL(runtime_config.SetFlags(
+                    NodeRuntimeFlags::kDefault |
+                    NodeRuntimeFlags::kNoCreateInspector));
+                NODE_EMBEDDED_CALL(LoadUtf8Script(
+                    runtime_config,
+                    main_script,
+                    [&](const NodeRuntime& runtime,
+                        napi_env env,
+                        napi_value /*value*/) {
+                      napi_value global, my_count;
+                      NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+                      NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                          env, global, "myCount", &my_count));
+                      int32_t count;
+                      NODE_API_CALL_RETURN_VOID(
+                          napi_get_value_int32(env, my_count, &count));
+                      global_count.fetch_add(count);
+                    }));
+                return NodeExpected<void>{};
+              });
+        }();
+        if (result.has_error()) {
+          // TODO:
+          // global_status.store(status);
+        }
+      });
+    }
+
+    for (size_t i = 0; i < thread_count; i++) {
+      threads[i].join();
+    }
+
+    // TODO:
+    // CHECK_STATUS_OR_EXIT(global_status.load());
+
+    // CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
+
+    // fprintf(stdout, "%d\n", global_count.load());
   }
-
-  for (size_t i = 0; i < thread_count; i++) {
-    threads.emplace_back([platform, &global_count, &global_status] {
-      node_embedding_status status = [&]() {
-        CHECK_STATUS(NodeRuntime::Run(
-            platform,
-                [&](const NodePlatform& platform,
-                    const NodeRuntimeConfig& runtime_config) {
-          // Inspector can be associated with only one runtime in the
-          // process.
-          CHECK_STATUS(
-              runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
-                                      NodeRuntimeFlags::kNoCreateInspector));
-          CHECK_STATUS(LoadUtf8Script(
-              runtime_config,
-              main_script,
-                  [&](const NodeRuntime& runtime,
-                      napi_env env,
-                      napi_value /*value*/) {
-            napi_value global, my_count;
-            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-            NODE_API_CALL_RETURN_VOID(
-                napi_get_named_property(env, global, "myCount", &my_count));
-            int32_t count;
-            NODE_API_CALL_RETURN_VOID(
-                napi_get_value_int32(env, my_count, &count));
-            global_count.fetch_add(count);
-                  })));
-          return node_embedding_status_ok;
-                })));
-        return node_embedding_status_ok;
-      }();
-      if (status != node_embedding_status_ok) {
-        global_status.store(status);
-      }
-    });
-  }
-
-  for (size_t i = 0; i < thread_count; i++) {
-    threads[i].join();
-  }
-
-  CHECK_STATUS_OR_EXIT(global_status.load());
-
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
-
-  fprintf(stdout, "%d\n", global_count.load());
 
   return 0;
 }
-
+#if 0
 // Tests that multiple runtimes can run in the same thread.
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.

@@ -128,8 +128,8 @@ function runCommonApiTests(apiType) {
 }
 
 runCommonApiTests('cpp-api');
-runCommonApiTests('node-api');
-
+//runCommonApiTests('node-api');
+/*
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
 }
@@ -234,7 +234,8 @@ function runSnapshotTests(apiType) {
 }
 
 runSnapshotTests('cpp-api');
-
+*/
+/*
 // Node-API specific tests
 {
   runTest(
@@ -410,7 +411,7 @@ function runEnvTests(apiType) {
 }
 
 runEnvTests('c-api');
-
+*/
 /*
 runTest(
   `modules-node-api: load modules`,

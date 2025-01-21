@@ -580,7 +580,7 @@ class NodePlatform {
 
   static NodeExpected<NodePlatform> Create(
       NodeArgs args, NodeConfigurePlatformCallback configure_platform) {
-    node_embedding_platform platform;
+    node_embedding_platform platform{};
     return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
                                           args.argc(),
                                           args.argv(),
