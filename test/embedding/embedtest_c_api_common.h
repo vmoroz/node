@@ -116,6 +116,8 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
     }                                                                          \
   } while (0)
 
+#endif
+
 #define ASSERT_OR_EXIT(expr)                                                   \
   do {                                                                         \
     if (!(expr)) {                                                             \
@@ -125,7 +127,5 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
       exit(1);                                                                 \
     }                                                                          \
   } while (0)
-
-#endif
 
 #endif  // TEST_EMBEDDING_EMBEDTEST_NODE_API_H_

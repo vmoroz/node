@@ -6,20 +6,20 @@
 
 using namespace node;
 using namespace node::embedding;
-#if 0
+
 class GreeterModule {
  public:
   explicit GreeterModule(std::atomic<int32_t>* counter_ptr)
       : counter_ptr_(counter_ptr) {}
 
-  napi_value operator()(node_embedding_runtime runtime,
+  napi_value operator()(const NodeRuntime& runtime,
                         napi_env env,
-                        const char* module_name,
+                        std::string_view module_name,
                         napi_value exports) {
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
-    napi_create_function(
+    NODE_API_CALL_RETURN(napi_create_function(
         env,
         "greet",
         NAPI_AUTO_LENGTH,
@@ -27,17 +27,18 @@ class GreeterModule {
           std::string greeting = "Hello, ";
           napi_value arg{};
           size_t arg_count = 1;
-          NODE_API_CALL(
+          NODE_API_CALL_RETURN(
               napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-          NODE_API_CALL(AddUtf8String(greeting, env, arg));
+          NODE_API_CALL_RETURN(AddUtf8String(greeting, env, arg));
           napi_value result;
-          NODE_API_CALL(napi_create_string_utf8(
+          NODE_API_CALL_RETURN(napi_create_string_utf8(
               env, greeting.c_str(), greeting.size(), &result));
           return result;
         },
         nullptr,
-        &greet_func);
-    napi_set_named_property(env, exports, "greet", greet_func);
+        &greet_func));
+    NODE_API_CALL_RETURN(
+        napi_set_named_property(env, exports, "greet", greet_func));
     return exports;
   }
 
@@ -50,14 +51,14 @@ class ReplicatorModule {
   explicit ReplicatorModule(std::atomic<int32_t>* counter_ptr)
       : counter_ptr_(counter_ptr) {}
 
-  napi_value operator()(node_embedding_runtime runtime,
+  napi_value operator()(const NodeRuntime& runtime,
                         napi_env env,
-                        const char* module_name,
+                        std::string_view module_name,
                         napi_value exports) {
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
-    napi_create_function(
+    NODE_API_CALL_RETURN(napi_create_function(
         env,
         "replicate",
         NAPI_AUTO_LENGTH,
@@ -65,17 +66,18 @@ class ReplicatorModule {
           std::string str;
           napi_value arg{};
           size_t arg_count = 1;
-          NODE_API_CALL(
+          NODE_API_CALL_RETURN(
               napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-          NODE_API_CALL(AddUtf8String(str, env, arg));
+          NODE_API_CALL_RETURN(AddUtf8String(str, env, arg));
           str += " " + str;
           napi_value result;
           napi_create_string_utf8(env, str.c_str(), str.size(), &result);
           return result;
         },
         nullptr,
-        &greet_func);
-    napi_set_named_property(env, exports, "replicate", greet_func);
+        &greet_func));
+    NODE_API_CALL_RETURN(
+        napi_set_named_property(env, exports, "replicate", greet_func));
     return exports;
   }
 
@@ -92,39 +94,41 @@ extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
   std::atomic<int32_t> greeterModuleInitCallCount{0};
   std::atomic<int32_t> replicatorModuleInitCallCount{0};
 
-  // node_embedding_on_error({argv[0], HandleTestError, nullptr});
-
-  CHECK_STATUS_OR_EXIT(NodePlatform::RunMain(
+  NodeExpected<void> result = NodePlatform::RunMain(
       NodeArgs(argc, argv),
       nullptr,
       NodeConfigureRuntimeCallback(
           [&](const NodePlatform& platform,
               const NodeRuntimeConfig& runtime_config) {
-            CHECK_STATUS(runtime_config.OnPreload([](const NodeRuntime& runtime,
-                                                     napi_env env,
-                                                     napi_value process,
-                                                     napi_value /*require*/
-                                                  ) {
-              napi_value global;
-              napi_get_global(env, &global);
-              napi_set_named_property(env, global, "process", process);
-            }));
+            NODE_EMBEDDED_CALL(
+                runtime_config.OnPreload([](const NodeRuntime& runtime,
+                                            napi_env env,
+                                            napi_value process,
+                                            napi_value /*require*/
+                                         ) {
+                  napi_value global;
+                  napi_get_global(env, &global);
+                  napi_set_named_property(env, global, "process", process);
+                }));
 
-            CHECK_STATUS(runtime_config.AddModule(
+            NODE_EMBEDDED_CALL(runtime_config.AddModule(
                 "greeter_module",
-                AsFunctor<node_embedding_initialize_module_functor>(
-                    GreeterModule(&greeterModuleInitCallCount)),
+                GreeterModule(&greeterModuleInitCallCount),
                 NAPI_VERSION));
-            CHECK_STATUS(runtime_config.AddModule(
+
+            NODE_EMBEDDED_CALL(runtime_config.AddModule(
                 "replicator_module",
-                AsFunctor<node_embedding_initialize_module_functor>(
-                    ReplicatorModule(&replicatorModuleInitCallCount)),
+                ReplicatorModule(&replicatorModuleInitCallCount),
                 NAPI_VERSION));
 
-            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
+            NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
 
-            return node_embedding_status_ok;
-          })));
+            return NodeExpected<void>();
+          }));
+  int32_t exit_code = PrintErrorMessage(argv[0], std::move(result)).exit_code();
+  if (exit_code != 0) {
+    return exit_code;
+  }
 
   ASSERT_OR_EXIT(greeterModuleInitCallCount ==
                  expectedGreeterModuleInitCallCount);
@@ -204,4 +208,3 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
 */
   return 0;
 }
-#endif

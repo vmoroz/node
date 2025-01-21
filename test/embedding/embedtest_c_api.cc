@@ -13,28 +13,25 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
 napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
 extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
-  return PrintErrorMessage(
-             argv[0],
-             NodePlatform::RunMain(
-                 NodeArgs(argc, argv),
-                 [](const NodePlatformConfig& platform_config) {
-                   return platform_config.SetFlags(
-                       NodePlatformFlags::kDisableNodeOptionsEnv);
-                 },
-                 [](const NodePlatform& platform,
-                    const NodeRuntimeConfig& runtime_config) {
-                   return LoadUtf8Script(
-                       runtime_config,
-                       main_script,
-                       [](const NodeRuntime& runtime, napi_env env, napi_value
-                          /*value*/) {
-                         NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
-                         NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-                         NODE_API_CALL_RETURN_VOID(
-                             WaitMeWithCheese(runtime, env));
-                       });
-                 }))
-      .exit_code();
+  NodeExpected<void> result = NodePlatform::RunMain(
+      NodeArgs(argc, argv),
+      [](const NodePlatformConfig& platform_config) {
+        return platform_config.SetFlags(
+            NodePlatformFlags::kDisableNodeOptionsEnv);
+      },
+      [](const NodePlatform& platform,
+         const NodeRuntimeConfig& runtime_config) {
+        return LoadUtf8Script(
+            runtime_config,
+            main_script,
+            [](const NodeRuntime& runtime, napi_env env, napi_value
+               /*value*/) {
+              NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
+              NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
+              NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
+            });
+      });
+  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
 
 napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
