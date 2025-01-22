@@ -317,7 +317,6 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-    */
 
   runTest(
     `threading-runtime-in-several-threads-${apiType}: run and environment from multiple threads`,
@@ -335,12 +334,13 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-/*
+ */
+
   runTest(
-    'threading-runtime-in-ui-thread-node-api: run and environment from multiple threads',
+    `threading-runtime-in-ui-thread-${apiType}: run and environment from multiple threads`,
     spawnSyncAndAssert,
     [
-      'threading-runtime-in-ui-thread-node-api',
+      `threading-runtime-in-ui-thread-${apiType}`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -353,6 +353,7 @@ function runCApiTests(apiType) {
     }
   );
 
+  /*
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(

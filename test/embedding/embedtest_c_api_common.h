@@ -24,9 +24,9 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 
 }  // namespace node::embedding
 
-//
+//==============================================================================
 // Error handling macros copied from test/js_native_api/common.h
-//
+//==============================================================================
 
 // Empty value so that macros here are able to return NULL or void
 #define NODE_API_RETVAL_NOTHING
@@ -96,17 +96,6 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
       return ret_val;                                                          \
     }                                                                          \
   } while (0)
-
-#if 0
-#define CHECK_STATUS(expr)                                                     \
-  do {                                                                         \
-    node_embedding_status status_ = (expr);                                    \
-    if (status_ != node_embedding_status_ok) {                                 \
-      return status_;                                                          \
-    }                                                                          \
-  } while (0)
-
-#endif
 
 #define CHECK_EXPECTED_OR_EXIT(exe_name, expr)                                 \
   do {                                                                         \

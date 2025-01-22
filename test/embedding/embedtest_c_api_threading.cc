@@ -4,6 +4,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <mutex>
 #include <thread>
 
@@ -246,10 +247,9 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_c_cpp_api(
   return 0;
 }
 
-#if 0
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
-extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
+extern "C" int32_t test_main_threading_runtime_in_ui_thread_c_cpp_api(
     int32_t argc, char* argv[]) {
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable
@@ -293,103 +293,86 @@ extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
     bool is_finished_{false};
   } ui_queue;
 
-  node_embedding_platform platform;
-  CHECK_STATUS_OR_EXIT(
-      node_embedding_create_platform(argc, argv, {}, &platform));
-  if (!platform) {
-    return 0;  // early return
+  NodeScopedErrorHandler error_handler{};
+  {
+    NodeExpected<NodePlatform> expected_platform =
+        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NodePlatform platform = std::move(expected_platform).value();
+    if (!platform) {
+      return 0;  // early return
+    }
+
+    NodeRuntime runtime{nullptr};
+    NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
+        platform,
+        [&](const NodePlatform& platform,
+            const NodeRuntimeConfig& runtime_config) {
+          // The callback will be invoked from the runtime's event loop
+          // observer thread. It must schedule the work to the UI thread's
+          // event loop.
+          NODE_EMBEDDED_CALL(runtime_config.SetTaskRunner(
+              // We capture the ui_queue by reference here because we
+              // guarantee it to be alive till the end of the test. In
+              // real applications, you should use a safer way to
+              // capture the dispatcher queue.
+              [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
+                // TODO: figure out the termination scenario.
+                ui_queue.PostTask([run_task =
+                                       std::make_shared<NodeRunTaskCallback>(
+                                           std::move(run_task)),
+                                   &runtime,
+                                   &ui_queue]() {
+                  (*run_task)();  // TODO: handle result
+                  // Check myCount and stop the processing when it reaches 5.
+                  int32_t count{};
+                  runtime.RunNodeApi([&](const NodeRuntime& runtime,
+                                         napi_env env) {
+                    napi_value global, my_count;
+                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                        env, global, "myCount", &my_count));
+                    napi_valuetype count_type;
+                    NODE_API_CALL_RETURN_VOID(
+                        napi_typeof(env, my_count, &count_type));
+                    NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+                    NODE_API_CALL_RETURN_VOID(
+                        napi_get_value_int32(env, my_count, &count));
+                  });
+                  if (count == 5) {
+                    runtime.RunEventLoop();
+                    fprintf(stdout, "%d\n", count);
+                    ui_queue.Stop();
+                  }
+                });
+                return NodeExpected<bool>(true);
+              }));
+
+          return LoadUtf8Script(runtime_config, main_script);
+        });
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+    runtime = std::move(expected_runtime).value();
+
+    // The initial task starts the JS code that then will do the timer
+    // scheduling. The timer supposed to be handled by the runtime's event loop.
+    ui_queue.PostTask([&runtime]() {
+      runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
+        napi_value undefined, global, func;
+        NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+        NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+        NODE_API_CALL_RETURN_VOID(
+            napi_get_named_property(env, global, "incMyCount", &func));
+
+        napi_valuetype func_type;
+        NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+        NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+        NODE_API_CALL_RETURN_VOID(
+            napi_call_function(env, undefined, func, 0, nullptr, nullptr));
+      });
+    });
+
+    ui_queue.Run();
   }
-
-  node_embedding_runtime runtime;
-  CHECK_STATUS_OR_EXIT(node_embedding_create_runtime(
-      platform,
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [&](node_embedding_platform platform,
-              node_embedding_runtime_config runtime_config) {
-            // The callback will be invoked from the runtime's event loop
-            // observer thread. It must schedule the work to the UI thread's
-            // event loop.
-            CHECK_STATUS(node_embedding_set_runtime_task_runner(
-                runtime_config,
-                AsFunctor<node_embedding_post_task_functor>(
-                    // We capture the ui_queue by reference here because we
-                    // guarantee it to be alive till the end of the test. In
-                    // real applications, you should use a safer way to capture
-                    // the dispatcher queue.
-                    [&ui_queue,
-                     &runtime](node_embedding_run_task_functor run_task) {
-                      // TODO: figure out the termination scenario.
-                      ui_queue.PostTask([run_task, &runtime, &ui_queue]() {
-                        AsStdFunction(run_task)();
-
-                        // Check myCount and stop the processing when it
-                        // reaches 5.
-                        CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
-                            runtime,
-                            AsFunctorRef<
-                                node_embedding_run_node_api_functor_ref>(
-                                [&](node_embedding_runtime runtime,
-                                    napi_env env) {
-                                  napi_value global, my_count;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_global(env, &global));
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_named_property(
-                                          env, global, "myCount", &my_count));
-                                  napi_valuetype count_type;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_typeof(env, my_count, &count_type));
-                                  NODE_API_ASSERT_RETURN_VOID(count_type ==
-                                                              napi_number);
-                                  int32_t count;
-                                  NODE_API_CALL_RETURN_VOID(
-                                      napi_get_value_int32(
-                                          env, my_count, &count));
-                                  if (count == 5) {
-                                    node_embedding_complete_event_loop(runtime);
-                                    fprintf(stdout, "%d\n", count);
-                                    ui_queue.Stop();
-                                  }
-                                })));
-                      });
-                    })));
-
-            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
-
-            return node_embedding_status_ok;
-          }),
-      &runtime));
-
-  // The initial task starts the JS code that then will do the timer
-  // scheduling. The timer supposed to be handled by the runtime's event loop.
-  ui_queue.PostTask([runtime]() {
-    node_embedding_status status = node_embedding_run_node_api(
-        runtime,
-        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
-            [&](node_embedding_runtime runtime, napi_env env) {
-              napi_value undefined, global, func;
-              NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_named_property(env, global, "incMyCount", &func));
-
-              napi_valuetype func_type;
-              NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-              NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-              NODE_API_CALL_RETURN_VOID(napi_call_function(
-                  env, undefined, func, 0, nullptr, nullptr));
-
-              node_embedding_run_event_loop(
-                  runtime, node_embedding_event_loop_run_mode_nowait, nullptr);
-            }));
-    CHECK_STATUS_OR_EXIT(status);
-  });
-
-  ui_queue.Run();
-
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_runtime(runtime));
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
 
   return 0;
 }
-#endif
