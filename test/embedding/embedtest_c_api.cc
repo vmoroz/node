@@ -28,7 +28,7 @@ extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
                /*value*/) {
               NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
               NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-              // NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
+              NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
             });
       });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
@@ -126,7 +126,7 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
   }
   return napi_ok;
 }
-/*
+
 napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   enum class PromiseState {
     kPending,
@@ -233,4 +233,3 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   printf("%s", callback_buf);
   return napi_ok;
 }
-*/

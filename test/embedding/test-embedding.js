@@ -263,12 +263,12 @@ function runCApiTests(apiType) {
     ],
     { stdout: 'waited you' }
   );
-/*
+
   runTest(
-    `node-api: waitPromise`,
+    `${apiType}: waitPromise`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitPromise(text) { ' +
         'return new Promise((res) => ' +
         '  setTimeout(() => res(text + " with cheese"), 1)); ' +
@@ -278,10 +278,10 @@ function runCApiTests(apiType) {
   );
 
   runTest(
-    `node-api: waitPromise reject`,
+    `${apiType}: waitPromise reject`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitPromise(text) { ' +
         'return new Promise((res, rej) => ' +
         '  setTimeout(() => rej(text + " without cheese"), 1)); ' +
@@ -289,7 +289,7 @@ function runCApiTests(apiType) {
     ],
     { stdout: 'waited without cheese' }
   );
-
+/*
   runTest(
     `threading-runtime-per-thread-node-api: run 12 environments concurrently`,
     spawnSyncAndAssert,
