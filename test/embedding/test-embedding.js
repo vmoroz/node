@@ -235,19 +235,18 @@ function runSnapshotTests(apiType) {
 
 runSnapshotTests('cpp-api');
 
-/*
-// Node-API specific tests
+// C-API specific tests
 {
   runTest(
-    'nodejs-main-node-api: run Node.js CLI',
+    'nodejs-main-c-cpp-api: run Node.js CLI',
     spawnSyncAndAssert,
-    ['nodejs-main-node-api', '--eval', 'console.log("Hello World")'],
+    ['nodejs-main-c-cpp-api', '--eval', 'console.log("Hello World")'],
     {
       trim: true,
       stdout: 'Hello World',
     }
   );
-
+/*
   runTest(
     `node-api: callMe`,
     spawnSyncAndAssert,
@@ -382,8 +381,9 @@ runSnapshotTests('cpp-api');
       stdout: 'main=Hello, World World; worker=Hello, Node Node',
     }
   );
+*/
 }
-
+/*
 function runEnvTests(apiType) {
   runTest(
     `${apiType}: Env No Browser Globals`,
