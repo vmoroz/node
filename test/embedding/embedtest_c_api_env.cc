@@ -1,22 +1,19 @@
 #include "embedtest_c_api_common.h"
-#if 0
-using namespace node;
+
+using namespace node::embedding;
 
 // Test the no_browser_globals option.
-extern "C" int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
-                                                          char* argv[]) {
-  return node_embedding_run_main(
-      argc,
-      argv,
-      {},
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [](node_embedding_platform platform,
-             node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(node_embedding_set_runtime_flags(
-                runtime_config,
-                node_embedding_runtime_flags_no_browser_globals));
-            return LoadUtf8Script(runtime_config,
-                                  R"JS(
+extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
+                                                              char* argv[]) {
+  NodeExpected<void> result = NodePlatform::RunMain(
+      NodeArgs(argc, argv),
+      nullptr,
+      [](const NodePlatform& platform,
+         const NodeRuntimeConfig& runtime_config) {
+        NODE_EMBEDDED_CALL(
+            runtime_config.SetFlags(NodeRuntimeFlags::kNoBrowserGlobals));
+        return LoadUtf8Script(runtime_config,
+                              R"JS(
 const assert = require('assert');
 const path = require('path');
 const relativeRequire =
@@ -39,26 +36,25 @@ for (const item of items) {
 }
 assert.deepStrictEqual(leaks, []);
 )JS");
-          }));
+      });
+  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_api_env_with_esm_loader(int32_t argc,
-                                                       char* argv[]) {
+extern "C" int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
+                                                           char* argv[]) {
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
   std::vector<std::string> args_vec(argv, argv + argc);
   args_vec.push_back("--experimental-vm-modules");
-  CStringArray args(args_vec);
-  return node_embedding_run_main(
-      args.argc(),
-      const_cast<char**>(args.argv()),
-      {},
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [](node_embedding_platform platform,
-             node_embedding_runtime_config runtime_config) {
-            return LoadUtf8Script(runtime_config,
-                                  R"JS(
+  NodeCStringArray args(args_vec);
+  NodeExpected<void> result =
+      NodePlatform::RunMain(NodeArgs(args),
+                            nullptr,
+                            [](const NodePlatform& platform,
+                               const NodeRuntimeConfig& runtime_config) {
+                              return LoadUtf8Script(runtime_config,
+                                                    R"JS(
 globalThis.require = require('module').createRequire(process.execPath);
 const { SourceTextModule } = require('node:vm');
 (async () => {
@@ -77,21 +73,20 @@ const { SourceTextModule } = require('node:vm');
   process.exit(0);
 })();
 )JS");
-          }));
+                            });
+  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
-                                                          char* argv[]) {
-  return node_embedding_run_main(
-      argc,
-      argv,
-      {},
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [](node_embedding_platform platform,
-             node_embedding_runtime_config runtime_config) {
-            return LoadUtf8Script(runtime_config,
-                                  R"JS(
+extern "C" int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
+                                                              char* argv[]) {
+  NodeExpected<void> result =
+      NodePlatform::RunMain(NodeArgs(argc, argv),
+                            nullptr,
+                            [](const NodePlatform& platform,
+                               const NodeRuntimeConfig& runtime_config) {
+                              return LoadUtf8Script(runtime_config,
+                                                    R"JS(
 globalThis.require = require('module').createRequire(process.execPath);
 const { SourceTextModule } = require('node:vm');
 (async () => {
@@ -109,6 +104,6 @@ const { SourceTextModule } = require('node:vm');
   delete globalThis.importResult;
 })();
 )JS");
-          }));
+                            });
+  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
-#endif

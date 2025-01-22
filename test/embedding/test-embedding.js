@@ -127,8 +127,8 @@ function runCommonApiTests(apiType) {
   );
 }
 
-//runCommonApiTests('cpp-api');
-//runCommonApiTests('c-cpp-api');
+runCommonApiTests('cpp-api');
+runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -233,11 +233,10 @@ function runSnapshotTests(apiType) {
   }
 }
 
-//runSnapshotTests('cpp-api');
+runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
-/*  
   runTest(
     `nodejs-main-${apiType}: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -364,7 +363,7 @@ function runCApiTests(apiType) {
       stdout: `preloadValue=42; worker preloadValue=42`,
     }
   );
-*/
+
   const linkedModulesScriptPath = path.join(__dirname, 'use-linked-modules.js');
 
   runTest(
@@ -386,7 +385,6 @@ function runCApiTests(apiType) {
 
 runCApiTests('c-cpp-api');
 
-/*
 function runEnvTests(apiType) {
   runTest(
     `${apiType}: Env No Browser Globals`,
@@ -413,8 +411,8 @@ function runEnvTests(apiType) {
   );
 }
 
-runEnvTests('c-api');
-*/
+runEnvTests('c-cpp-api');
+
 /*
 runTest(
   `modules-node-api: load modules`,
