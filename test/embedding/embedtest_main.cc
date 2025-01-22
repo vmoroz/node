@@ -2,7 +2,7 @@
 #include "executable_wrapper.h"
 
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
-extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]);
+extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]);
 // extern "C" int32_t test_main_nodejs_main_node_api(int32_t argc, char*
 // argv[]); extern "C" int32_t test_main_modules_node_api(int32_t argc, char*
 // argv[]); extern "C" int32_t test_main_linked_modules_node_api(int32_t argc,
@@ -42,8 +42,8 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
     const char* arg1 = argv[1];
     if (strcmp(arg1, "cpp-api") == 0) {
       return CallWithoutArg1(test_main_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "node-api") == 0) {
-      return CallWithoutArg1(test_main_node_api, argc, argv);
+    } else if (strcmp(arg1, "c-cpp-api") == 0) {
+      return CallWithoutArg1(test_main_c_cpp_api, argc, argv);
       //   } else if (strcmp(arg1, "nodejs-main-node-api") == 0) {
       //     return CallWithoutArg1(test_main_nodejs_main_node_api, argc, argv);
       //   } else if (strcmp(arg1, "modules-node-api") == 0) {

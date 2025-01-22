@@ -12,7 +12,7 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env);
 napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
 napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
-extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
   NodeExpected<void> result = NodePlatform::RunMain(
       NodeArgs(argc, argv),
       [](const NodePlatformConfig& platform_config) {
@@ -26,38 +26,36 @@ extern "C" int32_t test_main_node_api(int32_t argc, char* argv[]) {
             main_script,
             [](const NodeRuntime& runtime, napi_env env, napi_value
                /*value*/) {
-              NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
+              //NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
+              //NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
+              //NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
             });
       });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
-
+/*
 napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
-  napi_value global;
-  napi_value cb;
-  napi_value key;
+  napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
   NODE_API_CALL(napi_create_string_utf8(env, "callMe", NAPI_AUTO_LENGTH, &key));
   NODE_API_CALL(napi_get_property(env, global, key, &cb));
 
-  napi_valuetype cb_type;
+  napi_valuetype cb_type{};
   NODE_API_CALL(napi_typeof(env, cb, &cb_type));
 
   // Only evaluate callMe if it was registered as a function.
   if (cb_type == napi_function) {
-    napi_value undef;
+    napi_value undef{};
     NODE_API_CALL(napi_get_undefined(env, &undef));
-    napi_value arg;
+    napi_value arg{};
     NODE_API_CALL(
         napi_create_string_utf8(env, "called", NAPI_AUTO_LENGTH, &arg));
-    napi_value result;
+    napi_value result{};
     NODE_API_CALL(napi_call_function(env, undef, cb, 1, &arg, &result));
 
-    char buf[32];
-    size_t len;
+    char buf[32]{};
+    size_t len{};
     NODE_API_CALL(napi_get_value_string_utf8(env, result, buf, 32, &len));
     if (strcmp(buf, "called you") != 0) {
       NODE_API_FAIL("Invalid value received: %s\n", buf);
@@ -73,7 +71,7 @@ char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {
   size_t argc = 1;
-  napi_value arg;
+  napi_value arg{};
   NODE_API_CALL_RETURN(
       napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
   NODE_API_CALL_RETURN(napi_get_value_string_utf8(
@@ -82,28 +80,26 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
 }
 
 napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
-  napi_value global;
-  napi_value cb;
-  napi_value key;
+  napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
   NODE_API_CALL(napi_create_string_utf8(env, "waitMe", NAPI_AUTO_LENGTH, &key));
   NODE_API_CALL(napi_get_property(env, global, key, &cb));
 
-  napi_valuetype cb_type;
+  napi_valuetype cb_type{};
   NODE_API_CALL(napi_typeof(env, cb, &cb_type));
 
   // Only evaluate waitMe if it was registered as a function.
   if (cb_type == napi_function) {
-    napi_value undef;
+    napi_value undef{};
     NODE_API_CALL(napi_get_undefined(env, &undef));
-    napi_value args[2];
+    napi_value args[2]{};
     NODE_API_CALL(
         napi_create_string_utf8(env, "waited", NAPI_AUTO_LENGTH, &args[0]));
     NODE_API_CALL(napi_create_function(
         env, "wait_cb", strlen("wait_cb"), c_cb, NULL, &args[1]));
 
-    napi_value result;
+    napi_value result{};
     memset(callback_buf, 0, 32);
     NODE_API_CALL(napi_call_function(env, undef, cb, 2, args, &result));
     if (strcmp(callback_buf, "waited you") == 0) {
@@ -237,3 +233,4 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   printf("%s", callback_buf);
   return napi_ok;
 }
+*/

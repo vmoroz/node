@@ -691,9 +691,10 @@ node_embedding_status EmbeddedPlatform::Initialize(
   init_result_ = node::InitializeOncePerProcess(
       args_, GetProcessInitializationFlags(flags_));
   int32_t exit_code = init_result_->exit_code();
-  CHECK_STATUS(EmbeddedErrorHandling::HandleError(
-      EmbeddedErrorHandling::ExitCodeToStatus(exit_code),
-      init_result_->errors()));
+  if (exit_code != 0) {
+    EmbeddedErrorHandling::SetLastErrorMessage(init_result_->errors());
+    return EmbeddedErrorHandling::ExitCodeToStatus(exit_code);
+  }
 
   if (init_result_->early_return()) {
     *early_return = true;
@@ -701,7 +702,7 @@ node_embedding_status EmbeddedPlatform::Initialize(
       NodeCStringArray messages(init_result_->errors());
       CHECK_STATUS(early_return_handler_(messages.size(), messages.c_strs()));
     }
-    return node_embedding_status::kOk;
+    return NodeStatus::kOk;
   }
 
   int32_t thread_pool_size =

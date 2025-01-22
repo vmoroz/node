@@ -429,12 +429,16 @@ class NodeErrorInfo {
 
   static NodeExpected<std::vector<std::string>> GetLastErrorMessage() {
     std::vector<std::string> result_message;
-    return GetLastErrorMessage(
-               [&result_message](std::vector<std::string> message) {
-                 result_message = std::move(message);
-                 return NodeExpected<void>();
-               }) &&
-           NodeExpected<std::vector<std::string>>(std::move(result_message));
+    NodeExpected<void> result = GetLastErrorMessage(
+        [&result_message](std::vector<std::string> message) {
+          result_message = std::move(message);
+          return NodeExpected<void>();
+        });
+    if (result.has_error()) {
+      return NodeExpected<std::vector<std::string>>(result.status());
+    } else {
+      return NodeExpected<std::vector<std::string>>(std::move(result_message));
+    }
   }
 
   static std::string GetLastErrorMessageString() {
