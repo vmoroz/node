@@ -13,7 +13,7 @@ using namespace node::embedding;
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
-extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
+extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
     int32_t argc, char* argv[]) {
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
@@ -78,11 +78,9 @@ extern "C" int32_t test_main_threading_runtime_per_thread_node_api(
 
     // TODO:
     // CHECK_STATUS_OR_EXIT(global_status.load());
-
-    // CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
-
-    // fprintf(stdout, "%d\n", global_count.load());
   }
+
+  fprintf(stdout, "%d\n", global_count.load());
 
   return 0;
 }

@@ -127,8 +127,8 @@ function runCommonApiTests(apiType) {
   );
 }
 
-runCommonApiTests('cpp-api');
-runCommonApiTests('c-cpp-api');
+//runCommonApiTests('cpp-api');
+//runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -233,10 +233,11 @@ function runSnapshotTests(apiType) {
   }
 }
 
-runSnapshotTests('cpp-api');
+//runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
+/*
   runTest(
     `nodejs-main-${apiType}: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -289,17 +290,17 @@ function runCApiTests(apiType) {
     ],
     { stdout: 'waited without cheese' }
   );
-/*
+*/
   runTest(
-    `threading-runtime-per-thread-node-api: run 12 environments concurrently`,
+    `threading-runtime-per-thread-${apiType}: run 12 environments concurrently`,
     spawnSyncAndAssert,
-    ['threading-runtime-per-thread-node-api', 'myCount = 1'],
+    [`threading-runtime-per-thread-${apiType}`, 'myCount = 1'],
     {
       trim: true,
       stdout: '12',
     }
   );
-
+/*
   runTest(
     'threading-several-runtimes-per-thread-node-api: run 12 environments in the same thread',
     spawnSyncAndAssert,

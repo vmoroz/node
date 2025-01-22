@@ -178,23 +178,6 @@ class [[nodiscard]] NodeExpected<void> {
   NodeStatus status_{NodeStatus::kOk};
 };
 
-template <typename T>
-NodeExpected<T> operator&&(NodeStatus status, NodeExpected<T> success_value) {
-  if (status != NodeStatus::kOk) {
-    return NodeExpected<T>(status);
-  }
-  return success_value;
-}
-
-template <typename T>
-NodeExpected<T> operator&&(NodeExpected<void> expected,
-                           NodeExpected<T> success_value) {
-  if (expected.has_error()) {
-    return NodeExpected<T>(expected.status());
-  }
-  return success_value;
-}
-
 // A helper class to convert std::vector<std::string> to an array of C strings.
 // If the number of strings is less than kInplaceBufferSize, the strings are
 // stored in the inplace_buffer_ array. Otherwise, the strings are stored in the
@@ -572,58 +555,68 @@ class NodePlatform {
       NodeArgs args,
       NodeConfigurePlatformCallback configure_platform,
       NodeConfigureRuntimeCallback configure_runtime) {
-    return node_embedding_run_main(NODE_EMBEDDING_VERSION,
-                                   args.argc(),
-                                   args.argv(),
-                                   configure_platform.callback(),
-                                   configure_platform.data(),
-                                   configure_runtime.callback(),
-                                   configure_runtime.data()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                args.argc(),
+                                args.argv(),
+                                configure_platform.callback(),
+                                configure_platform.data(),
+                                configure_runtime.callback(),
+                                configure_runtime.data()));
   }
 
   static NodeExpected<NodePlatform> Create(
       NodeArgs args, NodeConfigurePlatformCallback configure_platform) {
     node_embedding_platform platform{};
-    return node_embedding_create_platform(NODE_EMBEDDING_VERSION,
-                                          args.argc(),
-                                          args.argv(),
-                                          configure_platform.callback(),
-                                          configure_platform.data(),
-                                          &platform) &&
-           NodeExpected<NodePlatform>(NodePlatform(platform));
+    NodeStatus status =
+        node_embedding_create_platform(NODE_EMBEDDING_VERSION,
+                                       args.argc(),
+                                       args.argv(),
+                                       configure_platform.callback(),
+                                       configure_platform.data(),
+                                       &platform);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<NodePlatform>(status);
+    }
+    return NodeExpected<NodePlatform>(NodePlatform(platform));
   }
 
   NodeExpected<void> GetParsedArgs(
       NodeGetStringsCallback get_args,
       NodeGetStringsCallback get_runtime_args) const {
-    return node_embedding_get_platform_parsed_args(platform_.ptr(),
-                                                   get_args.callback(),
-                                                   get_args.data(),
-                                                   get_runtime_args.callback(),
-                                                   get_runtime_args.data()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_get_platform_parsed_args(platform_.ptr(),
+                                                get_args.callback(),
+                                                get_args.data(),
+                                                get_runtime_args.callback(),
+                                                get_runtime_args.data()));
   }
 
   NodeExpected<std::vector<std::string>> GetArgs() const {
     std::vector<std::string> result_args;
-    return GetParsedArgs(
-               [&result_args](std::vector<std::string> args) {
-                 result_args = std::move(args);
-                 return NodeExpected<void>();
-               },
-               nullptr) &&
-           NodeExpected<std::vector<std::string>>(std::move(result_args));
+    NodeExpected<void> status = GetParsedArgs(
+        [&result_args](std::vector<std::string> args) {
+          result_args = std::move(args);
+          return NodeExpected<void>();
+        },
+        nullptr);
+    if (status.has_error()) {
+      return NodeExpected<std::vector<std::string>>(status.status());
+    }
+    return NodeExpected<std::vector<std::string>>(std::move(result_args));
   }
 
   NodeExpected<std::vector<std::string>> GetRuntimeArgs() const {
     std::vector<std::string> result_args;
-    return GetParsedArgs(nullptr,
-                         [&result_args](std::vector<std::string> args) {
-                           result_args = std::move(args);
-                           return NodeExpected<void>();
-                         }) &&
-           NodeExpected<std::vector<std::string>>(std::move(result_args));
+    NodeExpected<void> status =
+        GetParsedArgs(nullptr, [&result_args](std::vector<std::string> args) {
+          result_args = std::move(args);
+          return NodeExpected<void>();
+        });
+    if (status.has_error()) {
+      return NodeExpected<std::vector<std::string>>(status.status());
+    }
+    return NodeExpected<std::vector<std::string>>(std::move(result_args));
   }
 
  private:
@@ -652,18 +645,17 @@ class NodePlatformConfig {
   }
 
   NodeExpected<void> SetFlags(NodePlatformFlags flags) const {
-    return node_embedding_set_platform_flags(platform_config_.ptr(), flags) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_set_platform_flags(platform_config_.ptr(), flags));
   }
 
   NodeExpected<void> OnEarlyReturn(
       NodeEarlyReturnCallback early_return_handler) const {
-    return node_embedding_on_early_return(
-               platform_config_.ptr(),
-               early_return_handler.callback(),
-               early_return_handler.data(),
-               early_return_handler.data_release()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_on_early_return(platform_config_.ptr(),
+                                       early_return_handler.callback(),
+                                       early_return_handler.data(),
+                                       early_return_handler.data_release()));
   }
 
  private:
@@ -675,9 +667,13 @@ class NodeApiScope {
   static NodeExpected<NodeApiScope> Open(node_embedding_runtime runtime) {
     node_embedding_node_api_scope node_api_scope{};
     napi_env env{};
-    return node_embedding_open_node_api_scope(runtime, &node_api_scope, &env) &&
-           NodeExpected<NodeApiScope>(
-               NodeApiScope(runtime, node_api_scope, env));
+    NodeStatus status =
+        node_embedding_open_node_api_scope(runtime, &node_api_scope, &env);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<NodeApiScope>(status);
+    }
+    return NodeExpected<NodeApiScope>(
+        NodeApiScope(runtime, node_api_scope, env));
   }
 
   explicit NodeApiScope(node_embedding_runtime runtime,
@@ -708,21 +704,24 @@ class NodeRuntime {
   static NodeExpected<void> Run(
       const NodePlatform& platform,
       NodeConfigureRuntimeCallback configure_runtime) {
-    return node_embedding_run_runtime(
-               static_cast<node_embedding_platform>(platform),
-               configure_runtime.callback(),
-               configure_runtime.data()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_run_runtime(
+        static_cast<node_embedding_platform>(platform),
+        configure_runtime.callback(),
+        configure_runtime.data()));
   }
 
   static NodeExpected<NodeRuntime> Create(
       NodePlatform platform, NodeConfigureRuntimeCallback configure_runtime) {
     node_embedding_runtime runtime;
-    return node_embedding_create_runtime(platform,
-                                         configure_runtime.callback(),
-                                         configure_runtime.data(),
-                                         &runtime) &&
-           NodeExpected<NodeRuntime>(NodeRuntime(runtime));
+    NodeStatus status =
+        node_embedding_create_runtime(platform,
+                                      configure_runtime.callback(),
+                                      configure_runtime.data(),
+                                      &runtime);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<NodeRuntime>(status);
+    }
+    return NodeExpected<NodeRuntime>(NodeRuntime(runtime));
   }
 
   explicit NodeRuntime(node_embedding_runtime runtime) : runtime_(runtime) {}
@@ -745,32 +744,37 @@ class NodeRuntime {
   }
 
   NodeExpected<void> RunEventLoop() const {
-    return node_embedding_run_event_loop(runtime_.ptr()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_run_event_loop(runtime_.ptr()));
   }
 
   NodeExpected<void> TerminateEventLoop() const {
-    return node_embedding_terminate_event_loop(runtime_.ptr()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_terminate_event_loop(runtime_.ptr()));
   }
 
   NodeExpected<bool> RunEventLoopOnce() const {
     bool has_more_work{};
-    return node_embedding_run_event_loop_once(runtime_.ptr(), &has_more_work) &&
-           NodeExpected<bool>(has_more_work);
+    NodeStatus status =
+        node_embedding_run_event_loop_once(runtime_.ptr(), &has_more_work);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<bool>(status);
+    }
+    return NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<bool> RunEventLoopNoWait() const {
     bool has_more_work{};
-    return node_embedding_run_event_loop_no_wait(runtime_.ptr(),
-                                                 &has_more_work) &&
-           NodeExpected<bool>(has_more_work);
+    NodeStatus status =
+        node_embedding_run_event_loop_no_wait(runtime_.ptr(), &has_more_work);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<bool>(status);
+    }
+    return NodeExpected<bool>(has_more_work);
   }
 
   NodeExpected<void> RunNodeApi(NodeRunNodeApiCallback run_node_api) const {
-    return node_embedding_run_node_api(
-               runtime_.ptr(), run_node_api.callback(), run_node_api.data()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_run_node_api(
+        runtime_.ptr(), run_node_api.callback(), run_node_api.data()));
   }
 
   NodeExpected<NodeApiScope> OpenNodeApiScope() const {
@@ -801,71 +805,68 @@ class NodeRuntimeConfig {
   }
 
   NodeExpected<void> SetNodeApiVersion(int32_t node_api_version) const {
-    return node_embedding_set_runtime_node_api_version(runtime_config_.ptr(),
-                                                       node_api_version) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_set_runtime_node_api_version(
+        runtime_config_.ptr(), node_api_version));
   }
 
   NodeExpected<void> SetFlags(NodeRuntimeFlags flags) const {
-    return node_embedding_set_runtime_flags(runtime_config_.ptr(), flags) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_set_runtime_flags(runtime_config_.ptr(), flags));
   }
 
   NodeExpected<void> SetArgs(NodeArgs args, NodeArgs runtime_args) const {
-    return node_embedding_set_runtime_args(runtime_config_.ptr(),
-                                           args.argc(),
-                                           args.argv(),
-                                           runtime_args.argc(),
-                                           runtime_args.argv()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_set_runtime_args(runtime_config_.ptr(),
+                                        args.argc(),
+                                        args.argv(),
+                                        runtime_args.argc(),
+                                        runtime_args.argv()));
   }
 
   NodeExpected<void> OnPreload(NodePreloadCallback preload) const {
-    return node_embedding_on_preload_runtime(runtime_config_.ptr(),
-                                             preload.callback(),
-                                             preload.data(),
-                                             preload.data_release()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_on_preload_runtime(runtime_config_.ptr(),
+                                          preload.callback(),
+                                          preload.data(),
+                                          preload.data_release()));
   }
 
   NodeExpected<void> OnStartExecution(
       NodeStartExecutionCallback start_execution) const {
-    return node_embedding_on_start_runtime_execution(
-               runtime_config_.ptr(),
-               start_execution.callback(),
-               start_execution.data(),
-               start_execution.data_release()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_on_start_runtime_execution(
+        runtime_config_.ptr(),
+        start_execution.callback(),
+        start_execution.data(),
+        start_execution.data_release()));
   }
 
   NodeExpected<void> OnHandleExecutionResult(
       NodeHandleExecutionResultCallback handle_start_result) const {
-    return node_embedding_on_handle_runtime_execution_result(
-               runtime_config_.ptr(),
-               handle_start_result.callback(),
-               handle_start_result.data(),
-               handle_start_result.data_release()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(node_embedding_on_handle_runtime_execution_result(
+        runtime_config_.ptr(),
+        handle_start_result.callback(),
+        handle_start_result.data(),
+        handle_start_result.data_release()));
   }
 
   NodeExpected<void> AddModule(std::string_view module_name,
                                NodeInitializeModuleCallback init_module,
                                int32_t moduleNodeApiVersion) const {
-    return node_embedding_add_runtime_module(runtime_config_.ptr(),
-                                             module_name.data(),
-                                             init_module.callback(),
-                                             init_module.data(),
-                                             init_module.data_release(),
-                                             moduleNodeApiVersion) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_add_runtime_module(runtime_config_.ptr(),
+                                          module_name.data(),
+                                          init_module.callback(),
+                                          init_module.data(),
+                                          init_module.data_release(),
+                                          moduleNodeApiVersion));
   }
 
   NodeExpected<void> SetTaskRunner(NodePostTaskCallback post_task) const {
-    return node_embedding_set_runtime_task_runner(runtime_config_.ptr(),
-                                                  post_task.callback(),
-                                                  post_task.data(),
-                                                  post_task.data_release()) &&
-           NodeExpected<void>();
+    return NodeExpected<void>(
+        node_embedding_set_runtime_task_runner(runtime_config_.ptr(),
+                                               post_task.callback(),
+                                               post_task.data(),
+                                               post_task.data_release()));
   }
 
  private:
