@@ -351,20 +351,19 @@ function runCApiTests(apiType) {
     }
   );
 
-  /*
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(
-    'preload-node-api: run preload callback',
+    `preload-${apiType}: run preload callback`,
     spawnSyncAndAssert,
-    ['preload-node-api', `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
+    [`preload-${apiType}`, `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
     {
       cwd: __dirname,
       trim: true,
       stdout: `preloadValue=42; worker preloadValue=42`,
     }
   );
-
+/*
   const linkedModulesScriptPath = path.join(__dirname, 'use-linked-modules.js');
 
   runTest(
