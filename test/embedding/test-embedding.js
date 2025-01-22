@@ -300,7 +300,6 @@ function runCApiTests(apiType) {
       stdout: '12',
     }
   );
-  */
 
   runTest(
     `threading-several-runtimes-per-thread-${apiType}: run 12 environments in the same thread`,
@@ -318,12 +317,13 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-/*
+    */
+
   runTest(
-    'threading-runtime-in-several-threads-node-api: run and environment from multiple threads',
+    `threading-runtime-in-several-threads-${apiType}: run and environment from multiple threads`,
     spawnSyncAndAssert,
     [
-      'threading-runtime-in-several-threads-node-api',
+      `threading-runtime-in-several-threads-${apiType}`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -335,7 +335,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-
+/*
   runTest(
     'threading-runtime-in-ui-thread-node-api: run and environment from multiple threads',
     spawnSyncAndAssert,

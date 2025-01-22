@@ -19,17 +19,13 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
   std::atomic<int32_t> global_count{0};
-  std::atomic<node_embedding_status> global_status{};
+  std::atomic<NodeStatus> global_status{NodeStatus::kOk};
 
   NodeScopedErrorHandler error_handler{};
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    if (expected_platform.has_error()) {
-      return PrintErrorMessage(argv[0],
-                               NodeExpected<void>(expected_platform.status()))
-          .exit_code();
-    }
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
     NodePlatform platform = std::move(expected_platform).value();
     if (!platform) {
       return 0;  // early return
@@ -37,34 +33,32 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
 
     for (size_t i = 0; i < thread_count; i++) {
       threads.emplace_back([&platform, &global_count, &global_status] {
-        NodeExpected<void> result = [&]() {
-          return NodeRuntime::Run(
-              platform,
-              [&](const NodePlatform& platform,
-                  const NodeRuntimeConfig& runtime_config) {
-                // Inspector can be associated with only one
-                // runtime in the process.
-                NODE_EMBEDDED_CALL(runtime_config.SetFlags(
-                    NodeRuntimeFlags::kDefault |
-                    NodeRuntimeFlags::kNoCreateInspector));
-                NODE_EMBEDDED_CALL(LoadUtf8Script(
-                    runtime_config,
-                    main_script,
-                    [&](const NodeRuntime& runtime,
-                        napi_env env,
-                        napi_value /*value*/) {
-                      napi_value global, my_count;
-                      NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                      NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                          env, global, "myCount", &my_count));
-                      int32_t count;
-                      NODE_API_CALL_RETURN_VOID(
-                          napi_get_value_int32(env, my_count, &count));
-                      global_count.fetch_add(count);
-                    }));
-                return NodeExpected<void>{};
-              });
-        }();
+        NodeExpected<void> result = NodeRuntime::Run(
+            platform,
+            [&](const NodePlatform& platform,
+                const NodeRuntimeConfig& runtime_config) {
+              // Inspector can be associated with only one
+              // runtime in the process.
+              NODE_EMBEDDED_CALL(runtime_config.SetFlags(
+                  NodeRuntimeFlags::kDefault |
+                  NodeRuntimeFlags::kNoCreateInspector));
+              NODE_EMBEDDED_CALL(LoadUtf8Script(
+                  runtime_config,
+                  main_script,
+                  [&](const NodeRuntime& runtime,
+                      napi_env env,
+                      napi_value /*value*/) {
+                    napi_value global, my_count;
+                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                        env, global, "myCount", &my_count));
+                    int32_t count;
+                    NODE_API_CALL_RETURN_VOID(
+                        napi_get_value_int32(env, my_count, &count));
+                    global_count.fetch_add(count);
+                  }));
+              return NodeExpected<void>{};
+            });
         if (result.has_error()) {
           global_status.store(result.status());
         }
@@ -75,12 +69,10 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
       threads[i].join();
     }
 
-    // TODO:
-    // CHECK_STATUS_OR_EXIT(global_status.load());
+    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(global_status.load()));
   }
 
   fprintf(stdout, "%d\n", global_count.load());
-
   return 0;
 }
 
@@ -108,8 +100,8 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
     for (size_t i = 0; i < runtime_count; i++) {
       NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
           platform,
-          [&](const NodePlatform& platform,
-              const NodeRuntimeConfig& runtime_config) {
+          [](const NodePlatform& platform,
+             const NodeRuntimeConfig& runtime_config) {
             // Inspector can be associated with only one runtime in the process.
             NODE_EMBEDDED_CALL(
                 runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
@@ -176,89 +168,85 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
   return 0;
 }
 
-#if 0
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
-extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
+extern "C" int32_t test_main_threading_runtime_in_several_threads_c_cpp_api(
     int32_t argc, char* argv[]) {
-  node_embedding_platform platform;
-
   // Use mutex to synchronize access to the runtime.
   std::mutex mutex;
   std::atomic<int32_t> result_count{0};
-  std::atomic<node_embedding_status> result_status{node_embedding_status_ok};
+  std::atomic<NodeStatus> result_status{NodeStatus::kOk};
   const size_t thread_count = 5;
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
 
-  CHECK_STATUS_OR_EXIT(
-      node_embedding_create_platform(argc, argv, {}, &platform));
-  if (!platform) {
-    return 0;  // early return
+  NodeScopedErrorHandler error_handler{};
+  {
+    NodeExpected<NodePlatform> expected_platform =
+        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NodePlatform platform = std::move(expected_platform).value();
+    if (!platform) {
+      return 0;  // early return
+    }
+
+    NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
+        platform,
+        [](const NodePlatform& platform,
+           const NodeRuntimeConfig& runtime_config) {
+          return LoadUtf8Script(runtime_config, main_script);
+        });
+
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+    NodeRuntime runtime = std::move(expected_runtime).value();
+
+    for (size_t i = 0; i < thread_count; i++) {
+      threads.emplace_back([&runtime, &result_count, &result_status, &mutex] {
+        std::scoped_lock lock(mutex);
+        NodeExpected<void> run_result =
+            runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
+              napi_value undefined, global, func, my_count;
+              NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+              NODE_API_CALL_RETURN_VOID(
+                  napi_get_named_property(env, global, "incMyCount", &func));
+
+              napi_valuetype func_type;
+              NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+              NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+              NODE_API_CALL_RETURN_VOID(napi_call_function(
+                  env, undefined, func, 0, nullptr, nullptr));
+
+              NODE_API_CALL_RETURN_VOID(
+                  napi_get_named_property(env, global, "myCount", &my_count));
+              napi_valuetype count_type;
+              NODE_API_CALL_RETURN_VOID(
+                  napi_typeof(env, my_count, &count_type));
+              NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+              int32_t count;
+              NODE_API_CALL_RETURN_VOID(
+                  napi_get_value_int32(env, my_count, &count));
+              result_count.store(count);
+            });
+        if (run_result.has_error()) {
+          result_status.store(run_result.status());
+        }
+      });
+    }
+
+    for (size_t i = 0; i < thread_count; i++) {
+      threads[i].join();
+    }
+
+    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(result_status.load()));
+    CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
   }
-
-  node_embedding_runtime runtime;
-  CHECK_STATUS_OR_EXIT(node_embedding_create_runtime(
-      platform,
-      AsFunctorRef<node_embedding_configure_runtime_functor_ref>(
-          [&](node_embedding_platform platform,
-              node_embedding_runtime_config runtime_config) {
-            CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
-            return node_embedding_status_ok;
-          }),
-      &runtime));
-
-  for (size_t i = 0; i < thread_count; i++) {
-    threads.emplace_back([runtime, &result_count, &result_status, &mutex] {
-      std::scoped_lock lock(mutex);
-      node_embedding_status status = node_embedding_run_node_api(
-          runtime,
-          AsFunctorRef<node_embedding_run_node_api_functor_ref>(
-              [&](node_embedding_runtime runtime, napi_env env) {
-                napi_value undefined, global, func, my_count;
-                NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-                NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                NODE_API_CALL_RETURN_VOID(
-                    napi_get_named_property(env, global, "incMyCount", &func));
-
-                napi_valuetype func_type;
-                NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-                NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-                NODE_API_CALL_RETURN_VOID(napi_call_function(
-                    env, undefined, func, 0, nullptr, nullptr));
-
-                NODE_API_CALL_RETURN_VOID(
-                    napi_get_named_property(env, global, "myCount", &my_count));
-                napi_valuetype count_type;
-                NODE_API_CALL_RETURN_VOID(
-                    napi_typeof(env, my_count, &count_type));
-                NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-                int32_t count;
-                NODE_API_CALL_RETURN_VOID(
-                    napi_get_value_int32(env, my_count, &count));
-                result_count.store(count);
-              }));
-      if (status != node_embedding_status_ok) {
-        result_status.store(status);
-      }
-    });
-  }
-
-  for (size_t i = 0; i < thread_count; i++) {
-    threads[i].join();
-  }
-
-  CHECK_STATUS_OR_EXIT(result_status.load());
-
-  CHECK_STATUS_OR_EXIT(node_embedding_complete_event_loop(runtime));
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_runtime(runtime));
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", result_count.load());
-
   return 0;
 }
 
+#if 0
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
 extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
