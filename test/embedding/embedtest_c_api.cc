@@ -26,14 +26,14 @@ extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
             main_script,
             [](const NodeRuntime& runtime, napi_env env, napi_value
                /*value*/) {
-              //NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
+              NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
               //NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
               //NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
             });
       });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
-/*
+
 napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
   napi_value global{}, cb{}, key{};
 
@@ -66,7 +66,7 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
   }
   return napi_ok;
 }
-
+/*
 char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {

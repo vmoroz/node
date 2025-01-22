@@ -246,14 +246,14 @@ runSnapshotTests('cpp-api');
       stdout: 'Hello World',
     }
   );
-/*
+
   runTest(
-    `node-api: callMe`,
+    `c-cpp-api: callMe`,
     spawnSyncAndAssert,
-    ['node-api', 'function callMe(text) { return text + " you"; }'],
+    ['c-cpp-api', 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
-
+/*
   runTest(
     `node-api: waitMe`,
     spawnSyncAndAssert,
