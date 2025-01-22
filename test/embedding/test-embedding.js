@@ -236,11 +236,11 @@ function runSnapshotTests(apiType) {
 runSnapshotTests('cpp-api');
 
 // C-API specific tests
-{
+function runCApiTests(apiType) {
   runTest(
-    'nodejs-main-c-cpp-api: run Node.js CLI',
+    `nodejs-main-${apiType}: run Node.js CLI`,
     spawnSyncAndAssert,
-    ['nodejs-main-c-cpp-api', '--eval', 'console.log("Hello World")'],
+    [`nodejs-main-${apiType}`, '--eval', 'console.log("Hello World")'],
     {
       trim: true,
       stdout: 'Hello World',
@@ -248,22 +248,22 @@ runSnapshotTests('cpp-api');
   );
 
   runTest(
-    `c-cpp-api: callMe`,
+    `${apiType}: callMe`,
     spawnSyncAndAssert,
-    ['c-cpp-api', 'function callMe(text) { return text + " you"; }'],
+    [apiType, 'function callMe(text) { return text + " you"; }'],
     { stdout: 'called you' }
   );
-/*
+
   runTest(
-    `node-api: waitMe`,
+    `${apiType}: waitMe`,
     spawnSyncAndAssert,
     [
-      'node-api',
+      apiType,
       'function waitMe(text, cb) { setTimeout(() => cb(text + " you"), 1); }',
     ],
     { stdout: 'waited you' }
   );
-
+/*
   runTest(
     `node-api: waitPromise`,
     spawnSyncAndAssert,
@@ -383,6 +383,9 @@ runSnapshotTests('cpp-api');
   );
 */
 }
+
+runCApiTests('c-cpp-api');
+
 /*
 function runEnvTests(apiType) {
   runTest(
