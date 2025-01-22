@@ -66,8 +66,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
               });
         }();
         if (result.has_error()) {
-          // TODO:
-          // global_status.store(status);
+          global_status.store(result.status());
         }
       });
     }
@@ -84,98 +83,100 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
 
   return 0;
 }
-#if 0
+
 // Tests that multiple runtimes can run in the same thread.
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.
-extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
+extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
     int32_t argc, char* argv[]) {
-  node_embedding_platform platform;
   const size_t runtime_count = 12;
-  std::vector<node_embedding_runtime> runtimes;
-  runtimes.reserve(runtime_count);
   bool more_work = false;
   int32_t global_count = 0;
 
-  CHECK_STATUS_OR_EXIT(NodePlatform::Create(NodeArgs(argc, argv), nullptr));
-  if (!platform) {
-    return 0;  // early return
-  }
+  NodeScopedErrorHandler error_handler{};
+  {
+    NodeExpected<NodePlatform> expected_platform =
+        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
+    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NodePlatform platform = std::move(expected_platform).value();
 
-  for (size_t i = 0; i < runtime_count; i++) {
-    node_embedding_runtime runtime;
-    CHECK_STATUS_OR_EXIT(NodeRuntime::Create(
-        platform,
-        [&](const NodePlatform& platform,
-            const NodeRuntimeConfig& runtime_config) {
-          // Inspector can be associated with only one runtime in the
-          // process.
-          CHECK_STATUS(
-              runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
-                                      NodeRuntimeFlags::kNoCreateInspector));
-          CHECK_STATUS(LoadUtf8Script(runtime_config, main_script));
-          return node_embedding_status_ok;
-        },
-        &runtime));
-    runtimes.push_back(runtime);
+    // We declared list of NodeRuntime after NodePlatform to ensure that they
+    // are released before the platform.
+    std::vector<NodeRuntime> runtimes;
+    runtimes.reserve(runtime_count);
 
-    CHECK_STATUS_OR_EXIT(runtime.RunNodeApi(
-            [&](const NodeRuntime& runtime, napi_env env) {
-              napi_value undefined, global, func;
-              NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_named_property(env, global, "incMyCount", &func));
+    for (size_t i = 0; i < runtime_count; i++) {
+      NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
+          platform,
+          [&](const NodePlatform& platform,
+              const NodeRuntimeConfig& runtime_config) {
+            // Inspector can be associated with only one runtime in the process.
+            NODE_EMBEDDED_CALL(
+                runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
+                                        NodeRuntimeFlags::kNoCreateInspector));
+            NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+            return NodeExpected<void>();
+          });
 
-              napi_valuetype func_type;
-              NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-              NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-              NODE_API_CALL_RETURN_VOID(napi_call_function(
-                  env, undefined, func, 0, nullptr, nullptr));
-            }));
-  }
+      CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+      NodeRuntime runtime = std::move(expected_runtime).value();
 
-  do {
-    more_work = false;
-    for (node_embedding_runtime runtime : runtimes) {
-      bool has_more_work = false;
-      CHECK_STATUS_OR_EXIT(node_embedding_run_event_loop(
-          runtime, node_embedding_event_loop_run_mode_nowait, &has_more_work));
-      more_work |= has_more_work;
+      CHECK_EXPECTED_OR_EXIT(
+          argv[0],
+          runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
+            napi_value undefined, global, func;
+            NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_named_property(env, global, "incMyCount", &func));
+
+            napi_valuetype func_type;
+            NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+            NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+            NODE_API_CALL_RETURN_VOID(
+                napi_call_function(env, undefined, func, 0, nullptr, nullptr));
+          }));
+
+      runtimes.push_back(std::move(runtime));
     }
-  } while (more_work);
 
-  for (node_embedding_runtime runtime : runtimes) {
-    CHECK_STATUS_OR_EXIT(node_embedding_run_node_api(
-        runtime,
-        AsFunctorRef<node_embedding_run_node_api_functor_ref>(
-            [&](node_embedding_runtime runtime, napi_env env) {
-              napi_value global, my_count;
-              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_named_property(env, global, "myCount", &my_count));
+    do {
+      more_work = false;
+      for (const NodeRuntime& runtime : runtimes) {
+        NodeExpected<bool> has_more_work = runtime.RunEventLoopNoWait();
+        CHECK_EXPECTED_OR_EXIT(argv[0], has_more_work);
+        more_work |= has_more_work.value();
+      }
+    } while (more_work);
 
-              napi_valuetype my_count_type;
-              NODE_API_CALL_RETURN_VOID(
-                  napi_typeof(env, my_count, &my_count_type));
-              NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
-              int32_t count;
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_value_int32(env, my_count, &count));
+    for (const NodeRuntime& runtime : runtimes) {
+      CHECK_EXPECTED_OR_EXIT(
+          argv[0],
+          runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
+            napi_value global, my_count;
+            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_named_property(env, global, "myCount", &my_count));
 
-              global_count += count;
-            })));
-    CHECK_STATUS_OR_EXIT(node_embedding_complete_event_loop(runtime));
-    CHECK_STATUS_OR_EXIT(node_embedding_delete_runtime(runtime));
+            napi_valuetype my_count_type;
+            NODE_API_CALL_RETURN_VOID(
+                napi_typeof(env, my_count, &my_count_type));
+            NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
+            int32_t count;
+            NODE_API_CALL_RETURN_VOID(
+                napi_get_value_int32(env, my_count, &count));
+
+            global_count += count;
+          }));
+      CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
+    }
   }
-
-  CHECK_STATUS_OR_EXIT(node_embedding_delete_platform(platform));
 
   fprintf(stdout, "%d\n", global_count);
-
   return 0;
 }
 
+#if 0
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
 extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(

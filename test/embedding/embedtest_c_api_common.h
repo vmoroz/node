@@ -46,7 +46,6 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 #define NODE_API_FAIL_RETURN_VOID(...)                                         \
   NODE_API_FAIL_BASE(NODE_API_RETVAL_NOTHING, __VA_ARGS__)
 
-#if 0
 #define NODE_API_ASSERT_BASE(expr, ret_val)                                    \
   do {                                                                         \
     if (!(expr)) {                                                             \
@@ -63,7 +62,6 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
 // This is meant to be used inside functions with void return type.
 #define NODE_API_ASSERT_RETURN_VOID(expr)                                      \
   NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
-#endif
 
 #define NODE_API_CALL_BASE(expr, ret_val)                                      \
   do {                                                                         \
@@ -108,15 +106,16 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
     }                                                                          \
   } while (0)
 
-#define CHECK_EXPECTED_OR_EXIT(expr)                                           \
+#endif
+
+#define CHECK_EXPECTED_OR_EXIT(exe_name, expr)                                 \
   do {                                                                         \
-    node::embedding::NodeExpected<void> expected_ = (expr);                    \
-    if (expected_.HasError()) {                                                \
-      exit(expected_.ExitCode());                                              \
+    const auto& expected = (expr);                                             \
+    if (expected.has_error()) {                                                \
+      exit(PrintErrorMessage(exe_name, NodeExpected<void>(expected.status()))  \
+               .exit_code());                                                  \
     }                                                                          \
   } while (0)
-
-#endif
 
 #define ASSERT_OR_EXIT(expr)                                                   \
   do {                                                                         \

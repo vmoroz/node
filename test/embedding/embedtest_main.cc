@@ -10,8 +10,8 @@ extern "C" int32_t test_main_nodejs_main_c_cpp_api(int32_t argc, char* argv[]);
 //                                                      char* argv[]);
 extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
     int32_t argc, char* argv[]);
-// extern "C" int32_t test_main_threading_several_runtimes_per_thread_node_api(
-//     int32_t argc, char* argv[]);
+extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
+    int32_t argc, char* argv[]);
 // extern "C" int32_t test_main_threading_runtime_in_several_threads_node_api(
 //     int32_t argc, char* argv[]);
 // extern "C" int32_t test_main_threading_runtime_in_ui_thread_node_api(
@@ -50,18 +50,17 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
     } else if (strcmp(arg1, "threading-runtime-per-thread-c-cpp-api") == 0) {
       return CallWithoutArg1(
           test_main_threading_runtime_per_thread_c_cpp_api, argc, argv);
+    } else if (strcmp(arg1,
+                      "threading-several-runtimes-per-thread-c-cpp-api") == 0) {
+      return CallWithoutArg1(
+          test_main_threading_several_runtimes_per_thread_c_cpp_api,
+          argc,
+          argv);
       //   } else if (strcmp(arg1, "modules-node-api") == 0) {
       //     return CallWithoutArg1(test_main_modules_node_api, argc, argv);
       //   } else if (strcmp(arg1, "linked-modules-node-api") == 0) {
       //     return CallWithoutArg1(test_main_linked_modules_node_api, argc,
       //     argv);
-      //   } else if (strcmp(arg1,
-      //   "threading-several-runtimes-per-thread-node-api")
-      //   ==
-      //              0) {
-      //     return CallWithoutArg1(
-      //         test_main_threading_several_runtimes_per_thread_node_api, argc,
-      //         argv);
       //   } else if (strcmp(arg1,
       //   "threading-runtime-in-several-threads-node-api")
       //   ==

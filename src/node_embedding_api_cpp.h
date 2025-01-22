@@ -711,7 +711,7 @@ class NodeRuntime {
   }
 
   static NodeExpected<NodeRuntime> Create(
-      NodePlatform platform, NodeConfigureRuntimeCallback configure_runtime) {
+      const NodePlatform& platform, NodeConfigureRuntimeCallback configure_runtime) {
     node_embedding_runtime runtime;
     NodeStatus status =
         node_embedding_create_runtime(platform,

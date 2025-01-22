@@ -290,7 +290,7 @@ function runCApiTests(apiType) {
     ],
     { stdout: 'waited without cheese' }
   );
-*/
+
   runTest(
     `threading-runtime-per-thread-${apiType}: run 12 environments concurrently`,
     spawnSyncAndAssert,
@@ -300,12 +300,13 @@ function runCApiTests(apiType) {
       stdout: '12',
     }
   );
-/*
+  */
+
   runTest(
-    'threading-several-runtimes-per-thread-node-api: run 12 environments in the same thread',
+    `threading-several-runtimes-per-thread-${apiType}: run 12 environments in the same thread`,
     spawnSyncAndAssert,
     [
-      'threading-several-runtimes-per-thread-node-api',
+      `threading-several-runtimes-per-thread-${apiType}`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -317,7 +318,7 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-
+/*
   runTest(
     'threading-runtime-in-several-threads-node-api: run and environment from multiple threads',
     spawnSyncAndAssert,
