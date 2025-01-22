@@ -4,7 +4,7 @@ using namespace node::embedding;
 
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
-extern "C" int32_t test_main_preload_c_cpp_api(int32_t argc, char* argv[]) {
+extern "C" int32_t test_main_c_cpp_api_preload(int32_t argc, char* argv[]) {
   NodeExpected<void> result = NodePlatform::RunMain(
       NodeArgs(argc, argv),
       nullptr,

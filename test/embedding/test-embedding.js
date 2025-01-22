@@ -238,9 +238,9 @@ runSnapshotTests('cpp-api');
 // C-API specific tests
 function runCApiTests(apiType) {
   runTest(
-    `nodejs-main-${apiType}: run Node.js CLI`,
+    `${apiType}-nodejs-main: run Node.js CLI`,
     spawnSyncAndAssert,
-    [`nodejs-main-${apiType}`, '--eval', 'console.log("Hello World")'],
+    [`${apiType}-nodejs-main`, '--eval', 'console.log("Hello World")'],
     {
       trim: true,
       stdout: 'Hello World',
@@ -291,9 +291,9 @@ function runCApiTests(apiType) {
   );
 
   runTest(
-    `threading-runtime-per-thread-${apiType}: run 12 environments concurrently`,
+    `${apiType}-threading-runtime-per-thread: run 12 environments concurrently`,
     spawnSyncAndAssert,
-    [`threading-runtime-per-thread-${apiType}`, 'myCount = 1'],
+    [`${apiType}-threading-runtime-per-thread`, 'myCount = 1'],
     {
       trim: true,
       stdout: '12',
@@ -301,10 +301,10 @@ function runCApiTests(apiType) {
   );
 
   runTest(
-    `threading-several-runtimes-per-thread-${apiType}: run 12 environments in the same thread`,
+    `${apiType}-threading-several-runtimes-per-thread: run 12 environments in the same thread`,
     spawnSyncAndAssert,
     [
-      `threading-several-runtimes-per-thread-${apiType}`,
+      `${apiType}-threading-several-runtimes-per-thread`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -318,10 +318,10 @@ function runCApiTests(apiType) {
   );
 
   runTest(
-    `threading-runtime-in-several-threads-${apiType}: run and environment from multiple threads`,
+    `${apiType}-threading-runtime-in-several-threads: run and environment from multiple threads`,
     spawnSyncAndAssert,
     [
-      `threading-runtime-in-several-threads-${apiType}`,
+      `${apiType}-threading-runtime-in-several-threads`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -335,10 +335,10 @@ function runCApiTests(apiType) {
   );
  
   runTest(
-    `threading-runtime-in-ui-thread-${apiType}: run and environment from multiple threads`,
+    `${apiType}-threading-runtime-in-ui-thread: run and environment from multiple threads`,
     spawnSyncAndAssert,
     [
-      `threading-runtime-in-ui-thread-${apiType}`,
+      `${apiType}-threading-runtime-in-ui-thread`,
       'myCount = 0; ' +
         'function incMyCount() { ' +
         '  ++myCount; ' +
@@ -354,9 +354,9 @@ function runCApiTests(apiType) {
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(
-    `preload-${apiType}: run preload callback`,
+    `${apiType}-preload: run preload callback`,
     spawnSyncAndAssert,
-    [`preload-${apiType}`, `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
+    [`${apiType}-preload`, `eval(${getReadFileCodeForPath(preloadScriptPath)})`],
     {
       cwd: __dirname,
       trim: true,
@@ -367,10 +367,10 @@ function runCApiTests(apiType) {
   const linkedModulesScriptPath = path.join(__dirname, 'use-linked-modules.js');
 
   runTest(
-    `linked-modules-${apiType}: run with two linked modules`,
+    `${apiType}-linked-modules: run with two linked modules`,
     spawnSyncAndAssert,
     [
-      `linked-modules-${apiType}`,
+      `${apiType}-linked-modules`,
       `eval(${getReadFileCodeForPath(linkedModulesScriptPath)})`,
       2, // expected number of greeter module calls
       2, // expected number of replicator module calls

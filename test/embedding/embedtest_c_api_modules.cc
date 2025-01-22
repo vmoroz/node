@@ -85,7 +85,7 @@ class ReplicatorModule {
   std::atomic<int32_t>* counter_ptr_;
 };
 
-extern "C" int32_t test_main_linked_modules_c_cpp_api(int32_t argc,
+extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
                                                       char* argv[]) {
   ASSERT_OR_EXIT(argc == 4);
   int32_t expectedGreeterModuleInitCallCount = atoi(argv[2]);

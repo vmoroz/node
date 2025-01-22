@@ -14,7 +14,7 @@ using namespace node::embedding;
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
-extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
     int32_t argc, char* argv[]) {
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
@@ -80,7 +80,7 @@ extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
 // Tests that multiple runtimes can run in the same thread.
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.
-extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
     int32_t argc, char* argv[]) {
   const size_t runtime_count = 12;
   bool more_work = false;
@@ -171,7 +171,7 @@ extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
 
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
-extern "C" int32_t test_main_threading_runtime_in_several_threads_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
     int32_t argc, char* argv[]) {
   // Use mutex to synchronize access to the runtime.
   std::mutex mutex;
@@ -249,7 +249,7 @@ extern "C" int32_t test_main_threading_runtime_in_several_threads_c_cpp_api(
 
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
-extern "C" int32_t test_main_threading_runtime_in_ui_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
     int32_t argc, char* argv[]) {
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable

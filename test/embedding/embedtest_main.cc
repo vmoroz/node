@@ -3,17 +3,17 @@
 
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
 extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]);
-extern "C" int32_t test_main_nodejs_main_c_cpp_api(int32_t argc, char* argv[]);
-extern "C" int32_t test_main_threading_runtime_per_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_nodejs_main(int32_t argc, char* argv[]);
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
     int32_t argc, char* argv[]);
-extern "C" int32_t test_main_threading_several_runtimes_per_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
     int32_t argc, char* argv[]);
-extern "C" int32_t test_main_threading_runtime_in_several_threads_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
     int32_t argc, char* argv[]);
-extern "C" int32_t test_main_threading_runtime_in_ui_thread_c_cpp_api(
+extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
     int32_t argc, char* argv[]);
-extern "C" int32_t test_main_preload_c_cpp_api(int32_t argc, char* argv[]);
-extern "C" int32_t test_main_linked_modules_c_cpp_api(int32_t argc,
+extern "C" int32_t test_main_c_cpp_api_preload(int32_t argc, char* argv[]);
+extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
                                                       char* argv[]);
 extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
                                                               char* argv[]);
@@ -45,28 +45,28 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
       return CallWithoutArg1(test_main_cpp_api, argc, argv);
     } else if (strcmp(arg1, "c-cpp-api") == 0) {
       return CallWithoutArg1(test_main_c_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "nodejs-main-c-cpp-api") == 0) {
-      return CallWithoutArg1(test_main_nodejs_main_c_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "threading-runtime-per-thread-c-cpp-api") == 0) {
+    } else if (strcmp(arg1, "c-cpp-api-nodejs-main") == 0) {
+      return CallWithoutArg1(test_main_c_cpp_api_nodejs_main, argc, argv);
+    } else if (strcmp(arg1, "c-cpp-api-threading-runtime-per-thread") == 0) {
       return CallWithoutArg1(
-          test_main_threading_runtime_per_thread_c_cpp_api, argc, argv);
+          test_main_c_cpp_api_threading_runtime_per_thread, argc, argv);
     } else if (strcmp(arg1,
-                      "threading-several-runtimes-per-thread-c-cpp-api") == 0) {
+                      "c-cpp-api-threading-several-runtimes-per-thread") == 0) {
       return CallWithoutArg1(
-          test_main_threading_several_runtimes_per_thread_c_cpp_api,
+          test_main_c_cpp_api_threading_several_runtimes_per_thread,
           argc,
           argv);
-    } else if (strcmp(arg1, "threading-runtime-in-several-threads-c-cpp-api") ==
+    } else if (strcmp(arg1, "c-cpp-api-threading-runtime-in-several-threads") ==
                0) {
       return CallWithoutArg1(
-          test_main_threading_runtime_in_several_threads_c_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "threading-runtime-in-ui-thread-c-cpp-api") == 0) {
+          test_main_c_cpp_api_threading_runtime_in_several_threads, argc, argv);
+    } else if (strcmp(arg1, "c-cpp-api-threading-runtime-in-ui-thread") == 0) {
       return CallWithoutArg1(
-          test_main_threading_runtime_in_ui_thread_c_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "preload-c-cpp-api") == 0) {
-      return CallWithoutArg1(test_main_preload_c_cpp_api, argc, argv);
-    } else if (strcmp(arg1, "linked-modules-c-cpp-api") == 0) {
-      return CallWithoutArg1(test_main_linked_modules_c_cpp_api, argc, argv);
+          test_main_c_cpp_api_threading_runtime_in_ui_thread, argc, argv);
+    } else if (strcmp(arg1, "c-cpp-api-preload") == 0) {
+      return CallWithoutArg1(test_main_c_cpp_api_preload, argc, argv);
+    } else if (strcmp(arg1, "c-cpp-api-linked-modules") == 0) {
+      return CallWithoutArg1(test_main_c_cpp_api_linked_modules, argc, argv);
     } else if (strcmp(arg1, "c-cpp-api-env-no-browser-globals") == 0) {
       return CallWithoutArg1(
           test_main_c_cpp_api_env_no_browser_globals, argc, argv);
