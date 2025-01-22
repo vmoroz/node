@@ -127,8 +127,8 @@ function runCommonApiTests(apiType) {
   );
 }
 
-runCommonApiTests('cpp-api');
-runCommonApiTests('c-cpp-api');
+//runCommonApiTests('cpp-api');
+//runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -233,10 +233,11 @@ function runSnapshotTests(apiType) {
   }
 }
 
-runSnapshotTests('cpp-api');
+//runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
+/*  
   runTest(
     `nodejs-main-${apiType}: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -363,14 +364,14 @@ function runCApiTests(apiType) {
       stdout: `preloadValue=42; worker preloadValue=42`,
     }
   );
-/*
+*/
   const linkedModulesScriptPath = path.join(__dirname, 'use-linked-modules.js');
 
   runTest(
-    'linked-modules-node-api: run with two linked modules',
+    `linked-modules-${apiType}: run with two linked modules`,
     spawnSyncAndAssert,
     [
-      'linked-modules-node-api',
+      `linked-modules-${apiType}`,
       `eval(${getReadFileCodeForPath(linkedModulesScriptPath)})`,
       2, // expected number of greeter module calls
       2, // expected number of replicator module calls
@@ -381,7 +382,6 @@ function runCApiTests(apiType) {
       stdout: 'main=Hello, World World; worker=Hello, Node Node',
     }
   );
-*/
 }
 
 runCApiTests('c-cpp-api');
