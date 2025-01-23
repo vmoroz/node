@@ -4,6 +4,7 @@
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
 
 extern "C" int32_t test_main_c_api_nodejs_main(int32_t argc, char* argv[]);
+extern "C" int32_t test_main_c_api_preload(int32_t argc, char* argv[]);
 
 extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]);
 extern "C" int32_t test_main_c_cpp_api_nodejs_main(int32_t argc, char* argv[]);
@@ -48,6 +49,8 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
       return CallWithoutArg1(test_main_cpp_api, argc, argv);
     } else if (strcmp(arg1, "c-api-nodejs-main") == 0) {
       return CallWithoutArg1(test_main_c_api_nodejs_main, argc, argv);
+    } else if (strcmp(arg1, "c-api-preload") == 0) {
+      return CallWithoutArg1(test_main_c_api_preload, argc, argv);
     } else if (strcmp(arg1, "c-cpp-api") == 0) {
       return CallWithoutArg1(test_main_c_cpp_api, argc, argv);
     } else if (strcmp(arg1, "c-cpp-api-nodejs-main") == 0) {

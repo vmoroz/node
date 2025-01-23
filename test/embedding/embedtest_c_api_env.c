@@ -1,9 +1,7 @@
 #include "embedtest_c_api_common.h"
 #if 0
-using namespace node::embedding;
-
 // Test the no_browser_globals option.
-extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
+int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
                                                               char* argv[]) {
   NodeExpected<void> result = NodePlatform::RunMain(
       NodeArgs(argc, argv),
@@ -41,7 +39,7 @@ assert.deepStrictEqual(leaks, []);
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
+extern "C" int32_t test_main_c_api_env_with_esm_loader(int32_t argc,
                                                            char* argv[]) {
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
@@ -78,7 +76,7 @@ const { SourceTextModule } = require('node:vm');
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
+extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
                                                               char* argv[]) {
   NodeExpected<void> result =
       NodePlatform::RunMain(NodeArgs(argc, argv),
