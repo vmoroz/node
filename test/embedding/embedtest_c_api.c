@@ -1,61 +1,69 @@
 #include "embedtest_c_api_common.h"
-#if 0
-#include <cassert>
-#include <cstdarg>
-#include <cstdio>
-#include <cstring>
 
-using namespace node;
-using namespace node::embedding;
+// #include <cassert>
+// #include <cstdarg>
+// #include <cstdio>
+// #include <cstring>
 
-napi_status CallMe(const NodeRuntime& runtime, napi_env env);
-napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
-napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
+napi_status CallMe(node_embedding_runtime runtime, napi_env env);
+// napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
+// napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
-extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
-  NodeExpected<void> result = NodePlatform::RunMain(
-      NodeArgs(argc, argv),
-      [](const NodePlatformConfig& platform_config) {
-        return platform_config.SetFlags(
-            NodePlatformFlags::kDisableNodeOptionsEnv);
-      },
-      [](const NodePlatform& platform,
-         const NodeRuntimeConfig& runtime_config) {
-        return LoadUtf8Script(
-            runtime_config,
-            main_script,
-            [](const NodeRuntime& runtime, napi_env env, napi_value
-               /*value*/) {
-              NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
-            });
-      });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+node_embedding_status ConfigurePlatform(
+    void* cb_data, node_embedding_platform_config platform_config) {
+  return node_embedding_set_platform_flags(
+      platform_config, node_embedding_platform_flags_disable_node_options_env);
 }
 
-napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
-  napi_value global{}, cb{}, key{};
+node_embedding_status ConfigureRuntime(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+
+  //     [](const NodeRuntime& runtime, napi_env env, napi_value
+  //        /*value*/) {
+  //       NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
+  //       NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
+  //       NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
+  //     });
+  return node_embedding_status_ok;
+}
+
+int32_t test_main_c_api(int32_t argc, char* argv[]) {
+  CHECK_EXPECTED_OR_EXIT(argv[0],
+                         node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                                 argc,
+                                                 argv,
+                                                 ConfigurePlatform,
+                                                 NULL,
+                                                 ConfigureRuntime,
+                                                 NULL));
+  return 0;
+}
+
+napi_status CallMe(node_embedding_runtime runtime, napi_env env) {
+  napi_value global, cb, key;
 
   NODE_API_CALL(napi_get_global(env, &global));
   NODE_API_CALL(napi_create_string_utf8(env, "callMe", NAPI_AUTO_LENGTH, &key));
   NODE_API_CALL(napi_get_property(env, global, key, &cb));
 
-  napi_valuetype cb_type{};
+  napi_valuetype cb_type;
   NODE_API_CALL(napi_typeof(env, cb, &cb_type));
 
   // Only evaluate callMe if it was registered as a function.
   if (cb_type == napi_function) {
-    napi_value undef{};
+    napi_value undef;
     NODE_API_CALL(napi_get_undefined(env, &undef));
-    napi_value arg{};
+    napi_value arg;
     NODE_API_CALL(
         napi_create_string_utf8(env, "called", NAPI_AUTO_LENGTH, &arg));
-    napi_value result{};
+    napi_value result;
     NODE_API_CALL(napi_call_function(env, undef, cb, 1, &arg, &result));
 
-    char buf[32]{};
-    size_t len{};
+    char buf[32];
+    size_t len;
     NODE_API_CALL(napi_get_value_string_utf8(env, result, buf, 32, &len));
     if (strcmp(buf, "called you") != 0) {
       NODE_API_FAIL("Invalid value received: %s\n", buf);
@@ -66,7 +74,7 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
   }
   return napi_ok;
 }
-
+#if 0
 char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {

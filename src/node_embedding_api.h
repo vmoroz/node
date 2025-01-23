@@ -86,7 +86,7 @@ typedef NODE_ENUM_FLAGS(node_embedding_platform_flags, NodePlatformFlags){
     NODE_ENUM_ITEM(node_embedding_platform_flags_enable_stdio_inheritance,
                    kEnableStdioInheritance) = 1 << 0,
     // Disable reading the NODE_ENUM_ITEMS environment variable.
-    NODE_ENUM_ITEM(node_embedding_platform_flags_disable_NODE_ENUM_ITEMs_env,
+    NODE_ENUM_ITEM(node_embedding_platform_flags_disable_node_options_env,
                    kDisableNodeOptionsEnv) = 1 << 1,
     // Do not parse CLI options.
     NODE_ENUM_ITEM(node_embedding_platform_flags_disable_cli_options,

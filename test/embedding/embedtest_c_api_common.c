@@ -24,11 +24,16 @@ const char* main_script =
 //   return status;
 // }
 
-// void GetAndThrowLastErrorMessage(napi_env env) {
-//   const napi_extended_error_info* error_info;
-//   napi_get_last_error_info(env, &error_info);
-//   ThrowLastErrorMessage(env, error_info->error_message);
-// }
+void GetAndThrowLastErrorMessage(napi_env env) {
+  //   const napi_extended_error_info* error_info;
+  //   napi_get_last_error_info(env, &error_info);
+  //   ThrowLastErrorMessage(env, error_info->error_message);
+}
+
+void ThrowLastErrorMessage(napi_env env, const char* format, ...) {
+  // TODO:
+
+}
 
 // void ThrowLastErrorMessage(napi_env env, const char* message) {
 //   bool is_pending;
@@ -40,6 +45,29 @@ const char* main_script =
 //     napi_throw_error(env, nullptr, error_message);
 //   }
 // }
+
+napi_value OnStartExecution(void* cb_data,
+                            node_embedding_runtime runtime,
+                            napi_env env,
+                            napi_value process,
+                            napi_value require,
+                            napi_value run_cjs) {
+  napi_value script_value, null_value, result;
+  const char* script = (const char*)cb_data;
+  NODE_API_CALL_RETURN(
+      napi_create_string_utf8(env, script, NAPI_AUTO_LENGTH, &script_value));
+  NODE_API_CALL_RETURN(napi_get_null(env, &null_value));
+  NODE_API_CALL_RETURN(
+      napi_call_function(env, null_value, run_cjs, 1, &script_value, &result));
+  return result;
+}
+
+node_embedding_status LoadUtf8Script(
+    node_embedding_runtime_config runtime_config, const char* script) {
+  NODE_EMBEDDED_CALL(node_embedding_on_start_runtime_execution(
+      runtime_config, OnStartExecution, (void*)script, NULL));
+  return node_embedding_status_ok;
+}
 
 // NodeExpected<void> LoadUtf8Script(
 //     const NodeRuntimeConfig& runtime_config,

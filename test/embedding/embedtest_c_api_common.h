@@ -4,12 +4,23 @@
 #define NAPI_EXPERIMENTAL
 
 #include <node_embedding_api.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+
+extern const char* main_script;
 
 int32_t StatusToExitCode(node_embedding_status status);
 
 node_embedding_status PrintErrorMessage(const char* exe_name,
                                         node_embedding_status status);
+
+node_embedding_status LoadUtf8Script(
+    node_embedding_runtime_config runtime_config, const char* script);
+
+void GetAndThrowLastErrorMessage(napi_env env);
+
+void ThrowLastErrorMessage(napi_env env, const char* format, ...);
 
 //==============================================================================
 // Error handling macros copied from test/js_native_api/common.h
@@ -20,7 +31,7 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
 
 #define NODE_API_FAIL_BASE(ret_val, ...)                                       \
   do {                                                                         \
-    ThrowLastErrorMessage(env, NodeFormatString(__VA_ARGS__).c_str());         \
+    ThrowLastErrorMessage(env, __VA_ARGS__);                                   \
     return ret_val;                                                            \
   } while (0)
 
@@ -59,7 +70,7 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
   } while (0)
 
 // Returns NULL if the_call doesn't return napi_ok.
-#define NODE_API_CALL_RETURN(expr) NODE_API_CALL_BASE(expr, nullptr)
+#define NODE_API_CALL_RETURN(expr) NODE_API_CALL_BASE(expr, NULL)
 
 // Returns empty if the_call doesn't return napi_ok.
 #define NODE_API_CALL_RETURN_VOID(expr)                                        \
@@ -78,9 +89,9 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
 
 #define NODE_EMBEDDED_CALL(expr)                                               \
   do {                                                                         \
-    auto ret_val = expr;                                                       \
-    if (ret_val.has_error()) {                                                 \
-      return ret_val;                                                          \
+    node_embedding_status status = (expr);                                     \
+    if (status != node_embedding_status_ok) {                                  \
+      return status;                                                           \
     }                                                                          \
   } while (0)
 

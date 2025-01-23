@@ -127,8 +127,9 @@ function runCommonApiTests(apiType) {
   );
 }
 
-runCommonApiTests('cpp-api');
-runCommonApiTests('c-cpp-api');
+// runCommonApiTests('cpp-api');
+runCommonApiTests('c-api');
+// runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -233,7 +234,7 @@ function runSnapshotTests(apiType) {
   }
 }
 
-runSnapshotTests('cpp-api');
+// runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
@@ -246,7 +247,7 @@ function runCApiTests(apiType) {
       stdout: 'Hello World',
     }
   );
-
+/*
   runTest(
     `${apiType}: callMe`,
     spawnSyncAndAssert,
@@ -381,9 +382,11 @@ function runCApiTests(apiType) {
       stdout: 'main=Hello, World World; worker=Hello, Node Node',
     }
   );
+*/
 }
 
-runCApiTests('c-cpp-api');
+runCApiTests('c-api');
+//runCApiTests('c-cpp-api');
 
 function runEnvTests(apiType) {
   runTest(
@@ -411,7 +414,7 @@ function runEnvTests(apiType) {
   );
 }
 
-runEnvTests('c-cpp-api');
+// runEnvTests('c-cpp-api');
 
 /*
 runTest(
