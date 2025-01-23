@@ -1,11 +1,10 @@
-#include "embedtest_c_api_common.h"
+#include "embedtest_c_cpp_api_common.h"
 
 #include <atomic>
 #include <cstdio>
 #include <cstring>
 
-using namespace node;
-using namespace node::embedding;
+namespace node::embedding {
 
 class GreeterModule {
  public:
@@ -208,3 +207,4 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
 */
   return 0;
 }
+}  // namespace node::embedding

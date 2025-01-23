@@ -1,12 +1,11 @@
-#include "embedtest_c_api_common.h"
+#include "embedtest_c_cpp_api_common.h"
 
 #include <cassert>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
 
-using namespace node;
-using namespace node::embedding;
+namespace node::embedding {
 
 napi_status CallMe(const NodeRuntime& runtime, napi_env env);
 napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
@@ -233,3 +232,5 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   printf("%s", callback_buf);
   return napi_ok;
 }
+
+}  // namespace node::embedding

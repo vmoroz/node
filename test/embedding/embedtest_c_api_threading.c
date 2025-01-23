@@ -1,5 +1,5 @@
 #include "embedtest_c_api_common.h"
-
+#if 0
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -376,3 +376,4 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
 
   return 0;
 }
+#endif

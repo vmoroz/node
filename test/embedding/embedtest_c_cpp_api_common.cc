@@ -1,11 +1,9 @@
-#include "embedtest_c_api_common.h"
+#include "embedtest_c_cpp_api_common.h"
 
 #include <cassert>
 #include <cstdarg>
 #include <cstdio>
 #include <cstring>
-
-using namespace node;
 
 namespace node::embedding {
 

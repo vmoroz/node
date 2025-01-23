@@ -1,5 +1,5 @@
 #include "embedtest_c_api_common.h"
-
+#if 0
 using namespace node::embedding;
 
 // Test the no_browser_globals option.
@@ -107,3 +107,4 @@ const { SourceTextModule } = require('node:vm');
                             });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
+#endif

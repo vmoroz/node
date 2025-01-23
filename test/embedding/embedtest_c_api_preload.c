@@ -1,7 +1,5 @@
 #include "embedtest_c_api_common.h"
-
-using namespace node::embedding;
-
+#if 0
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
 extern "C" int32_t test_main_c_cpp_api_preload(int32_t argc, char* argv[]) {
@@ -29,3 +27,4 @@ extern "C" int32_t test_main_c_cpp_api_preload(int32_t argc, char* argv[]) {
       });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
+#endif

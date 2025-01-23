@@ -1,6 +1,6 @@
-#include "embedtest_c_api_common.h"
+#include "embedtest_c_cpp_api_common.h"
 
-using namespace node::embedding;
+namespace node::embedding {
 
 // The simplest Node.js embedding scenario where the Node.js main function is
 // invoked from the libnode shared library as it would be run from the Node.js
@@ -10,3 +10,5 @@ extern "C" int32_t test_main_c_cpp_api_nodejs_main(int32_t argc, char* argv[]) {
       NodePlatform::RunMain(NodeArgs(argc, argv), nullptr, nullptr);
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
+
+}  // namespace node::embedding

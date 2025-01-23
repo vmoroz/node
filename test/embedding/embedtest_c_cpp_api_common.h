@@ -1,15 +1,29 @@
-#ifndef TEST_EMBEDDING_EMBEDTEST_C_API_COMMON_H_
-#define TEST_EMBEDDING_EMBEDTEST_C_API_COMMON_H_
+#ifndef TEST_EMBEDDING_EMBEDTEST_C_CPP_API_COMMON_H_
+#define TEST_EMBEDDING_EMBEDTEST_C_CPP_API_COMMON_H_
 
 #define NAPI_EXPERIMENTAL
 
-#include <node_embedding_api.h>
-#include <stdlib.h>
+#include <node_embedding_api_cpp.h>
 
-int32_t StatusToExitCode(node_embedding_status status);
+namespace node::embedding {
 
-node_embedding_status PrintErrorMessage(const char* exe_name,
-                                        node_embedding_status status);
+extern const char* main_script;
+
+napi_status AddUtf8String(std::string& str, napi_env env, napi_value value);
+
+void GetAndThrowLastErrorMessage(napi_env env);
+
+void ThrowLastErrorMessage(napi_env env, const char* message);
+
+NodeExpected<void> LoadUtf8Script(
+    const NodeRuntimeConfig& runtime_config,
+    std::string_view script,
+    NodeHandleExecutionResultCallback handle_result = {});
+
+NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
+                                     NodeExpected<void> expected);
+
+}  // namespace node::embedding
 
 //==============================================================================
 // Error handling macros copied from test/js_native_api/common.h
@@ -86,9 +100,10 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
 
 #define CHECK_EXPECTED_OR_EXIT(exe_name, expr)                                 \
   do {                                                                         \
-    node_embedding_status status_ = (expr);                                    \
-    if (status_ != node_embedding_status_ok) {                                 \
-      exit(StatusToExitCode(PrintErrorMessage(exe_name, status_)));            \
+    const auto& expected = (expr);                                             \
+    if (expected.has_error()) {                                                \
+      exit(PrintErrorMessage(exe_name, NodeExpected<void>(expected.status()))  \
+               .exit_code());                                                  \
     }                                                                          \
   } while (0)
 
@@ -102,4 +117,4 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
     }                                                                          \
   } while (0)
 
-#endif  // TEST_EMBEDDING_EMBEDTEST_C_API_COMMON_H_
+#endif  // TEST_EMBEDDING_EMBEDTEST_C_CPP_API_COMMON_H_
