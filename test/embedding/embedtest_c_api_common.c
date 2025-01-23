@@ -1,7 +1,7 @@
 #include "embedtest_c_api_common.h"
 
 // #include <cassert>
-// #include <cstdarg>
+#include <stdarg.h>
 // #include <cstdio>
 // #include <cstring>
 
@@ -25,14 +25,40 @@ const char* main_script =
 // }
 
 void GetAndThrowLastErrorMessage(napi_env env) {
-  //   const napi_extended_error_info* error_info;
-  //   napi_get_last_error_info(env, &error_info);
-  //   ThrowLastErrorMessage(env, error_info->error_message);
+  const napi_extended_error_info* error_info;
+  napi_get_last_error_info(env, &error_info);
+  ThrowLastErrorMessage(env, error_info->error_message);
 }
 
 void ThrowLastErrorMessage(napi_env env, const char* format, ...) {
-  // TODO:
+  bool is_pending;
+  napi_is_exception_pending(env, &is_pending);
+  /* If an exception is already pending, don't rethrow it */
+  if (is_pending) {
+    return;
+  }
+  char error_message_buf[1024];
+  char* error_message = error_message_buf;
+  const char* error_format = format != NULL ? format : "empty error message";
 
+  va_list args1;
+  va_start(args1, format);
+  va_list args2;  // Required for some compilers like GCC since we go over the
+                  // args twice.
+  va_copy(args2, args1);
+  int32_t error_message_size = vsnprintf(NULL, 0, error_format, args1);
+  if (error_message_size > 1024 - 1) {
+    error_message = (char*)malloc(error_message_size + 1);
+  }
+  va_end(args1);
+  vsnprintf(error_message, error_message_size + 1, error_format, args2);
+  va_end(args2);
+
+  napi_throw_error(env, NULL, error_message);
+
+  if (error_message_size > 1024 - 1) {
+    free(error_message);
+  }
 }
 
 // void ThrowLastErrorMessage(napi_env env, const char* message) {
