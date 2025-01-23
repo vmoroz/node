@@ -1,108 +1,137 @@
 #include "embedtest_c_api_common.h"
-#if 0
-// Test the no_browser_globals option.
-int32_t test_main_c_api_env_no_browser_globals(int32_t argc,
-                                                              char* argv[]) {
-  NodeExpected<void> result = NodePlatform::RunMain(
-      NodeArgs(argc, argv),
-      nullptr,
-      [](const NodePlatform& platform,
-         const NodeRuntimeConfig& runtime_config) {
-        NODE_EMBEDDED_CALL(
-            runtime_config.SetFlags(NodeRuntimeFlags::kNoBrowserGlobals));
-        return LoadUtf8Script(runtime_config,
-                              R"JS(
-const assert = require('assert');
-const path = require('path');
-const relativeRequire =
-  require('module').createRequire(path.join(process.cwd(), 'stub.js'));
-const { intrinsics, nodeGlobals } =
-  relativeRequire('./test/common/globals');
-const items = Object.getOwnPropertyNames(globalThis);
-const leaks = [];
-for (const item of items) {
-  if (intrinsics.has(item)) {
-    continue;
-  }
-  if (nodeGlobals.has(item)) {
-    continue;
-  }
-  if (item === '$jsDebugIsRegistered') {
-    continue;
-  }
-  leaks.push(item);
+
+static node_embedding_status ConfigureRuntimeNoBrowserGlobals(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(node_embedding_set_runtime_flags(
+      runtime_config, node_embedding_runtime_flags_no_browser_globals));
+  NODE_EMBEDDED_CALL(LoadUtf8Script(
+      runtime_config,
+      "const assert = require('assert');\n"
+      "const path = require('path');\n"
+      "const relativeRequire =\n"
+      "  require('module').createRequire(path.join(process.cwd(), "
+      "'stub.js'));\n"
+      "const { intrinsics, nodeGlobals } =\n"
+      "  relativeRequire('./test/common/globals');\n"
+      "const items = Object.getOwnPropertyNames(globalThis);\n"
+      "const leaks = [];\n"
+      "for (const item of items) {\n "
+      "  if (intrinsics.has(item)) {\n"
+      "    continue;\n"
+      "  }\n"
+      "  if (nodeGlobals.has(item)) {\n"
+      "    continue;\n"
+      "  }\n"
+      "  if (item === '$jsDebugIsRegistered') {\n"
+      "    continue;\n"
+      "  }\n"
+      "  leaks.push(item);\n"
+      "}\n"
+      "assert.deepStrictEqual(leaks, []);\n"));
+
+  return node_embedding_status_ok;
 }
-assert.deepStrictEqual(leaks, []);
-)JS");
-      });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+
+// Test the no_browser_globals option.
+int32_t test_main_c_api_env_no_browser_globals(int32_t argc, char* argv[]) {
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                              argc,
+                              argv,
+                              NULL,
+                              NULL,
+                              ConfigureRuntimeNoBrowserGlobals,
+                              NULL));
+  return 0;
+}
+
+static node_embedding_status ConfigureRuntimeWithEsmLoader(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(LoadUtf8Script(
+      runtime_config,
+      "globalThis.require = "
+      "require('module').createRequire(process.execPath);\n"
+      "const { SourceTextModule } = require('node:vm');\n"
+      "(async () => {\n"
+      "  const stmString = 'globalThis.importResult = import(\"\")';\n"
+      "  const m = new SourceTextModule(stmString, {\n"
+      "    importModuleDynamically: (async () => {\n"
+      "      const m = new SourceTextModule('');\n"
+      "      await m.link(() => 0);\n"
+      "      await m.evaluate();\n"
+      "      return m.namespace;\n"
+      "    }),\n"
+      "  });\n"
+      "  await m.link(() => 0);\n"
+      "  await m.evaluate();\n"
+      "  delete globalThis.importResult;\n"
+      "  process.exit(0);\n"
+      "})();\n"));
+
+  return node_embedding_status_ok;
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_api_env_with_esm_loader(int32_t argc,
-                                                           char* argv[]) {
+int32_t test_main_c_env_with_esm_loader(int32_t argc, char* argv[]) {
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
-  std::vector<std::string> args_vec(argv, argv + argc);
-  args_vec.push_back("--experimental-vm-modules");
-  NodeCStringArray args(args_vec);
-  NodeExpected<void> result =
-      NodePlatform::RunMain(NodeArgs(args),
-                            nullptr,
-                            [](const NodePlatform& platform,
-                               const NodeRuntimeConfig& runtime_config) {
-                              return LoadUtf8Script(runtime_config,
-                                                    R"JS(
-globalThis.require = require('module').createRequire(process.execPath);
-const { SourceTextModule } = require('node:vm');
-(async () => {
-  const stmString = 'globalThis.importResult = import("")';
-  const m = new SourceTextModule(stmString, {
-    importModuleDynamically: (async () => {
-      const m = new SourceTextModule('');
-      await m.link(() => 0);
-      await m.evaluate();
-      return m.namespace;
-    }),
-  });
-  await m.link(() => 0);
-  await m.evaluate();
-  delete globalThis.importResult;
-  process.exit(0);
-})();
-)JS");
-                            });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+  char* argv2[64];
+  for (int32_t i = 0; i < argc; ++i) {
+    argv2[i] = argv[i];
+  }
+  argv2[argc] = "--experimental-vm-modules";
+  CHECK_EXPECTED_OR_EXIT(argv[0],
+                         node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                                 argc,
+                                                 argv2,
+                                                 NULL,
+                                                 NULL,
+                                                 ConfigureRuntimeWithEsmLoader,
+                                                 NULL));
+  return 0;
+}
+
+static node_embedding_status ConfigureRuntimeWithNoEsmLoader(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(LoadUtf8Script(
+      runtime_config,
+      "globalThis.require = "
+      "require('module').createRequire(process.execPath);\n"
+      "const { SourceTextModule } = require('node:vm');\n"
+      "(async () => {\n"
+      "  const stmString = 'globalThis.importResult = import(\"\")';\n"
+      "  const m = new SourceTextModule(stmString, {\n"
+      "    importModuleDynamically: (async () => {\n"
+      "      const m = new SourceTextModule('');\n"
+      "      await m.link(() => 0);\n"
+      "      await m.evaluate();\n"
+      "      return m.namespace;\n"
+      "    }),\n"
+      "  });\n"
+      "  await m.link(() => 0);\n"
+      "  await m.evaluate();\n"
+      "  delete globalThis.importResult;\n"
+      "})();\n"));
+
+  return node_embedding_status_ok;
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc,
-                                                              char* argv[]) {
-  NodeExpected<void> result =
-      NodePlatform::RunMain(NodeArgs(argc, argv),
-                            nullptr,
-                            [](const NodePlatform& platform,
-                               const NodeRuntimeConfig& runtime_config) {
-                              return LoadUtf8Script(runtime_config,
-                                                    R"JS(
-globalThis.require = require('module').createRequire(process.execPath);
-const { SourceTextModule } = require('node:vm');
-(async () => {
-  const stmString = 'globalThis.importResult = import("")';
-  const m = new SourceTextModule(stmString, {
-    importModuleDynamically: (async () => {
-      const m = new SourceTextModule('');
-      await m.link(() => 0);
-      await m.evaluate();
-      return m.namespace;
-    }),
-  });
-  await m.link(() => 0);
-  await m.evaluate();
-  delete globalThis.importResult;
-})();
-)JS");
-                            });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc, char* argv[]) {
+  CHECK_EXPECTED_OR_EXIT(argv[0],
+                         node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                                                 argc,
+                                                 argv,
+                                                 NULL,
+                                                 NULL,
+                                                 ConfigureRuntimeWithEsmLoader,
+                                                 NULL));
+  return 0;
 }
-#endif
