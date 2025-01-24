@@ -6,7 +6,7 @@ napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
 
 node_embedding_status ConfigurePlatform(
     void* cb_data, node_embedding_platform_config platform_config) {
-  return node_embedding_set_platform_flags(
+  return node_embedding_platform_config_set_flags(
       platform_config, node_embedding_platform_flags_disable_node_options_env);
 }
 
@@ -22,14 +22,14 @@ node_embedding_status ConfigureRuntime(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
   NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  NODE_EMBEDDED_CALL(node_embedding_on_handle_runtime_execution_result(
+  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_loaded(
       runtime_config, HandleExecutionResult, NULL, NULL));
   return node_embedding_status_ok;
 }
 
 int32_t test_main_c_api(int32_t argc, char* argv[]) {
   CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
                                                  argc,
                                                  argv,
                                                  ConfigurePlatform,
@@ -113,7 +113,7 @@ napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
     for (;;) {
       bool has_more_events;
       node_embedding_status loop_result =
-          node_embedding_run_event_loop_once(runtime, &has_more_events);
+          node_embedding_runtime_event_loop_run_once(runtime, &has_more_events);
       if (loop_result != node_embedding_status_ok) {
         // TODO:
         // node_embedding_get_last_error_message
@@ -223,7 +223,7 @@ napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
   while (promise_state == kPromiseStatePending) {
     bool has_more_events;
     node_embedding_status loop_result =
-        node_embedding_run_event_loop_once(runtime, &has_more_events);
+        node_embedding_runtime_event_loop_run_once(runtime, &has_more_events);
     if (loop_result != node_embedding_status_ok) {
       // TODO:
       // node_embedding_get_last_error_message

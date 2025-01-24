@@ -1,6 +1,6 @@
 #include "embedtest_c_cpp_api_common.h"
 
- namespace node::embedding {
+namespace node::embedding {
 
 // Test the no_browser_globals option.
 extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
@@ -107,4 +107,4 @@ const { SourceTextModule } = require('node:vm');
                             });
   return PrintErrorMessage(argv[0], std::move(result)).exit_code();
 }
- }
+}  // namespace node::embedding

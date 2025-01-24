@@ -147,7 +147,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
   CHECK(node_embedding_on_error(HandleTestError, argv[0]));
 
   node_embedding_platform platform;
-  CHECK(node_embedding_create_platform(NODE_EMBEDDING_VERSION, &platform));
+  CHECK(node_embedding_platform_create(NODE_EMBEDDING_VERSION, &platform));
   CHECK(node_embedding_platform_set_args(platform, argc, argv));
   bool early_return = false;
   CHECK(node_embedding_platform_initialize(platform, &early_return));
@@ -156,7 +156,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
   }
 
   node_embedding_runtime runtime;
-  CHECK(node_embedding_create_runtime(platform, &runtime));
+  CHECK(node_embedding_runtime_create(platform, &runtime));
   CHECK(node_embedding_runtime_initialize_from_script(runtime));
   int32_t exit_code = 0;
   CHECK(InvokeNodeApi(runtime, [&](napi_env env) {
@@ -202,8 +202,8 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
     }
   }));
   CHECK(exit_code);
-  CHECK(node_embedding_delete_runtime(runtime));
-  CHECK(node_embedding_delete_platform(platform));
+  CHECK(node_embedding_runtime_delete(runtime));
+  CHECK(node_embedding_platform_destroy(platform));
 */
   return 0;
 }

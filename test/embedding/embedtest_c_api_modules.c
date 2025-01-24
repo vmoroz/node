@@ -96,20 +96,21 @@ static node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_preload(
+      runtime_config, OnPreload, NULL, NULL));
+  NODE_EMBEDDED_CALL(node_embedding_runtime_config_add_module(runtime_config,
+                                                              "greeter_module",
+                                                              InitGreeterModule,
+                                                              cb_data,
+                                                              NULL,
+                                                              NAPI_VERSION));
   NODE_EMBEDDED_CALL(
-      node_embedding_on_preload_runtime(runtime_config, OnPreload, NULL, NULL));
-  NODE_EMBEDDED_CALL(node_embedding_add_runtime_module(runtime_config,
-                                                       "greeter_module",
-                                                       InitGreeterModule,
-                                                       cb_data,
-                                                       NULL,
-                                                       NAPI_VERSION));
-  NODE_EMBEDDED_CALL(node_embedding_add_runtime_module(runtime_config,
-                                                       "replicator_module",
-                                                       InitReplicatorModule,
-                                                       cb_data,
-                                                       NULL,
-                                                       NAPI_VERSION));
+      node_embedding_runtime_config_add_module(runtime_config,
+                                               "replicator_module",
+                                               InitReplicatorModule,
+                                               cb_data,
+                                               NULL,
+                                               NAPI_VERSION));
   NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
   return node_embedding_status_ok;
 }
@@ -123,7 +124,7 @@ int32_t test_main_c_api_linked_modules(int32_t argc, char* argv[]) {
   uv_mutex_init(&test_data.mutex);
 
   CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_run_main(NODE_EMBEDDING_VERSION,
+                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
                                                  argc,
                                                  argv,
                                                  NULL,

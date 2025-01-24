@@ -90,7 +90,7 @@ napi_value OnStartExecution(void* cb_data,
 
 node_embedding_status LoadUtf8Script(
     node_embedding_runtime_config runtime_config, const char* script) {
-  NODE_EMBEDDED_CALL(node_embedding_on_start_runtime_execution(
+  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_load(
       runtime_config, OnStartExecution, (void*)script, NULL));
   return node_embedding_status_ok;
 }

@@ -146,7 +146,7 @@ typedef NODE_ENUM_FLAGS(node_embedding_runtime_flags, NodeRuntimeFlags){
                    kNoRegisterEsmLoader) = 1 << 3,
     // Set this flag to make Node.js track "raw" file descriptors, i.e. managed
     // by fs.open() and fs.close(), and close them during
-    // node_embedding_delete_runtime().
+    // node_embedding_runtime_delete().
     NODE_ENUM_ITEM(node_embedding_runtime_flags_track_unmanaged_fds,
                    kTrackUnmanagedFds) = 1 << 4,
     // Set this flag to force hiding console windows when spawning child
@@ -272,6 +272,8 @@ EXTERN_C_START
 // Error handling functions.
 //------------------------------------------------------------------------------
 
+// TODO: change error message to be a string instead of an array of strings
+
 // Gets the last error message for the current thread.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
 node_embedding_get_last_error_message(
@@ -292,7 +294,7 @@ node_embedding_clear_last_error_message();
 
 // Runs Node.js main function.
 // By default it is the same as running Node.js from CLI.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_main_run(
     int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
@@ -302,7 +304,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_main(
     void* configure_runtime_data);
 
 // Creates and configures a new Node.js platform instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_platform_create(
     int32_t embedding_api_version,
     int32_t argc,
     const char* argv[],
@@ -312,17 +314,19 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_platform(
 
 // Deletes the Node.js platform instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_delete_platform(node_embedding_platform platform);
+node_embedding_platform_destroy(node_embedding_platform platform);
 
 // Sets the flags for the Node.js platform initialization.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_set_platform_flags(
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_platform_config_set_flags(
     node_embedding_platform_config platform_config,
     node_embedding_platform_flags flags);
 
 // Sets the callback for the Node.js early return case.
 // The early return happens when the Node.js platform arguments are --help,
 // --version, or --v8-options.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_platform_config_on_early_return(
     node_embedding_platform_config platform_config,
     node_embedding_get_strings_callback early_return_handler,
     void* early_return_handler_data,
@@ -330,7 +334,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_early_return(
 
 // Gets the parsed list of non-Node.js and Node.js arguments.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_get_platform_parsed_args(
+node_embedding_platform_get_parsed_args(
     node_embedding_platform platform,
     node_embedding_get_strings_callback get_args,
     void* get_args_data,
@@ -342,13 +346,13 @@ node_embedding_get_platform_parsed_args(
 //------------------------------------------------------------------------------
 
 // Runs the Node.js runtime with the provided configuration.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_runtime(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_run(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data);
 
 // Creates a new Node.js runtime instance.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
+NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_runtime_create(
     node_embedding_platform platform,
     node_embedding_configure_runtime_callback configure_runtime,
     void* configure_runtime_data,
@@ -356,31 +360,34 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_create_runtime(
 
 // Deletes the Node.js runtime instance.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_delete_runtime(node_embedding_runtime runtime);
+node_embedding_runtime_delete(node_embedding_runtime runtime);
 
 // Sets the Node-API version used for Node.js runtime.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_runtime_node_api_version(
+node_embedding_runtime_config_set_node_api_version(
     node_embedding_runtime_config runtime_config, int32_t node_api_version);
 
 // Sets the flags for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_runtime_flags(node_embedding_runtime_config runtime_config,
-                                 node_embedding_runtime_flags flags);
+node_embedding_runtime_config_set_flags(
+    node_embedding_runtime_config runtime_config,
+    node_embedding_runtime_flags flags);
 
 // Sets the non-Node.js and Node.js CLI arguments for the Node.js runtime
 // initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_runtime_args(node_embedding_runtime_config runtime_config,
-                                int32_t argc,
-                                const char* argv[],
-                                int32_t runtime_argc,
-                                const char* runtime_argv[]);
+node_embedding_runtime_config_set_args(
+    node_embedding_runtime_config runtime_config,
+    int32_t argc,
+    const char* argv[],
+    int32_t runtime_argc,
+    const char* runtime_argv[]);
 
 // Sets the preload callback for the Node.js runtime initialization.
 // It is invoked before any other code execution for the runtime Node-API
 // environment and for its worker thread environments.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_preload_runtime(
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_config_on_preload(
     node_embedding_runtime_config runtime_config,
     node_embedding_preload_callback preload,
     void* preload_data,
@@ -388,7 +395,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_on_preload_runtime(
 
 // Sets the start execution callback for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_start_runtime_execution(
+node_embedding_runtime_config_on_load(
     node_embedding_runtime_config runtime_config,
     node_embedding_start_execution_callback start_execution,
     void* start_execution_data,
@@ -396,7 +403,7 @@ node_embedding_on_start_runtime_execution(
 
 // Handles the execution result for the Node.js runtime initialization.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_on_handle_runtime_execution_result(
+node_embedding_runtime_config_on_loaded(
     node_embedding_runtime_config runtime_config,
     node_embedding_handle_execution_result_callback handle_result,
     void* handle_result_data,
@@ -405,7 +412,8 @@ node_embedding_on_handle_runtime_execution_result(
 // Adds a new module to the Node.js runtime.
 // It is accessed as process._linkedBinding(module_name) in the main JS and in
 // the related worker threads.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_config_add_module(
     node_embedding_runtime_config runtime_config,
     const char* module_name,
     node_embedding_initialize_module_callback init_module,
@@ -423,7 +431,7 @@ NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_add_runtime_module(
 // E.g. it enables running Node.js event loop inside of the application UI event
 // loop or UI dispatcher.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_runtime_task_runner(
+node_embedding_runtime_config_set_task_runner(
     node_embedding_runtime_config runtime_config,
     node_embedding_post_task_callback post_task,
     void* post_task_data,
@@ -432,24 +440,25 @@ node_embedding_set_runtime_task_runner(
 // Runs the Node.js runtime event loop in UV_RUN_DEFAULT mode.
 // It finishes it with emitting the beforeExit and exit process events.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop(node_embedding_runtime runtime);
+node_embedding_runtime_event_loop_run(node_embedding_runtime runtime);
 
 // Stops the Node.js runtime event loop. It cannot be resumed after this call.
 // It does not emit the beforeExit and exit process events if they were not
 // emitted before.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_terminate_event_loop(node_embedding_runtime runtime);
+node_embedding_runtime_event_loop_terminate(node_embedding_runtime runtime);
 
 // Runs the Node.js runtime event loop once. It may block the current thread.
 // It matches the UV_RUN_ONCE behavior
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_run_event_loop_once(
-    node_embedding_runtime runtime, bool* has_more_work);
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_event_loop_run_once(node_embedding_runtime runtime,
+                                           bool* has_more_work);
 
 // Runs the Node.js runtime event loop once. It does not block the thread.
 // It matches the UV_RUN_NOWAIT behavior.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_run_event_loop_no_wait(node_embedding_runtime runtime,
-                                      bool* has_more_work);
+node_embedding_runtime_event_loop_run_no_wait(node_embedding_runtime runtime,
+                                              bool* has_more_work);
 
 //------------------------------------------------------------------------------
 // Node.js runtime functions for the Node-API interop.
@@ -457,19 +466,21 @@ node_embedding_run_event_loop_no_wait(node_embedding_runtime runtime,
 
 // Runs Node-API code in the Node-API scope.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_run_node_api(node_embedding_runtime runtime,
-                            node_embedding_run_node_api_callback run_node_api,
-                            void* run_node_api_data);
+node_embedding_runtime_node_api_run(
+    node_embedding_runtime runtime,
+    node_embedding_run_node_api_callback run_node_api,
+    void* run_node_api_data);
 
 // Opens a new Node-API scope.
-NAPI_EXTERN node_embedding_status NAPI_CDECL node_embedding_open_node_api_scope(
+NAPI_EXTERN node_embedding_status NAPI_CDECL
+node_embedding_runtime_node_api_scope_open(
     node_embedding_runtime runtime,
     node_embedding_node_api_scope* node_api_scope,
     napi_env* env);
 
 // Closes the Node-API invocation scope.
 NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_close_node_api_scope(
+node_embedding_runtime_node_api_scope_close(
     node_embedding_runtime runtime,
     node_embedding_node_api_scope node_api_scope);
 
