@@ -317,6 +317,7 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
               // capture the dispatcher queue.
               [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
                 // TODO: figure out the termination scenario.
+                // TODO: Release run_task data.
                 ui_queue.PostTask([run_task =
                                        std::make_shared<NodeRunTaskCallback>(
                                            std::move(run_task)),

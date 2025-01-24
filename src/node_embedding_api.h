@@ -71,6 +71,7 @@ typedef NODE_ENUM(node_embedding_status, NodeStatus){
   NODE_ENUM_ITEM(node_embedding_status_generic_error, kGenericError) = 1,
   NODE_ENUM_ITEM(node_embedding_status_null_arg, kNullArg) = 2,
   NODE_ENUM_ITEM(node_embedding_status_bad_arg, kBadArg) = 3,
+  NODE_ENUM_ITEM(node_embedding_status_out_of_memory, kOutOfMemory) = 4,
   // This value is added to the exit code in cases when Node.js API returns
   // an error exit code.
   NODE_ENUM_ITEM(node_embedding_status_error_exit_code, kErrorExitCode) = 512,

@@ -1,379 +1,550 @@
+#include <uv.h>
 #include "embedtest_c_api_common.h"
-#if 0
-#include <atomic>
-#include <condition_variable>
-#include <cstdint>
-#include <deque>
-#include <functional>
-#include <mutex>
-#include <thread>
 
-using namespace node;
-using namespace node::embedding;
+typedef struct {
+  node_embedding_platform platform;
+  uv_mutex_t mutex;
+  int32_t global_count;
+  node_embedding_status global_status;
+} thread_data;
+
+static void HandleExecutionResult(void* cb_data,
+                                  node_embedding_runtime runtime,
+                                  napi_env env,
+                                  napi_value execution_result) {
+  thread_data* data = (thread_data*)cb_data;
+  napi_value global, my_count;
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "myCount", &my_count));
+  int32_t count;
+  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  uv_mutex_lock(&data->mutex);
+  ++data->global_count;
+  uv_mutex_unlock(&data->mutex);
+}
+
+static node_embedding_status ConfigureRuntime(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  // Inspector can be associated with only one
+  // runtime in the process.
+  // TODO: Rename NODE_EMBEDDED_CALL macro
+  NODE_EMBEDDED_CALL(node_embedding_set_runtime_flags(
+      runtime_config,
+      node_embedding_runtime_flags_default |
+          node_embedding_runtime_flags_no_create_inspector));
+  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+  NODE_EMBEDDED_CALL(node_embedding_on_handle_runtime_execution_result(
+      runtime_config, HandleExecutionResult, cb_data, NULL));
+  return node_embedding_status_ok;
+}
+
+static void ThreadCallback(void* arg) {
+  thread_data* data = (thread_data*)arg;
+  node_embedding_status status =
+      node_embedding_run_runtime(data->platform, ConfigureRuntime, arg);
+  if (status != node_embedding_status_ok) {
+    uv_mutex_lock(&data->mutex);
+    data->global_status = status;
+    uv_mutex_unlock(&data->mutex);
+  }
+}
 
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
-    int32_t argc, char* argv[]) {
-  const size_t thread_count = 12;
-  std::vector<std::thread> threads;
-  threads.reserve(thread_count);
-  std::atomic<int32_t> global_count{0};
-  std::atomic<NodeStatus> global_status{NodeStatus::kOk};
+int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
+                                                     char* argv[]) {
+  size_t thread_count = 12;
+  uv_thread_t threads[12] = {0};
+  thread_data data = {0};
+  uv_mutex_init(&data.mutex);
 
-  NodeScopedErrorHandler error_handler{};
-  {
-    NodeExpected<NodePlatform> expected_platform =
-        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
-    NodePlatform platform = std::move(expected_platform).value();
-    if (!platform) {
-      return 0;  // early return
-    }
-
-    for (size_t i = 0; i < thread_count; i++) {
-      threads.emplace_back([&platform, &global_count, &global_status] {
-        NodeExpected<void> result = NodeRuntime::Run(
-            platform,
-            [&](const NodePlatform& platform,
-                const NodeRuntimeConfig& runtime_config) {
-              // Inspector can be associated with only one
-              // runtime in the process.
-              NODE_EMBEDDED_CALL(runtime_config.SetFlags(
-                  NodeRuntimeFlags::kDefault |
-                  NodeRuntimeFlags::kNoCreateInspector));
-              NODE_EMBEDDED_CALL(LoadUtf8Script(
-                  runtime_config,
-                  main_script,
-                  [&](const NodeRuntime& runtime,
-                      napi_env env,
-                      napi_value /*value*/) {
-                    napi_value global, my_count;
-                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                        env, global, "myCount", &my_count));
-                    int32_t count;
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_get_value_int32(env, my_count, &count));
-                    global_count.fetch_add(count);
-                  }));
-              return NodeExpected<void>{};
-            });
-        if (result.has_error()) {
-          global_status.store(result.status());
-        }
-      });
-    }
-
-    for (size_t i = 0; i < thread_count; i++) {
-      threads[i].join();
-    }
-
-    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(global_status.load()));
-  }
-
-  fprintf(stdout, "%d\n", global_count.load());
-  return 0;
-}
-
-// Tests that multiple runtimes can run in the same thread.
-// The runtime scope must be opened and closed for each use.
-// There are 12 runtimes that share the same main thread.
-extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
-    int32_t argc, char* argv[]) {
-  const size_t runtime_count = 12;
-  bool more_work = false;
   int32_t global_count = 0;
+  node_embedding_status global_status = node_embedding_status_ok;
 
-  NodeScopedErrorHandler error_handler{};
-  {
-    NodeExpected<NodePlatform> expected_platform =
-        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
-    NodePlatform platform = std::move(expected_platform).value();
-
-    // We declared list of NodeRuntime after NodePlatform to ensure that they
-    // are released before the platform.
-    std::vector<NodeRuntime> runtimes;
-    runtimes.reserve(runtime_count);
-
-    for (size_t i = 0; i < runtime_count; i++) {
-      NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
-          platform,
-          [](const NodePlatform& platform,
-             const NodeRuntimeConfig& runtime_config) {
-            // Inspector can be associated with only one runtime in the process.
-            NODE_EMBEDDED_CALL(
-                runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
-                                        NodeRuntimeFlags::kNoCreateInspector));
-            NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-            return NodeExpected<void>();
-          });
-
-      CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
-      NodeRuntime runtime = std::move(expected_runtime).value();
-
-      CHECK_EXPECTED_OR_EXIT(
-          argv[0],
-          runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
-            napi_value undefined, global, func;
-            NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-            NODE_API_CALL_RETURN_VOID(
-                napi_get_named_property(env, global, "incMyCount", &func));
-
-            napi_valuetype func_type;
-            NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-            NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-            NODE_API_CALL_RETURN_VOID(
-                napi_call_function(env, undefined, func, 0, nullptr, nullptr));
-          }));
-
-      runtimes.push_back(std::move(runtime));
-    }
-
-    do {
-      more_work = false;
-      for (const NodeRuntime& runtime : runtimes) {
-        NodeExpected<bool> has_more_work = runtime.RunEventLoopNoWait();
-        CHECK_EXPECTED_OR_EXIT(argv[0], has_more_work);
-        more_work |= has_more_work.value();
-      }
-    } while (more_work);
-
-    for (const NodeRuntime& runtime : runtimes) {
-      CHECK_EXPECTED_OR_EXIT(
-          argv[0],
-          runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
-            napi_value global, my_count;
-            NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-            NODE_API_CALL_RETURN_VOID(
-                napi_get_named_property(env, global, "myCount", &my_count));
-
-            napi_valuetype my_count_type;
-            NODE_API_CALL_RETURN_VOID(
-                napi_typeof(env, my_count, &my_count_type));
-            NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
-            int32_t count;
-            NODE_API_CALL_RETURN_VOID(
-                napi_get_value_int32(env, my_count, &count));
-
-            global_count += count;
-          }));
-      CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
-    }
+  node_embedding_platform platform;
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_create_platform(
+          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  if (platform == NULL) {
+    return 0;  // early return
   }
+
+  for (size_t i = 0; i < thread_count; i++) {
+    uv_thread_create(&threads[i], ThreadCallback, &data);
+  }
+
+  for (size_t i = 0; i < thread_count; i++) {
+    uv_thread_join(&threads[i]);
+  }
+
+  // TODO: make sure to destroy the platform and runtime
+
+  // TODO: Add passing error message
+  // TODO: Rename CHECK_EXPECTED_OR_EXIT macro
+  CHECK_EXPECTED_OR_EXIT(argv[0], global_status);
 
   fprintf(stdout, "%d\n", global_count);
   return 0;
 }
 
-// Tests that a runtime can be invoked from different threads as long as only
-// one thread uses it at a time.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
-    int32_t argc, char* argv[]) {
-  // Use mutex to synchronize access to the runtime.
-  std::mutex mutex;
-  std::atomic<int32_t> result_count{0};
-  std::atomic<NodeStatus> result_status{NodeStatus::kOk};
-  const size_t thread_count = 5;
-  std::vector<std::thread> threads;
-  threads.reserve(thread_count);
+node_embedding_status ConfigureRuntime2(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  // Inspector can be associated with only one runtime in the process.
+  NODE_EMBEDDED_CALL(node_embedding_set_runtime_flags(
+      runtime_config,
+      node_embedding_runtime_flags_default |
+          node_embedding_runtime_flags_no_create_inspector));
+  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+  return node_embedding_status_ok;
+}
 
-  NodeScopedErrorHandler error_handler{};
-  {
-    NodeExpected<NodePlatform> expected_platform =
-        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
-    NodePlatform platform = std::move(expected_platform).value();
-    if (!platform) {
-      return 0;  // early return
-    }
+void IncMyCount(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+  napi_value undefined, global, func;
+  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "incMyCount", &func));
 
-    NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
-        platform,
-        [](const NodePlatform& platform,
-           const NodeRuntimeConfig& runtime_config) {
-          return LoadUtf8Script(runtime_config, main_script);
-        });
+  napi_valuetype func_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+  NODE_API_CALL_RETURN_VOID(
+      napi_call_function(env, undefined, func, 0, NULL, NULL));
+}
 
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
-    NodeRuntime runtime = std::move(expected_runtime).value();
+void SumMyCount(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+  int32_t* global_count = (int32_t*)cb_data;
+  napi_value global, my_count;
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "myCount", &my_count));
 
-    for (size_t i = 0; i < thread_count; i++) {
-      threads.emplace_back([&runtime, &result_count, &result_status, &mutex] {
-        std::scoped_lock lock(mutex);
-        NodeExpected<void> run_result =
-            runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
-              napi_value undefined, global, func, my_count;
-              NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-              NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_named_property(env, global, "incMyCount", &func));
+  napi_valuetype my_count_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &my_count_type));
+  NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
+  int32_t count;
+  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
 
-              napi_valuetype func_type;
-              NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-              NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-              NODE_API_CALL_RETURN_VOID(napi_call_function(
-                  env, undefined, func, 0, nullptr, nullptr));
+  *global_count += count;
+}
 
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_named_property(env, global, "myCount", &my_count));
-              napi_valuetype count_type;
-              NODE_API_CALL_RETURN_VOID(
-                  napi_typeof(env, my_count, &count_type));
-              NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-              int32_t count;
-              NODE_API_CALL_RETURN_VOID(
-                  napi_get_value_int32(env, my_count, &count));
-              result_count.store(count);
-            });
-        if (run_result.has_error()) {
-          result_status.store(run_result.status());
-        }
-      });
-    }
+// Tests that multiple runtimes can run in the same thread.
+// The runtime scope must be opened and closed for each use.
+// There are 12 runtimes that share the same main thread.
+int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
+                                                              char* argv[]) {
+  const size_t runtime_count = 12;
+  bool more_work = false;
+  int32_t global_count = 0;
+  node_embedding_runtime runtimes[12] = {0};
 
-    for (size_t i = 0; i < thread_count; i++) {
-      threads[i].join();
-    }
-
-    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(result_status.load()));
-    CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
+  node_embedding_platform platform;
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_create_platform(
+          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  if (platform == NULL) {
+    return 0;  // early return
   }
 
-  fprintf(stdout, "%d\n", result_count.load());
+  for (size_t i = 0; i < runtime_count; ++i) {
+    CHECK_EXPECTED_OR_EXIT(
+        argv[0],
+        node_embedding_create_runtime(
+            platform, ConfigureRuntime2, NULL, &runtimes[i]));
+
+    CHECK_EXPECTED_OR_EXIT(
+        argv[0], node_embedding_run_node_api(runtimes[i], IncMyCount, NULL));
+  }
+
+  do {
+    more_work = false;
+    // for (const NodeRuntime& runtime : runtimes) {
+    //  TODO: implement
+    //  NodeExpected<bool> has_more_work = runtime.RunEventLoopNoWait();
+    //  CHECK_EXPECTED_OR_EXIT(argv[0], has_more_work);
+    //  more_work |= has_more_work.value();
+    //}
+  } while (more_work);
+
+  for (size_t i = 0; i < runtime_count; ++i) {
+    CHECK_EXPECTED_OR_EXIT(
+        argv[0],
+        node_embedding_run_node_api(runtimes[i], SumMyCount, &global_count));
+    CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_run_event_loop(runtimes[i]));
+    // TODO: avoid passing argv[0] every time
+    CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_delete_runtime(runtimes[i]));
+  }
+
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_delete_platform(platform));
+
+  fprintf(stdout, "%d\n", global_count);
   return 0;
+}
+
+typedef struct {
+  node_embedding_runtime runtime;
+  uv_mutex_t mutex;
+  int32_t result_count;
+  node_embedding_status result_status;
+} thread_data3;
+
+node_embedding_status ConfigureRuntime3(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+  return node_embedding_status_ok;
+}
+
+void RunNodeApi3(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+  thread_data3* data = (thread_data3*)cb_data;
+  napi_value undefined, global, func, my_count;
+  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "incMyCount", &func));
+
+  napi_valuetype func_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+  NODE_API_CALL_RETURN_VOID(
+      napi_call_function(env, undefined, func, 0, NULL, NULL));
+
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "myCount", &my_count));
+  napi_valuetype count_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
+  NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+  int32_t count;
+  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  data->result_count = count;
+}
+
+void ThreadCallback3(void* arg) {
+  thread_data3* data = (thread_data3*)arg;
+  uv_mutex_lock(&data->mutex);
+  node_embedding_status status =
+      node_embedding_run_node_api(data->runtime, RunNodeApi3, arg);
+  if (status != node_embedding_status_ok) {
+    data->result_status = status;
+  }
+  uv_mutex_unlock(&data->mutex);
+}
+
+// Tests that a runtime can be invoked from different threads as long as only
+// one thread uses it at a time.
+int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
+                                                             char* argv[]) {
+  // Use mutex to synchronize access to the runtime.
+  thread_data3 data = {0};
+  uv_mutex_init(&data.mutex);
+
+  const size_t thread_count = 5;
+  uv_thread_t threads[5] = {0};
+
+  node_embedding_platform platform;
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_create_platform(
+          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  if (platform == NULL) {
+    return 0;  // early return
+  }
+
+  node_embedding_runtime runtime;
+  CHECK_EXPECTED_OR_EXIT(argv[0],
+                         node_embedding_create_runtime(
+                             platform, ConfigureRuntime3, NULL, &runtime));
+
+  for (size_t i = 0; i < thread_count; ++i) {
+    uv_thread_create(&threads[i], ThreadCallback3, &data);
+  }
+
+  for (size_t i = 0; i < thread_count; ++i) {
+    uv_thread_join(&threads[i]);
+  }
+
+  CHECK_EXPECTED_OR_EXIT(argv[0], data.result_status);
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_run_event_loop(runtime));
+
+  fprintf(stdout, "%d\n", data.result_count);
+  return 0;
+}
+
+struct task_t {
+  struct task_t* prev;
+  struct task_t* next;
+  void* task_data;
+  void (*run_task)(void*);
+  void (*release_task_data)(void*);
+};
+typedef struct task_t task_t;
+
+typedef struct {
+  uv_mutex_t mutex;
+  uv_cond_t wakeup;
+  task_t* queue_in;
+  task_t* queue_out;
+  bool is_finished;
+} ui_queue_t;
+
+static void ui_queue_init(ui_queue_t* queue) {
+  uv_mutex_init(&queue->mutex);
+  uv_cond_init(&queue->wakeup);
+  queue->queue_in = NULL;
+  queue->queue_out = NULL;
+  queue->is_finished = false;
+}
+
+static void ui_queue_post_task(ui_queue_t* queue, task_t* task) {
+  uv_mutex_lock(&queue->mutex);
+  if (!queue->is_finished) {
+    if (queue->queue_in == NULL) {
+      queue->queue_out = task;
+    } else {
+      queue->queue_in->prev = task;
+    }
+    task->prev = NULL;
+    task->next = queue->queue_in;
+    queue->queue_in = task;
+    uv_cond_signal(&queue->wakeup);
+  }
+  uv_mutex_unlock(&queue->mutex);
+}
+
+static void ui_queue_run(ui_queue_t* queue) {
+  for (;;) {
+    task_t* task;
+    uv_mutex_lock(&queue->mutex);
+    // TODO: implement
+    while (queue->queue_out == NULL && !queue->is_finished) {
+      uv_cond_wait(&queue->wakeup, &queue->mutex);
+    }
+    if (queue->is_finished) {
+      uv_mutex_unlock(&queue->mutex);
+      break;
+    }
+    task = queue->queue_out;
+    if (task != NULL) {
+      queue->queue_out = task->prev;
+      if (queue->queue_out == NULL) {
+        queue->queue_in = NULL;
+      } else {
+        queue->queue_out->next = NULL;
+      }
+    }
+    uv_mutex_unlock(&queue->mutex);
+    if (task != NULL) {
+      task->prev = NULL;
+      task->next = NULL;
+      if (task->run_task != NULL) {
+        task->run_task(task->task_data);
+      }
+      if (task->release_task_data != NULL) {
+        task->release_task_data(task->task_data);
+      }
+    }
+  }
+}
+
+static void ui_queue_stop(ui_queue_t* queue) {
+  uv_mutex_lock(&queue->mutex);
+  if (!queue->is_finished) {
+    queue->is_finished = true;
+    uv_cond_signal(&queue->wakeup);
+  }
+  uv_mutex_unlock(&queue->mutex);
+}
+
+static void ui_queue_destroy(ui_queue_t* queue) {
+  uv_mutex_destroy(&queue->mutex);
+  uv_cond_destroy(&queue->wakeup);
+}
+#if 0
+         // We capture the ui_queue by reference here because we
+          // guarantee it to be alive till the end of the test. In
+          // real applications, you should use a safer way to
+          // capture the dispatcher queue.
+          [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
+            // TODO: figure out the termination scenario.
+            ui_queue.PostTask([run_task = std::make_shared<NodeRunTaskCallback>(
+                                   std::move(run_task)),
+                               &runtime,
+                               &ui_queue]() {
+              (*run_task)();  // TODO: handle result
+              // Check myCount and stop the processing when it reaches 5.
+              int32_t count{};
+              runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
+                napi_value global, my_count;
+                NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+                NODE_API_CALL_RETURN_VOID(
+                    napi_get_named_property(env, global, "myCount", &my_count));
+                napi_valuetype count_type;
+                NODE_API_CALL_RETURN_VOID(
+                    napi_typeof(env, my_count, &count_type));
+                NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+                NODE_API_CALL_RETURN_VOID(
+                    napi_get_value_int32(env, my_count, &count));
+              });
+              if (count == 5) {
+                runtime.RunEventLoop();
+                fprintf(stdout, "%d\n", count);
+                ui_queue.Stop();
+              }
+            });
+            return NodeExpected<bool>(true);
+          }));
+
+#endif
+
+typedef struct {
+  ui_queue_t ui_queue;
+  node_embedding_runtime runtime;
+} test_data4_t;
+
+typedef struct {
+  task_t parent_task;
+  node_embedding_run_task_callback run_task;
+  void* task_data;
+  node_embedding_release_data_callback release_task_data;
+  test_data4_t* test_data;
+} test_task_t;
+
+void RunTestTask(void* cb_data) {
+  test_task_t* test_task = (test_task_t*)cb_data;
+  test_task->run_task(test_task->task_data); // TODO: handle result
+
+  // Check myCount and stop the processing when it reaches 5.
+  int32_t count;
+  node_embedding_runtime runtime = test_task->test_data->runtime;
+  node_embedding_node_api_scope node_api_scope;
+  napi_env env;
+  NODE_EMBEDDED_CALL(
+      node_embedding_open_node_api_scope(runtime, &node_api_scope, &env));
+  napi_value global, my_count;
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "myCount", &my_count));
+  napi_valuetype count_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
+  NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  NODE_EMBEDDED_CALL(
+      node_embedding_close_node_api_scope(runtime, node_api_scope));
+  if (count == 5) {
+    NODE_EMBEDDED_CALL(node_embedding_run_event_loop(runtime));
+    fprintf(stdout, "%d\n", count);
+    ui_queue_stop(&test_task->test_data->ui_queue);
+  }
+}
+
+void ReleaseTestTask(void* cb_data) {
+  test_task_t* test_task = (test_task_t*)cb_data;
+  if (test_task->release_task_data != NULL) {
+    test_task->release_task_data(test_task->task_data);
+  }
+  free(test_task);
+}
+
+static node_embedding_status PostTask(
+    void* cb_data,
+    node_embedding_run_task_callback run_task,
+    void* task_data,
+    node_embedding_release_data_callback release_task_data,
+    bool* succeeded) {
+  test_data4_t* test_data = (test_data4_t*)cb_data;
+  test_task_t* test_task = (test_task_t*)malloc(sizeof(test_task_t));
+  if (test_task == NULL) {
+    return node_embedding_status_out_of_memory;
+  }
+  memset(test_task, 0, sizeof(test_task_t));
+  test_task->parent_task.run_task = RunTestTask;
+  test_task->parent_task.task_data = test_task;
+  test_task->parent_task.release_task_data = ReleaseTestTask;
+  test_task->run_task = run_task;
+  test_task->task_data = task_data;
+  test_task->release_task_data = release_task_data;
+  test_task->test_data = test_data;
+
+  ui_queue_post_task(&test_data->ui_queue, test_task);
+  return node_embedding_status_ok;
+}
+
+static node_embedding_status ConfigureRuntime4(
+    void* cb_data,
+    node_embedding_platform platform,
+    node_embedding_runtime_config runtime_config) {
+  // The callback will be invoked from the runtime's event loop
+  // observer thread. It must schedule the work to the UI thread's
+  // event loop.
+  NODE_EMBEDDED_CALL(node_embedding_set_runtime_task_runner(
+      runtime_config, PostTask, cb_data, NULL));
+
+  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+  return node_embedding_status_ok;
+}
+
+static void StartProcessing(void* cb_data) {
+  test_data4_t* data = (test_data4_t*)cb_data;
+  node_embedding_node_api_scope node_api_scope;
+  napi_env env;
+  node_embedding_open_node_api_scope(data->runtime, &node_api_scope, &env);
+  napi_value undefined, global, func;
+  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
+  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
+  NODE_API_CALL_RETURN_VOID(
+      napi_get_named_property(env, global, "incMyCount", &func));
+
+  napi_valuetype func_type;
+  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
+  NODE_API_CALL_RETURN_VOID(
+      napi_call_function(env, undefined, func, 0, NULL, NULL));
+  node_embedding_close_node_api_scope(data->runtime, node_api_scope);
 }
 
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
-    int32_t argc, char* argv[]) {
+int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
+                                                       char* argv[]) {
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable
   // for the real apps.
-  class UIQueue {
-   public:
-    void PostTask(std::function<void()>&& task) {
-      std::scoped_lock lock(mutex_);
-      if (!is_finished_) {
-        tasks_.push_back(std::move(task));
-        wakeup_.notify_one();
-      }
-    }
+  test_data4_t data = {0};
+  ui_queue_init(&data.ui_queue);
 
-    void Run() {
-      for (;;) {
-        std::function<void()> task;
-        {
-          std::unique_lock lock(mutex_);
-          wakeup_.wait(lock, [&] { return is_finished_ || !tasks_.empty(); });
-          if (is_finished_) break;
-          task = std::move(tasks_.front());
-          tasks_.pop_front();
-        }
-        task();
-      }
-    }
-
-    void Stop() {
-      std::scoped_lock lock(mutex_);
-      if (!is_finished_) {
-        is_finished_ = true;
-        wakeup_.notify_one();
-      }
-    }
-
-   private:
-    std::mutex mutex_;
-    std::condition_variable wakeup_;
-    std::deque<std::function<void()>> tasks_;
-    bool is_finished_{false};
-  } ui_queue;
-
-  NodeScopedErrorHandler error_handler{};
-  {
-    NodeExpected<NodePlatform> expected_platform =
-        NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
-    NodePlatform platform = std::move(expected_platform).value();
-    if (!platform) {
-      return 0;  // early return
-    }
-
-    NodeRuntime runtime{nullptr};
-    NodeExpected<NodeRuntime> expected_runtime = NodeRuntime::Create(
-        platform,
-        [&](const NodePlatform& platform,
-            const NodeRuntimeConfig& runtime_config) {
-          // The callback will be invoked from the runtime's event loop
-          // observer thread. It must schedule the work to the UI thread's
-          // event loop.
-          NODE_EMBEDDED_CALL(runtime_config.SetTaskRunner(
-              // We capture the ui_queue by reference here because we
-              // guarantee it to be alive till the end of the test. In
-              // real applications, you should use a safer way to
-              // capture the dispatcher queue.
-              [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
-                // TODO: figure out the termination scenario.
-                ui_queue.PostTask([run_task =
-                                       std::make_shared<NodeRunTaskCallback>(
-                                           std::move(run_task)),
-                                   &runtime,
-                                   &ui_queue]() {
-                  (*run_task)();  // TODO: handle result
-                  // Check myCount and stop the processing when it reaches 5.
-                  int32_t count{};
-                  runtime.RunNodeApi([&](const NodeRuntime& runtime,
-                                         napi_env env) {
-                    napi_value global, my_count;
-                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
-                        env, global, "myCount", &my_count));
-                    napi_valuetype count_type;
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_typeof(env, my_count, &count_type));
-                    NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_get_value_int32(env, my_count, &count));
-                  });
-                  if (count == 5) {
-                    runtime.RunEventLoop();
-                    fprintf(stdout, "%d\n", count);
-                    ui_queue.Stop();
-                  }
-                });
-                return NodeExpected<bool>(true);
-              }));
-
-          return LoadUtf8Script(runtime_config, main_script);
-        });
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
-    runtime = std::move(expected_runtime).value();
-
-    // The initial task starts the JS code that then will do the timer
-    // scheduling. The timer supposed to be handled by the runtime's event loop.
-    ui_queue.PostTask([&runtime]() {
-      runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
-        napi_value undefined, global, func;
-        NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-        NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-        NODE_API_CALL_RETURN_VOID(
-            napi_get_named_property(env, global, "incMyCount", &func));
-
-        napi_valuetype func_type;
-        NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-        NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-        NODE_API_CALL_RETURN_VOID(
-            napi_call_function(env, undefined, func, 0, nullptr, nullptr));
-      });
-    });
-
-    ui_queue.Run();
+  node_embedding_platform platform;
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_create_platform(
+          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  if (platform == NULL) {
+    return 0;  // early return
   }
 
+  CHECK_EXPECTED_OR_EXIT(
+      argv[0],
+      node_embedding_create_runtime(
+          platform, ConfigureRuntime4, &data, &data.runtime));
+
+  // The initial task starts the JS code that then will do the timer
+  // scheduling. The timer supposed to be handled by the runtime's event loop.
+  task_t task = {0};
+  task.run_task = StartProcessing;
+  ui_queue_post_task(&data.ui_queue, &task);
+
+  ui_queue_run(&data.ui_queue);
+  ui_queue_destroy(&data.ui_queue);
+
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_delete_runtime(&data.runtime));
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_delete_platform(platform));
   return 0;
 }
-#endif
