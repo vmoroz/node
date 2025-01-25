@@ -272,21 +272,12 @@ EXTERN_C_START
 // Error handling functions.
 //------------------------------------------------------------------------------
 
-// TODO: change error message to be a string instead of an array of strings
-
 // Gets the last error message for the current thread.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_get_last_error_message(
-    node_embedding_get_strings_callback get_message, void* get_message_data);
+NAPI_EXTERN const char* NAPI_CDECL node_embedding_last_error_message_get();
 
 // Sets the last error message for the current thread.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_set_last_error_message(int32_t message_strings_size,
-                                      const char* message_strings[]);
-
-// Clears the last error message for the current thread.
-NAPI_EXTERN node_embedding_status NAPI_CDECL
-node_embedding_clear_last_error_message();
+NAPI_EXTERN void NAPI_CDECL
+node_embedding_last_error_message_set(const char* message);
 
 //------------------------------------------------------------------------------
 // Node.js global platform functions.

@@ -109,7 +109,7 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
       NodeExpected<bool> loop_result = runtime.RunEventLoopOnce();
       if (loop_result.has_error()) {
         NODE_API_FAIL("Failed to run event loop: %s\n",
-                      NodeErrorInfo::GetLastErrorMessageString().c_str());
+                      NodeErrorInfo::GetLastErrorMessage());
       }
       if (!loop_result.value()) {
         break;
@@ -215,7 +215,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
     NodeExpected<bool> loop_result = runtime.RunEventLoopOnce();
     if (loop_result.has_error()) {
       NODE_API_FAIL("Failed to run event loop: %s\n",
-                    NodeErrorInfo::GetLastErrorMessageString().c_str());
+                    NodeErrorInfo::GetLastErrorMessage());
     }
     if (!loop_result.value()) {
       break;

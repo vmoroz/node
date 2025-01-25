@@ -404,76 +404,44 @@ inline std::string NodeFormatString(const char* format, ...) {
 
 class NodeErrorInfo {
  public:
-  static NodeExpected<void> GetLastErrorMessage(
-      NodeGetStringsCallback get_message) {
-    return NodeExpected<void>(node_embedding_get_last_error_message(
-        get_message.callback(), get_message.data()));
+  static const char* GetLastErrorMessage() {
+    return node_embedding_last_error_message_get();
   }
 
-  static NodeExpected<std::vector<std::string>> GetLastErrorMessage() {
-    std::vector<std::string> result_message;
-    NodeExpected<void> result = GetLastErrorMessage(
-        [&result_message](std::vector<std::string> message) {
-          result_message = std::move(message);
-          return NodeExpected<void>();
-        });
-    if (result.has_error()) {
-      return NodeExpected<std::vector<std::string>>(result.status());
-    } else {
-      return NodeExpected<std::vector<std::string>>(std::move(result_message));
-    }
+  static void SetLastErrorMessage(const char* message) {
+    return node_embedding_last_error_message_set(message);
   }
 
-  static std::string GetLastErrorMessageString() {
-    auto expected_message = GetLastErrorMessage();
-    if (expected_message.has_error()) {
-      return NodeFormatString("Error: %s", "TODO");
-      // TODO: fix
-      // node_embedding_status_to_string(expected_message.status()));
-    }
-    return NodeFormatString("Error: %s",
-                            expected_message.value().front().c_str());
-  }
-
-  static NodeExpected<void> SetLastErrorMessage(int32_t message_strings_size,
-                                                const char* message_strings[]) {
-    return NodeExpected<void>(node_embedding_set_last_error_message(
-        message_strings_size, message_strings));
-  }
-
-  static NodeExpected<void> SetLastErrorMessage(std::string_view message) {
-    const char* message_data = message.data();
-    return SetLastErrorMessage(1, &message_data);
-  }
-
-  static NodeExpected<void> SetLastErrorMessage(std::string_view message,
-                                                std::string_view filename,
-                                                int32_t line) {
-    return SetLastErrorMessage(NodeFormatString(
-        "Error: %s at %s:%d", message.data(), filename.data(), line));
+  static void SetLastErrorMessage(std::string_view message,
+                                  std::string_view filename,
+                                  int32_t line) {
+    SetLastErrorMessage(
+        NodeFormatString(
+            "Error: %s at %s:%d", message.data(), filename.data(), line)
+            .c_str());
   }
 
   static NodeExpected<void> SetLastErrorMessage(
       const std::vector<std::string>& message) {
-    NodeCStringArray message_strings(message);
-    return SetLastErrorMessage(message_strings.size(),
-                               message_strings.c_strs());
+    std::string message_str;
+    bool first = true;
+    for (const std::string& part : message) {
+      if (!first) {
+        message_str += '\n';
+      }
+      message_str += part;
+    }
+    SetLastErrorMessage(message_str.c_str());
   }
 
-  static NodeExpected<void> ClearLastErrorMessage() {
-    return NodeExpected<void>(node_embedding_clear_last_error_message());
+  static void ClearLastErrorMessage() {
+    node_embedding_last_error_message_set(nullptr);
   }
 
-  static NodeExpected<std::vector<std::string>> GetAndClearLastErrorMessage() {
-    auto expected_message = GetLastErrorMessage();
-    if (expected_message.has_error()) {
-      return expected_message;
-    }
-    auto expected_clear = ClearLastErrorMessage();
-    if (expected_clear.has_error()) {
-      return NodeExpected<std::vector<std::string>>(expected_clear.status());
-    }
-    return expected_message;
+  static std::string GetAndClearLastErrorMessage() {
+    std::string result = GetLastErrorMessage();
+    ClearLastErrorMessage();
+    return result;
   }
 };
 
@@ -518,12 +486,12 @@ class NodeScopedErrorHandler {
   void SetStatusInternal(NodeStatus status) {
     if (status_ != NodeStatus::kOk) return;
     status_ = status;
-    error_message_ = NodeErrorInfo::GetLastErrorMessage().value();
+    error_message_ = NodeErrorInfo::GetLastErrorMessage();
   }
 
  private:
   std::optional<NodeStatus> status_;
-  std::vector<std::string> error_message_;
+  std::string error_message_;
   NodeScopedErrorHandler* previous_handler_{Current()};
 };
 

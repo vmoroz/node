@@ -71,14 +71,8 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
   if (expected.has_value()) {
     return expected;
   }
-  auto expected_message = NodeErrorInfo::GetAndClearLastErrorMessage();
-  if (expected_message.has_error()) {
-    return NodeExpected<void>(expected_message.status());
-  }
-  std::vector<std::string> messages = std::move(expected_message).value();
-  for (const std::string& message : messages) {
-    fprintf(stderr, "%s: %s\n", exe_name.data(), message.c_str());
-  }
+  std::string error_message = NodeErrorInfo::GetAndClearLastErrorMessage();
+  fprintf(stderr, "%s: %s\n", exe_name.data(), error_message.c_str());
   return NodeExpected<void>(expected.status());
 }
 

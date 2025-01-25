@@ -170,7 +170,7 @@ class EmbeddedErrorHandling {
   static NodeStatus HandleError(NodeStatus status, std::string_view message);
 
   static NodeStatus HandleError(NodeStatus status,
-                                std::vector<std::string> messages);
+                                const std::vector<std::string>& messages);
 
   static NodeStatus HandleError(NodeStatus status,
                                 std::string_view message,
@@ -179,11 +179,10 @@ class EmbeddedErrorHandling {
 
   static std::string FormatString(const char* format, ...);
 
-  static const std::vector<std::string>* GetLastErrorMessage();
-
-  static void SetLastErrorMessage(std::vector<std::string> message);
-
-  static NodeStatus ClearLastErrorMessage();
+  static const char* GetLastErrorMessage();
+  static void SetLastErrorMessage(std::string message);
+  static void SetLastErrorMessage(const std::vector<std::string>& message);
+  static void ClearLastErrorMessage();
 
   static NodeStatus ExitCodeToStatus(int32_t exit_code);
 
@@ -195,8 +194,8 @@ class EmbeddedErrorHandling {
   };
 
  private:
-  static const std::vector<std::string>* DoErrorMessage(
-      ErrorMessageAction action, std::vector<std::string>* message);
+  static const char* DoErrorMessage(ErrorMessageAction action,
+                                    std::string message);
 };
 
 class EmbeddedPlatform {
@@ -480,17 +479,17 @@ class EmbeddedRuntime {
   if (status == NodeStatus::kOk) {
     ClearLastErrorMessage();
   } else {
-    SetLastErrorMessage({std::string(message)});
+    SetLastErrorMessage(message.data());
   }
   return status;
 }
 
 /*static*/ NodeStatus EmbeddedErrorHandling::HandleError(
-    NodeStatus status, std::vector<std::string> messages) {
+    NodeStatus status, const std::vector<std::string>& messages) {
   if (status == NodeStatus::kOk) {
     ClearLastErrorMessage();
   } else {
-    SetLastErrorMessage(std::move(messages));
+    SetLastErrorMessage(messages);
   }
   return status;
 }
@@ -520,29 +519,36 @@ class EmbeddedRuntime {
   return result;
 }
 
-/*static*/ const std::vector<std::string>*
-EmbeddedErrorHandling::GetLastErrorMessage() {
-  return DoErrorMessage(ErrorMessageAction::kGet, nullptr);
+/*static*/ const char* EmbeddedErrorHandling::GetLastErrorMessage() {
+  return DoErrorMessage(ErrorMessageAction::kGet, "");
 }
 
 /*static*/ void EmbeddedErrorHandling::SetLastErrorMessage(
-    std::vector<std::string> message) {
-  DoErrorMessage(ErrorMessageAction::kSet, &message);
+    std::string message) {
+  DoErrorMessage(ErrorMessageAction::kSet, std::move(message));
 }
 
-/*static*/ NodeStatus EmbeddedErrorHandling::ClearLastErrorMessage() {
-  DoErrorMessage(ErrorMessageAction::kClear, nullptr);
-  return NodeStatus::kOk;
+/*static*/ void EmbeddedErrorHandling::SetLastErrorMessage(
+    const std::vector<std::string>& message) {
+  std::string message_str;
+  bool first = true;
+  for (const auto& part : message) {
+    if (!first) {
+      message_str += "\n";
+    }
+    message_str += part;
+  }
+  DoErrorMessage(ErrorMessageAction::kSet, std::move(message_str));
 }
 
-/*static*/ const std::vector<std::string>*
-EmbeddedErrorHandling::DoErrorMessage(
-    EmbeddedErrorHandling::ErrorMessageAction action,
-    std::vector<std::string>* message) {
-  static thread_local const std::vector<std::string>* thread_message_ptr =
-      nullptr;
-  static std::unordered_map<std::thread::id,
-                            std::unique_ptr<std::vector<std::string>>>
+/*static*/ void EmbeddedErrorHandling::ClearLastErrorMessage() {
+  DoErrorMessage(ErrorMessageAction::kClear, "");
+}
+
+/*static*/ const char* EmbeddedErrorHandling::DoErrorMessage(
+    EmbeddedErrorHandling::ErrorMessageAction action, std::string message) {
+  static thread_local const char* thread_message_ptr = nullptr;
+  static std::unordered_map<std::thread::id, std::unique_ptr<std::string>>
       thread_to_message;
   static std::mutex mutex;
 
@@ -550,22 +556,23 @@ EmbeddedErrorHandling::DoErrorMessage(
     case ErrorMessageAction::kGet:
       break;  // Just return the message.
     case ErrorMessageAction::kSet: {
-      auto message_ptr =
-          std::make_unique<std::vector<std::string>>(std::move(*message));
-      thread_message_ptr = message_ptr.get();
+      auto message_ptr = std::make_unique<std::string>(std::move(message));
+      thread_message_ptr = message_ptr->c_str();
       std::scoped_lock lock(mutex);
       thread_to_message[std::this_thread::get_id()] = std::move(message_ptr);
       break;
     }
-    case ErrorMessageAction::kClear:
+    case ErrorMessageAction::kClear: {
       if (thread_message_ptr != nullptr) {
         std::scoped_lock lock(mutex);
         thread_to_message.erase(std::this_thread::get_id());
         thread_message_ptr = nullptr;
       }
       break;
+    }
   }
-  return thread_message_ptr;
+
+  return thread_message_ptr != nullptr ? thread_message_ptr : "";
 }
 
 /*static*/ NodeStatus EmbeddedErrorHandling::ExitCodeToStatus(
@@ -667,7 +674,8 @@ node_embedding_status EmbeddedPlatform::OnEarlyReturn(
       NodeEarlyReturnCallback(early_return_handler,
                               early_return_handler_data,
                               release_early_return_handler_data);
-  return EmbeddedErrorHandling::ClearLastErrorMessage();
+  EmbeddedErrorHandling::ClearLastErrorMessage();
+  return node_embedding_status::kOk;
 }
 
 node_embedding_status EmbeddedPlatform::Initialize(
@@ -1546,30 +1554,16 @@ void EmbeddedRuntime::RegisterModules() {
 
 }  // namespace node::embedding
 
-node_embedding_status NAPI_CDECL node_embedding_get_last_error_message(
-    node_embedding_get_strings_callback get_message, void* get_message_data) {
-  ASSERT_ARG_NOT_NULL(get_message);
-  const std::vector<std::string>* message =
-      node::embedding::EmbeddedErrorHandling::GetLastErrorMessage();
+const char* NAPI_CDECL node_embedding_last_error_message_get() {
+  return node::embedding::EmbeddedErrorHandling::GetLastErrorMessage();
+}
+
+void NAPI_CDECL node_embedding_last_error_message_set(const char* message) {
   if (message == nullptr) {
-    return get_message(get_message_data, 0, nullptr);
+    node::embedding::EmbeddedErrorHandling::ClearLastErrorMessage();
+  } else {
+    node::embedding::EmbeddedErrorHandling::SetLastErrorMessage(message);
   }
-  node::embedding::NodeCStringArray message_array(*message);
-  return get_message(
-      get_message_data, message_array.size(), message_array.c_strs());
-}
-
-node_embedding_status NAPI_CDECL node_embedding_set_last_error_message(
-    int32_t message_strings_size, const char* message_strings[]) {
-  node::embedding::EmbeddedErrorHandling::SetLastErrorMessage(
-      std::vector<std::string>(message_strings,
-                               message_strings + message_strings_size));
-  return node_embedding_status::kOk;
-}
-
-node_embedding_status NAPI_CDECL node_embedding_clear_last_error_message() {
-  node::embedding::EmbeddedErrorHandling::ClearLastErrorMessage();
-  return node_embedding_status::kOk;
 }
 
 node_embedding_status NAPI_CDECL node_embedding_main_run(
