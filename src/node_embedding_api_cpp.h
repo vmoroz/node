@@ -964,12 +964,12 @@ class NodeFunctorInvoker<
       node_embedding_task_run_callback run_task,
       void* task_data,
       node_embedding_data_release_callback release_task_data,
-      bool* succeeded) {
+      bool* is_posted) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeExpected<bool> result_cpp = (*callback)(
         NodeRunTaskCallback(run_task, task_data, release_task_data));
-    if (succeeded != nullptr) {
-      *succeeded = result_cpp.value();
+    if (is_posted != nullptr) {
+      *is_posted = result_cpp.value();
     }
     return result_cpp.status();
   }
@@ -979,15 +979,11 @@ template <typename TFunctor>
 class NodeFunctorInvoker<
     node_embedding_node_api_run_callback,
     TFunctor,
-    std::enable_if_t<
-        std::is_invocable_r_v<void, TFunctor, const NodeRuntime&, napi_env>>> {
+    std::enable_if_t<std::is_invocable_r_v<void, TFunctor, napi_env>>> {
  public:
-  static void Invoke(void* cb_data,
-                     node_embedding_runtime runtime,
-                     napi_env env) {
+  static void Invoke(void* cb_data, napi_env env) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeDetachedRuntime runtime_cpp(runtime);
-    (*callback)(runtime_cpp, env);
+    (*callback)(env);
   }
 };
 
