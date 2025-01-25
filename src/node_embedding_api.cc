@@ -181,7 +181,6 @@ class EmbeddedErrorHandling {
 
   static const char* GetLastErrorMessage();
   static void SetLastErrorMessage(std::string message);
-  static void SetLastErrorMessage(const std::vector<std::string>& message);
   static void ClearLastErrorMessage();
 
   static NodeStatus ExitCodeToStatus(int32_t exit_code);
@@ -483,7 +482,7 @@ class EmbeddedRuntime {
   if (status == NodeStatus::kOk) {
     ClearLastErrorMessage();
   } else {
-    SetLastErrorMessage(messages);
+    NodeErrorInfo::SetLastErrorMessage(messages);
   }
   return status;
 }
@@ -520,19 +519,6 @@ class EmbeddedRuntime {
 /*static*/ void EmbeddedErrorHandling::SetLastErrorMessage(
     std::string message) {
   DoErrorMessage(ErrorMessageAction::kSet, std::move(message));
-}
-
-/*static*/ void EmbeddedErrorHandling::SetLastErrorMessage(
-    const std::vector<std::string>& message) {
-  std::string message_str;
-  bool first = true;
-  for (const auto& part : message) {
-    if (!first) {
-      message_str += "\n";
-    }
-    message_str += part;
-  }
-  DoErrorMessage(ErrorMessageAction::kSet, std::move(message_str));
 }
 
 /*static*/ void EmbeddedErrorHandling::ClearLastErrorMessage() {
@@ -681,21 +667,18 @@ node_embedding_status EmbeddedPlatform::Initialize(
       args_, GetProcessInitializationFlags(flags_));
   int32_t exit_code = init_result_->exit_code();
   if (exit_code != 0) {
-    EmbeddedErrorHandling::SetLastErrorMessage(init_result_->errors());
+    NodeErrorInfo::SetLastErrorMessage(init_result_->errors());
     return EmbeddedErrorHandling::ExitCodeToStatus(exit_code);
   }
 
   if (init_result_->early_return()) {
     *early_return = true;
-    // TODO: Implement early return handler
-    // if (early_return_handler_) {
-    //  NodeCStringArray messages(init_result_->errors());
-    //  CHECK_STATUS(early_return_handler_(messages.size(), messages.c_strs()));
-    //}
+    NodeErrorInfo::SetLastErrorMessage(init_result_->errors());
     return NodeStatus::kOk;
   }
 
-  // TODO: Implement args views
+  c_args_ = NodeCStringArray<>(init_result_->args());
+  c_runtime_args_ = NodeCStringArray<>(init_result_->exec_args());
 
   int32_t thread_pool_size =
       static_cast<int32_t>(node::per_process::cli_options->v8_thread_pool_size);

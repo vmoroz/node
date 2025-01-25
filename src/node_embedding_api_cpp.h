@@ -206,6 +206,33 @@ class NodeCStringArray {
   NodeCStringArray(const NodeCStringArray&) = delete;
   NodeCStringArray& operator=(const NodeCStringArray&) = delete;
 
+  NodeCStringArray(NodeCStringArray&& other) noexcept
+      : size_(std::exchange(other.size_, 0)),
+        c_strs_(std::exchange(other.c_strs_, 0)),
+        allocated_buffer_(std::exchange(other.allocated_buffer_, nullptr)) {
+    if (size_ <= inplace_buffer_.size()) {
+      c_strs_ = inplace_buffer_.data();
+      std::memcpy(inplace_buffer_.data(),
+                  other.inplace_buffer_.data(),
+                  size_ * sizeof(const char*));
+    }
+  }
+
+  NodeCStringArray& operator=(NodeCStringArray&& other) noexcept {
+    if (this != &other) {
+      size_ = std::exchange(other.size_, 0);
+      c_strs_ = std::exchange(other.c_strs_, nullptr);
+      allocated_buffer_ = std::exchange(other.allocated_buffer_, nullptr);
+      if (size_ <= inplace_buffer_.size()) {
+        c_strs_ = inplace_buffer_.data();
+        std::memcpy(inplace_buffer_.data(),
+                    other.inplace_buffer_.data(),
+                    size_ * sizeof(const char*));
+      }
+    }
+    return *this;
+  }
+
   int32_t size() const { return static_cast<int32_t>(size_); }
   const char** c_strs() const { return c_strs_; }
 
@@ -412,13 +439,14 @@ class NodeErrorInfo {
             .c_str());
   }
 
-  static NodeExpected<void> SetLastErrorMessage(
-      const std::vector<std::string>& message) {
+  static void SetLastErrorMessage(const std::vector<std::string>& message) {
     std::string message_str;
     bool first = true;
     for (const std::string& part : message) {
       if (!first) {
         message_str += '\n';
+      } else {
+        first = false;
       }
       message_str += part;
     }
