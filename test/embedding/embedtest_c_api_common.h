@@ -22,6 +22,19 @@ void GetAndThrowLastErrorMessage(napi_env env);
 
 void ThrowLastErrorMessage(napi_env env, const char* format, ...);
 
+#define DYNAMIC_STRING_BUFFER_SIZE 256
+
+typedef struct {
+  char* data;
+  size_t length;
+  char buffer[DYNAMIC_STRING_BUFFER_SIZE];
+} dynamic_string_t;
+
+void dynamic_string_init(dynamic_string_t* str);
+void dynamic_string_destroy(dynamic_string_t* str);
+void dynamic_string_set(dynamic_string_t* str, const char* value);
+void dynamic_string_append(dynamic_string_t* str, const char* value);
+
 //==============================================================================
 // Error handling macros copied from test/js_native_api/common.h
 //==============================================================================
