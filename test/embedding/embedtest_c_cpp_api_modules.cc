@@ -203,7 +203,7 @@ extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
   }));
   CHECK(exit_code);
   CHECK(node_embedding_runtime_delete(runtime));
-  CHECK(node_embedding_platform_destroy(platform));
+  CHECK(node_embedding_platform_delete(platform));
 */
   return 0;
 }

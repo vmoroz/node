@@ -188,6 +188,8 @@ class [[nodiscard]] NodeExpected<void> {
 template <size_t kInplaceBufferSize = 32>
 class NodeCStringArray {
  public:
+  NodeCStringArray() = default;
+
   explicit NodeCStringArray(const std::vector<std::string>& strings) noexcept
       : size_(strings.size()) {
     if (size_ <= inplace_buffer_.size()) {
@@ -281,7 +283,7 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
   NodeFunctor(TCallback callback,
               void* data,
-              node_embedding_release_data_callback data_release)
+              node_embedding_data_release_callback data_release)
       : callback_(callback), data_(data), data_release_(data_release) {}
 
   // TODO: add overload for stateless lambdas.
@@ -298,7 +300,7 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
 
   void* data() const { return data_.ptr(); }
 
-  node_embedding_release_data_callback data_release() const {
+  node_embedding_data_release_callback data_release() const {
     return data_release_.ptr();
   }
 
@@ -319,38 +321,27 @@ class NodeFunctor<TResult (*)(void*, TArgs...)> {
  private:
   NodePointer<TCallback> callback_;
   NodePointer<void*> data_;
-  NodePointer<node_embedding_release_data_callback> data_release_;
+  NodePointer<node_embedding_data_release_callback> data_release_;
 };
-
-// NodeGetStringsCallback supported signatures:
-// - NodeExpected<void>(int32_t strings_size, const char* strings[]);
-// - NodeExpected<void>(std::vector<std::string> strings);
-using NodeGetStringsCallback =
-    NodeFunctorRef<node_embedding_get_strings_callback>;
 
 // NodeConfigurePlatformCallback supported signatures:
 // - NodeExpected<void>(const NodePlatformConfig& platform_config);
 using NodeConfigurePlatformCallback =
-    NodeFunctorRef<node_embedding_configure_platform_callback>;
-
-// NodeGetStringsCallback supported signatures:
-// - NodeExpected<void>(int32_t strings_size, const char* strings[]);
-// - NodeExpected<void>(std::vector<std::string> strings);
-using NodeEarlyReturnCallback =
-    NodeFunctor<node_embedding_get_strings_callback>;
+    NodeFunctorRef<node_embedding_platform_configure_callback>;
 
 // NodeConfigureRuntimeCallback supported signatures:
 // - NodeExpected<void>(const NodePlatform& platform,
 //                      const NodeRuntimeConfig& runtime_config);
 using NodeConfigureRuntimeCallback =
-    NodeFunctorRef<node_embedding_configure_runtime_callback>;
+    NodeFunctorRef<node_embedding_runtime_configure_callback>;
 
 // NodePreloadCallback supported signatures:
 // - void(const NodeRuntime& runtime,
 //        napi_env env,
 //        napi_value process,
 //        napi_value require);
-using NodePreloadCallback = NodeFunctor<node_embedding_preload_callback>;
+using NodePreloadCallback =
+    NodeFunctor<node_embedding_runtime_preload_callback>;
 
 // NodeStartExecutionCallback supported signatures:
 // - napi_value(const NodeRuntime& runtime,
@@ -359,14 +350,14 @@ using NodePreloadCallback = NodeFunctor<node_embedding_preload_callback>;
 //              napi_value require,
 //              napi_value run_cjs);
 using NodeStartExecutionCallback =
-    NodeFunctor<node_embedding_start_execution_callback>;
+    NodeFunctor<node_embedding_runtime_loading_callback>;
 
 // NodeHandleExecutionResultCallback supported signatures:
 // - void(const NodeRuntime& runtime,
 //        napi_env env,
 //        napi_value execution_result);
 using NodeHandleExecutionResultCallback =
-    NodeFunctor<node_embedding_handle_execution_result_callback>;
+    NodeFunctor<node_embedding_runtime_loaded_callback>;
 
 // NodeInitializeModuleCallback supported signatures:
 // - napi_value(const NodeRuntime& runtime,
@@ -374,20 +365,20 @@ using NodeHandleExecutionResultCallback =
 //              std::string_view module_name,
 //              napi_value exports);
 using NodeInitializeModuleCallback =
-    NodeFunctor<node_embedding_initialize_module_callback>;
+    NodeFunctor<node_embedding_module_initialize_callback>;
 
 // NodeRunTaskCallback supported signatures:
 // - NodeExpected<void>();
-using NodeRunTaskCallback = NodeFunctor<node_embedding_run_task_callback>;
+using NodeRunTaskCallback = NodeFunctor<node_embedding_task_run_callback>;
 
 // NodePostTaskCallback supported signatures:
 // - NodeExpected<bool>(NodeRunTaskCallback run_task);
-using NodePostTaskCallback = NodeFunctor<node_embedding_post_task_callback>;
+using NodePostTaskCallback = NodeFunctor<node_embedding_task_post_callback>;
 
 // NodeRunNodeApiCallback supported signatures:
 // - void(const NodeRuntime& runtime, napi_env env);
 using NodeRunNodeApiCallback =
-    NodeFunctorRef<node_embedding_run_node_api_callback>;
+    NodeFunctorRef<node_embedding_node_api_run_callback>;
 
 inline std::string NodeFormatString(const char* format, ...) {
   va_list args1;
@@ -507,7 +498,7 @@ class NodePlatform {
   ~NodePlatform() {
     if (platform_) {
       NodeScopedErrorHandler::SetStatus(
-          node_embedding_platform_destroy(platform_.ptr()));
+          node_embedding_platform_delete(platform_.ptr()));
     }
   }
 
@@ -549,42 +540,28 @@ class NodePlatform {
     return NodeExpected<NodePlatform>(NodePlatform(platform));
   }
 
-  NodeExpected<void> GetParsedArgs(
-      NodeGetStringsCallback get_args,
-      NodeGetStringsCallback get_runtime_args) const {
-    return NodeExpected<void>(
-        node_embedding_platform_get_parsed_args(platform_.ptr(),
-                                                get_args.callback(),
-                                                get_args.data(),
-                                                get_runtime_args.callback(),
-                                                get_runtime_args.data()));
-  }
-
   NodeExpected<std::vector<std::string>> GetArgs() const {
-    std::vector<std::string> result_args;
-    NodeExpected<void> status = GetParsedArgs(
-        [&result_args](std::vector<std::string> args) {
-          result_args = std::move(args);
-          return NodeExpected<void>();
-        },
-        nullptr);
-    if (status.has_error()) {
-      return NodeExpected<std::vector<std::string>>(status.status());
+    int32_t argc = 0;
+    const char** argv = nullptr;
+    node_embedding_status status = node_embedding_platform_get_parsed_args(
+        platform_.ptr(), &argc, &argv, nullptr, nullptr);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<std::vector<std::string>>(status);
     }
-    return NodeExpected<std::vector<std::string>>(std::move(result_args));
+    return NodeExpected<std::vector<std::string>>(
+        std::vector<std::string>(argv, argv + argc));
   }
 
   NodeExpected<std::vector<std::string>> GetRuntimeArgs() const {
-    std::vector<std::string> result_args;
-    NodeExpected<void> status =
-        GetParsedArgs(nullptr, [&result_args](std::vector<std::string> args) {
-          result_args = std::move(args);
-          return NodeExpected<void>();
-        });
-    if (status.has_error()) {
-      return NodeExpected<std::vector<std::string>>(status.status());
+    int32_t argc = 0;
+    const char** argv = nullptr;
+    node_embedding_status status = node_embedding_platform_get_parsed_args(
+        platform_.ptr(), nullptr, nullptr, &argc, &argv);
+    if (status != NodeStatus::kOk) {
+      return NodeExpected<std::vector<std::string>>(status);
     }
-    return NodeExpected<std::vector<std::string>>(std::move(result_args));
+    return NodeExpected<std::vector<std::string>>(
+        std::vector<std::string>(argv, argv + argc));
   }
 
  private:
@@ -615,15 +592,6 @@ class NodePlatformConfig {
   NodeExpected<void> SetFlags(NodePlatformFlags flags) const {
     return NodeExpected<void>(node_embedding_platform_config_set_flags(
         platform_config_.ptr(), flags));
-  }
-
-  NodeExpected<void> OnEarlyReturn(
-      NodeEarlyReturnCallback early_return_handler) const {
-    return NodeExpected<void>(node_embedding_platform_config_on_early_return(
-        platform_config_.ptr(),
-        early_return_handler.callback(),
-        early_return_handler.data(),
-        early_return_handler.data_release()));
   }
 
  private:
@@ -805,11 +773,11 @@ class NodeRuntimeConfig {
 
   NodeExpected<void> OnStartExecution(
       NodeStartExecutionCallback start_execution) const {
-    return NodeExpected<void>(
-        node_embedding_runtime_config_on_load(runtime_config_.ptr(),
-                                              start_execution.callback(),
-                                              start_execution.data(),
-                                              start_execution.data_release()));
+    return NodeExpected<void>(node_embedding_runtime_config_on_loading(
+        runtime_config_.ptr(),
+        start_execution.callback(),
+        start_execution.data(),
+        start_execution.data_release()));
   }
 
   NodeExpected<void> OnHandleExecutionResult(
@@ -847,43 +815,7 @@ class NodeRuntimeConfig {
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_get_strings_callback,
-    TFunctor,
-    std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
-                                           TFunctor,
-                                           int32_t,
-                                           const char**>>> {
- public:
-  static NodeStatus Invoke(void* cb_data,
-                           int32_t strings_size,
-                           const char* strings[]) {
-    TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    NodeExpected<void> result_cpp = (*callback)(strings_size, strings);
-    return result_cpp.status();
-  }
-};
-
-template <typename TFunctor>
-class NodeFunctorInvoker<
-    node_embedding_get_strings_callback,
-    TFunctor,
-    std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
-                                           TFunctor,
-                                           std::vector<std::string>>>> {
- public:
-  static NodeStatus Invoke(void* cb_data,
-                           int32_t strings_size,
-                           const char* strings[]) {
-    TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
-    std::vector<std::string> strings_cpp(strings, strings + strings_size);
-    NodeExpected<void> result_cpp = (*callback)(std::move(strings_cpp));
-    return result_cpp.status();
-  }
-};
-
-template <typename TFunctor>
-class NodeFunctorInvoker<
-    node_embedding_configure_platform_callback,
+    node_embedding_platform_configure_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
                                            TFunctor,
@@ -900,7 +832,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_configure_runtime_callback,
+    node_embedding_runtime_configure_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>,
                                            TFunctor,
@@ -921,7 +853,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_preload_callback,
+    node_embedding_runtime_preload_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<void,
                                            TFunctor,
@@ -943,7 +875,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_start_execution_callback,
+    node_embedding_runtime_loading_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<napi_value,
                                            TFunctor,
@@ -967,7 +899,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_handle_execution_result_callback,
+    node_embedding_runtime_loaded_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<void,
                                            TFunctor,
@@ -987,7 +919,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_initialize_module_callback,
+    node_embedding_module_initialize_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<napi_value,
                                            TFunctor,
@@ -1009,7 +941,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_run_task_callback,
+    node_embedding_task_run_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>, TFunctor>>> {
  public:
@@ -1021,7 +953,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_post_task_callback,
+    node_embedding_task_post_callback,
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<bool>,
                                            TFunctor,
@@ -1029,9 +961,9 @@ class NodeFunctorInvoker<
  public:
   static node_embedding_status Invoke(
       void* cb_data,
-      node_embedding_run_task_callback run_task,
+      node_embedding_task_run_callback run_task,
       void* task_data,
-      node_embedding_release_data_callback release_task_data,
+      node_embedding_data_release_callback release_task_data,
       bool* succeeded) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     NodeExpected<bool> result_cpp = (*callback)(
@@ -1045,7 +977,7 @@ class NodeFunctorInvoker<
 
 template <typename TFunctor>
 class NodeFunctorInvoker<
-    node_embedding_run_node_api_callback,
+    node_embedding_node_api_run_callback,
     TFunctor,
     std::enable_if_t<
         std::is_invocable_r_v<void, TFunctor, const NodeRuntime&, napi_env>>> {

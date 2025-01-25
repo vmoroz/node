@@ -185,7 +185,7 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
     CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(runtimes[i]));
   }
 
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_destroy(platform));
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
 
   fprintf(stdout, "%d\n", global_count);
   return 0;
@@ -415,9 +415,9 @@ typedef struct {
 
 typedef struct {
   task_t parent_task;
-  node_embedding_run_task_callback run_task;
+  node_embedding_task_run_callback run_task;
   void* task_data;
-  node_embedding_release_data_callback release_task_data;
+  node_embedding_data_release_callback release_task_data;
   test_data4_t* test_data;
 } test_task_t;
 
@@ -459,9 +459,9 @@ void ReleaseTestTask(void* cb_data) {
 
 static node_embedding_status PostTask(
     void* cb_data,
-    node_embedding_run_task_callback run_task,
+    node_embedding_task_run_callback run_task,
     void* task_data,
-    node_embedding_release_data_callback release_task_data,
+    node_embedding_data_release_callback release_task_data,
     bool* succeeded) {
   test_data4_t* test_data = (test_data4_t*)cb_data;
   test_task_t* test_task = (test_task_t*)malloc(sizeof(test_task_t));
@@ -549,6 +549,6 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   ui_queue_destroy(&data.ui_queue);
 
   CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(&data.runtime));
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_destroy(platform));
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
   return 0;
 }
