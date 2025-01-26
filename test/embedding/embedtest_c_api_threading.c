@@ -30,7 +30,6 @@ static node_embedding_status ConfigureRuntime(
     node_embedding_runtime_config runtime_config) {
   // Inspector can be associated with only one
   // runtime in the process.
-  // TODO: Rename NODE_EMBEDDED_CALL macro
   NODE_EMBEDDED_CALL(node_embedding_runtime_config_set_flags(
       runtime_config,
       node_embedding_runtime_flags_default |
@@ -82,11 +81,9 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
     uv_thread_join(&threads[i]);
   }
 
-  // TODO: make sure to destroy the platform and runtime
-
   // TODO: Add passing error message
-  // TODO: Rename CHECK_EXPECTED_OR_EXIT macro
   CHECK_EXPECTED_OR_EXIT(argv[0], global_status);
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
 
   fprintf(stdout, "%d\n", global_count);
   return 0;
@@ -105,7 +102,7 @@ node_embedding_status ConfigureRuntime2(
   return node_embedding_status_ok;
 }
 
-void IncMyCount(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+void IncMyCount(void* cb_data, napi_env env) {
   napi_value undefined, global, func;
   NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
   NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -119,7 +116,7 @@ void IncMyCount(void* cb_data, node_embedding_runtime runtime, napi_env env) {
       napi_call_function(env, undefined, func, 0, NULL, NULL));
 }
 
-void SumMyCount(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+void SumMyCount(void* cb_data, napi_env env) {
   int32_t* global_count = (int32_t*)cb_data;
   napi_value global, my_count;
   NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -181,7 +178,6 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
                                runtimes[i], SumMyCount, &global_count));
     CHECK_EXPECTED_OR_EXIT(argv[0],
                            node_embedding_runtime_event_loop_run(runtimes[i]));
-    // TODO: avoid passing argv[0] every time
     CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(runtimes[i]));
   }
 
@@ -206,7 +202,7 @@ node_embedding_status ConfigureRuntime3(
   return node_embedding_status_ok;
 }
 
-void RunNodeApi3(void* cb_data, node_embedding_runtime runtime, napi_env env) {
+void RunNodeApi3(void* cb_data, napi_env env) {
   thread_data3* data = (thread_data3*)cb_data;
   napi_value undefined, global, func, my_count;
   NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
@@ -299,6 +295,8 @@ typedef struct {
   bool is_finished;
 } ui_queue_t;
 
+// TODO: Change implementation from doubly linked list to using read/write
+// buffer.
 static void ui_queue_init(ui_queue_t* queue) {
   uv_mutex_init(&queue->mutex);
   uv_cond_init(&queue->wakeup);
@@ -327,7 +325,6 @@ static void ui_queue_run(ui_queue_t* queue) {
   for (;;) {
     task_t* task;
     uv_mutex_lock(&queue->mutex);
-    // TODO: implement
     while (queue->queue_out == NULL && !queue->is_finished) {
       uv_cond_wait(&queue->wakeup, &queue->mutex);
     }
@@ -371,42 +368,6 @@ static void ui_queue_destroy(ui_queue_t* queue) {
   uv_mutex_destroy(&queue->mutex);
   uv_cond_destroy(&queue->wakeup);
 }
-#if 0
-         // We capture the ui_queue by reference here because we
-          // guarantee it to be alive till the end of the test. In
-          // real applications, you should use a safer way to
-          // capture the dispatcher queue.
-          [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
-            // TODO: figure out the termination scenario.
-            ui_queue.PostTask([run_task = std::make_shared<NodeRunTaskCallback>(
-                                   std::move(run_task)),
-                               &runtime,
-                               &ui_queue]() {
-              (*run_task)();  // TODO: handle result
-              // Check myCount and stop the processing when it reaches 5.
-              int32_t count{};
-              runtime.RunNodeApi([&](const NodeRuntime& runtime, napi_env env) {
-                napi_value global, my_count;
-                NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                NODE_API_CALL_RETURN_VOID(
-                    napi_get_named_property(env, global, "myCount", &my_count));
-                napi_valuetype count_type;
-                NODE_API_CALL_RETURN_VOID(
-                    napi_typeof(env, my_count, &count_type));
-                NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-                NODE_API_CALL_RETURN_VOID(
-                    napi_get_value_int32(env, my_count, &count));
-              });
-              if (count == 5) {
-                runtime.RunEventLoop();
-                fprintf(stdout, "%d\n", count);
-                ui_queue.Stop();
-              }
-            });
-            return NodeExpected<bool>(true);
-          }));
-
-#endif
 
 typedef struct {
   ui_queue_t ui_queue;
@@ -548,7 +509,7 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   ui_queue_run(&data.ui_queue);
   ui_queue_destroy(&data.ui_queue);
 
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(&data.runtime));
+  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(data.runtime));
   CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
   return 0;
 }
