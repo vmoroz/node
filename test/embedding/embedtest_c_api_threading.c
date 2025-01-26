@@ -28,16 +28,18 @@ static node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   // Inspector can be associated with only one
   // runtime in the process.
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_set_flags(
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_set_flags(
       runtime_config,
       node_embedding_runtime_flags_default |
           node_embedding_runtime_flags_no_create_inspector));
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_loaded(
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_loaded(
       runtime_config, HandleExecutionResult, cb_data, NULL));
-  return node_embedding_status_ok;
+fail:
+  return embedding_status;
 }
 
 static void ThreadCallback(void* arg) {
@@ -56,17 +58,16 @@ static void ThreadCallback(void* arg) {
 // own thread.
 int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
                                                      char* argv[]) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   size_t thread_count = 12;
   uv_thread_t threads[12] = {0};
   test_data1_t test_data = {0};
   uv_mutex_init(&test_data.mutex);
 
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_platform_create(
-          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &test_data.platform));
+  NODE_EMBEDDING_CALL(node_embedding_platform_create(
+      NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &test_data.platform));
   if (test_data.platform == NULL) {
-    return 0;  // early return
+    goto fail;  // early return
   }
 
   for (size_t i = 0; i < thread_count; i++) {
@@ -78,27 +79,29 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
   }
 
   // TODO: Add passing error message
-  CHECK_EXPECTED_OR_EXIT(argv[0], test_data.global_status);
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_platform_delete(test_data.platform));
+  NODE_EMBEDDING_CALL(test_data.global_status);
+  NODE_EMBEDDING_CALL(node_embedding_platform_delete(test_data.platform));
 
   fprintf(stdout, "%d\n", test_data.global_count);
-  uv_mutex_destroy(&test_data.mutex);
 
-  return 0;
+fail:
+  uv_mutex_destroy(&test_data.mutex);
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 node_embedding_status ConfigureRuntime2(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   // Inspector can be associated with only one runtime in the process.
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_set_flags(
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_set_flags(
       runtime_config,
       node_embedding_runtime_flags_default |
           node_embedding_runtime_flags_no_create_inspector));
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  return node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+fail:
+  return embedding_status;
 }
 
 void IncMyCount(void* cb_data, napi_env env) {
@@ -136,54 +139,49 @@ void SumMyCount(void* cb_data, napi_env env) {
 // There are 12 runtimes that share the same main thread.
 int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
                                                               char* argv[]) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   const size_t runtime_count = 12;
   bool more_work = false;
   int32_t global_count = 0;
   node_embedding_runtime runtimes[12] = {0};
 
   node_embedding_platform platform;
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_platform_create(
-          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  NODE_EMBEDDING_CALL(node_embedding_platform_create(
+      NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
     return 0;  // early return
   }
 
   for (size_t i = 0; i < runtime_count; ++i) {
-    CHECK_EXPECTED_OR_EXIT(
-        argv[0],
-        node_embedding_runtime_create(
-            platform, ConfigureRuntime2, NULL, &runtimes[i]));
+    NODE_EMBEDDING_CALL(node_embedding_runtime_create(
+        platform, ConfigureRuntime2, NULL, &runtimes[i]));
 
-    CHECK_EXPECTED_OR_EXIT(
-        argv[0],
+    NODE_EMBEDDING_CALL(
         node_embedding_runtime_node_api_run(runtimes[i], IncMyCount, NULL));
   }
 
   do {
     more_work = false;
-    // for (const NodeRuntime& runtime : runtimes) {
-    //  TODO: implement
-    //  NodeExpected<bool> has_more_work = runtime.RunEventLoopNoWait();
-    //  CHECK_EXPECTED_OR_EXIT(argv[0], has_more_work);
-    //  more_work |= has_more_work.value();
-    //}
+    for (size_t i = 0; i < runtime_count; ++i) {
+      bool has_more_work = false;
+      NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run_no_wait(
+          runtimes[i], &has_more_work));
+      more_work |= has_more_work;
+    }
   } while (more_work);
 
   for (size_t i = 0; i < runtime_count; ++i) {
-    CHECK_EXPECTED_OR_EXIT(argv[0],
-                           node_embedding_runtime_node_api_run(
-                               runtimes[i], SumMyCount, &global_count));
-    CHECK_EXPECTED_OR_EXIT(argv[0],
-                           node_embedding_runtime_event_loop_run(runtimes[i]));
-    CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(runtimes[i]));
+    NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_run(
+        runtimes[i], SumMyCount, &global_count));
+    NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtimes[i]));
+    NODE_EMBEDDING_CALL(node_embedding_runtime_delete(runtimes[i]));
   }
 
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
+  NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
 
   fprintf(stdout, "%d\n", global_count);
-  return 0;
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 typedef struct {
@@ -197,8 +195,7 @@ node_embedding_status ConfigureRuntime3(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  return node_embedding_status_ok;
+  return LoadUtf8Script(runtime_config, main_script);
 }
 
 void RunNodeApi3(void* cb_data, napi_env env) {
@@ -241,6 +238,7 @@ void ThreadCallback3(void* arg) {
 int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
                                                              char* argv[]) {
   // Use mutex to synchronize access to the runtime.
+  node_embedding_status embedding_status = node_embedding_status_ok;
   thread_data3 data = {0};
   uv_mutex_init(&data.mutex);
 
@@ -248,18 +246,15 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
   uv_thread_t threads[5] = {0};
 
   node_embedding_platform platform;
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_platform_create(
-          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  NODE_EMBEDDING_CALL(node_embedding_platform_create(
+      NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
     return 0;  // early return
   }
 
   node_embedding_runtime runtime;
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_runtime_create(
-                             platform, ConfigureRuntime3, NULL, &runtime));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_create(
+      platform, ConfigureRuntime3, NULL, &runtime));
 
   for (size_t i = 0; i < thread_count; ++i) {
     uv_thread_create(&threads[i], ThreadCallback3, &data);
@@ -269,12 +264,13 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
     uv_thread_join(&threads[i]);
   }
 
-  CHECK_EXPECTED_OR_EXIT(argv[0], data.result_status);
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_runtime_event_loop_run(runtime));
+  NODE_EMBEDDING_CALL(data.result_status);
+  NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtime));
 
   fprintf(stdout, "%d\n", data.result_count);
-  return 0;
+fail:
+  uv_mutex_destroy(&data.mutex);
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 struct task_t {
@@ -382,6 +378,7 @@ typedef struct {
 } test_task_t;
 
 void RunTestTask(void* cb_data) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   test_task_t* test_task = (test_task_t*)cb_data;
   test_task->run_task(test_task->task_data);  // TODO: handle result
 
@@ -390,7 +387,7 @@ void RunTestTask(void* cb_data) {
   node_embedding_runtime runtime = test_task->test_data->runtime;
   node_embedding_node_api_scope node_api_scope;
   napi_env env;
-  NODE_EMBEDDED_CALL(node_embedding_runtime_node_api_scope_open(
+  NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_open(
       runtime, &node_api_scope, &env));
   napi_value global, my_count;
   NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
@@ -400,13 +397,15 @@ void RunTestTask(void* cb_data) {
   NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
   NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
   NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
-  NODE_EMBEDDED_CALL(
+  NODE_EMBEDDING_CALL(
       node_embedding_runtime_node_api_scope_close(runtime, node_api_scope));
   if (count == 5) {
-    NODE_EMBEDDED_CALL(node_embedding_runtime_event_loop_run(runtime));
+    NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtime));
     fprintf(stdout, "%d\n", count);
     ui_queue_stop(&test_task->test_data->ui_queue);
   }
+fail:;
+  // TODO: handle error
 }
 
 void ReleaseTestTask(void* cb_data) {
@@ -445,14 +444,16 @@ static node_embedding_status ConfigureRuntime4(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   // The callback will be invoked from the runtime's event loop
   // observer thread. It must schedule the work to the UI thread's
   // event loop.
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_set_task_runner(
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_set_task_runner(
       runtime_config, PostTask, cb_data, NULL));
 
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  return node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+fail:
+  return embedding_status;
 }
 
 static void StartProcessing(void* cb_data) {
@@ -482,22 +483,19 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable
   // for the real apps.
+  node_embedding_status embedding_status = node_embedding_status_ok;
   test_data4_t data = {0};
   ui_queue_init(&data.ui_queue);
 
   node_embedding_platform platform;
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_platform_create(
-          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
+  NODE_EMBEDDING_CALL(node_embedding_platform_create(
+      NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
     return 0;  // early return
   }
 
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_runtime_create(
-          platform, ConfigureRuntime4, &data, &data.runtime));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_create(
+      platform, ConfigureRuntime4, &data, &data.runtime));
 
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
@@ -508,7 +506,8 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   ui_queue_run(&data.ui_queue);
   ui_queue_destroy(&data.ui_queue);
 
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_runtime_delete(data.runtime));
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
-  return 0;
+  NODE_EMBEDDING_CALL(node_embedding_runtime_delete(data.runtime));
+  NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

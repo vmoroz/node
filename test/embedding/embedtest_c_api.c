@@ -23,22 +23,25 @@ node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_loaded(
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_loaded(
       runtime_config, HandleExecutionResult, NULL, NULL));
-  return node_embedding_status_ok;
+fail:
+  return embedding_status;
 }
 
 int32_t test_main_c_api(int32_t argc, char* argv[]) {
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                                 argc,
-                                                 argv,
-                                                 ConfigurePlatform,
-                                                 NULL,
-                                                 ConfigureRuntime,
-                                                 NULL));
-  return 0;
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
+                                              argc,
+                                              argv,
+                                              ConfigurePlatform,
+                                              NULL,
+                                              ConfigureRuntime,
+                                              NULL));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 napi_status CallMe(node_embedding_runtime runtime, napi_env env) {

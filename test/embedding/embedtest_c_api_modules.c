@@ -96,47 +96,52 @@ static node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_preload(
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_preload(
       runtime_config, OnPreload, NULL, NULL));
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_add_module(runtime_config,
-                                                              "greeter_module",
-                                                              InitGreeterModule,
-                                                              cb_data,
-                                                              NULL,
-                                                              NAPI_VERSION));
-  NODE_EMBEDDED_CALL(
+  NODE_EMBEDDING_CALL(
+      node_embedding_runtime_config_add_module(runtime_config,
+                                               "greeter_module",
+                                               InitGreeterModule,
+                                               cb_data,
+                                               NULL,
+                                               NAPI_VERSION));
+  NODE_EMBEDDING_CALL(
       node_embedding_runtime_config_add_module(runtime_config,
                                                "replicator_module",
                                                InitReplicatorModule,
                                                cb_data,
                                                NULL,
                                                NAPI_VERSION));
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  return node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+fail:
+  return embedding_status;
 }
 
 int32_t test_main_c_api_linked_modules(int32_t argc, char* argv[]) {
-  ASSERT_OR_EXIT(argc == 4);
+  node_embedding_status embedding_status = node_embedding_status_ok;
   int32_t expected_greeter_module_init_call_count = atoi(argv[2]);
   int32_t expected_replicator_module_init_call_count = atoi(argv[2]);
 
   test_data_t test_data = {0};
   uv_mutex_init(&test_data.mutex);
 
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                                 argc,
-                                                 argv,
-                                                 NULL,
-                                                 NULL,
-                                                 ConfigureRuntime,
-                                                 &test_data));
-  ASSERT_OR_EXIT(test_data.greeter_module_init_call_count ==
-                 expected_greeter_module_init_call_count);
-  ASSERT_OR_EXIT(test_data.replicator_module_init_call_count ==
-                 expected_replicator_module_init_call_count);
+  NODE_EMBEDDING_ASSERT(argc == 4);
 
+  NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
+                                              argc,
+                                              argv,
+                                              NULL,
+                                              NULL,
+                                              ConfigureRuntime,
+                                              &test_data));
+
+  NODE_EMBEDDING_ASSERT(test_data.greeter_module_init_call_count ==
+                        expected_greeter_module_init_call_count);
+  NODE_EMBEDDING_ASSERT(test_data.replicator_module_init_call_count ==
+                        expected_replicator_module_init_call_count);
+
+fail:
   uv_mutex_destroy(&test_data.mutex);
-
-  return 0;
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

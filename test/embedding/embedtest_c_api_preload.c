@@ -16,22 +16,20 @@ static node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_on_preload(
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_preload(
       runtime_config, OnPreload, NULL, NULL));
-  NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
-  return node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+fail:
+  return embedding_status;
 }
 
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
 int32_t test_main_c_api_preload(int32_t argc, char* argv[]) {
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                                 argc,
-                                                 argv,
-                                                 NULL,
-                                                 NULL,
-                                                 ConfigureRuntime,
-                                                 NULL));
-  return 0;
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_main_run(
+      NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, ConfigureRuntime, NULL));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

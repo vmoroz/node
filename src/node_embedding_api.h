@@ -276,6 +276,11 @@ NAPI_EXTERN const char* NAPI_CDECL node_embedding_last_error_message_get();
 NAPI_EXTERN void NAPI_CDECL
 node_embedding_last_error_message_set(const char* message);
 
+// Sets the last error message for the current thread using C printf string
+// formatting.
+NAPI_EXTERN void NAPI_CDECL
+node_embedding_last_error_message_set_format(const char* format, ...);
+
 //------------------------------------------------------------------------------
 // Node.js global platform functions.
 //------------------------------------------------------------------------------

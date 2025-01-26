@@ -1533,6 +1533,31 @@ void NAPI_CDECL node_embedding_last_error_message_set(const char* message) {
   }
 }
 
+void NAPI_CDECL node_embedding_last_error_message_set_format(const char* format,
+  ...) {
+  constexpr size_t buffer_size = 1024;
+  char buffer[buffer_size];
+  std::unique_ptr<char[]> dynamic_buffer;
+
+  va_list args1;
+  va_start(args1, format);
+  va_list args2;  // Required for some compilers like GCC since we go over the
+                  // args twice.
+  va_copy(args2, args1);
+
+  size_t string_size = std::vsnprintf(nullptr, 0, format, args1);
+  va_end(args1);
+  char* message = buffer;
+  if (string_size >= buffer_size) {
+    dynamic_buffer = std::make_unique<char[]>(string_size + 1);
+    message = dynamic_buffer.get();
+  }
+  std::vsnprintf(&message[0], string_size + 1, format, args2);
+  va_end(args2);
+
+  node::embedding::EmbeddedErrorHandling::SetLastErrorMessage(message);
+}
+
 node_embedding_status NAPI_CDECL node_embedding_main_run(
     int32_t embedding_api_version,
     int32_t argc,

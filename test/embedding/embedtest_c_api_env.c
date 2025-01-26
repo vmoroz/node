@@ -4,9 +4,10 @@ static node_embedding_status ConfigureRuntimeNoBrowserGlobals(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(node_embedding_runtime_config_set_flags(
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_runtime_config_set_flags(
       runtime_config, node_embedding_runtime_flags_no_browser_globals));
-  NODE_EMBEDDED_CALL(LoadUtf8Script(
+  NODE_EMBEDDING_CALL(LoadUtf8Script(
       runtime_config,
       "const assert = require('assert');\n"
       "const path = require('path');\n"
@@ -30,29 +31,30 @@ static node_embedding_status ConfigureRuntimeNoBrowserGlobals(
       "  leaks.push(item);\n"
       "}\n"
       "assert.deepStrictEqual(leaks, []);\n"));
-
-  return node_embedding_status_ok;
+fail:
+  return embedding_status;
 }
 
 // Test the no_browser_globals option.
 int32_t test_main_c_api_env_no_browser_globals(int32_t argc, char* argv[]) {
-  CHECK_EXPECTED_OR_EXIT(
-      argv[0],
-      node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                              argc,
-                              argv,
-                              NULL,
-                              NULL,
-                              ConfigureRuntimeNoBrowserGlobals,
-                              NULL));
-  return 0;
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
+                                              argc,
+                                              argv,
+                                              NULL,
+                                              NULL,
+                                              ConfigureRuntimeNoBrowserGlobals,
+                                              NULL));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 static node_embedding_status ConfigureRuntimeWithEsmLoader(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(LoadUtf8Script(
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(LoadUtf8Script(
       runtime_config,
       "globalThis.require = "
       "require('module').createRequire(process.execPath);\n"
@@ -72,12 +74,13 @@ static node_embedding_status ConfigureRuntimeWithEsmLoader(
       "  delete globalThis.importResult;\n"
       "  process.exit(0);\n"
       "})();\n"));
-
-  return node_embedding_status_ok;
+fail:
+  return embedding_status;
 }
 
 // Test ESM loaded
 int32_t test_main_c_api_env_with_esm_loader(int32_t argc, char* argv[]) {
+  node_embedding_status embedding_status = node_embedding_status_ok;
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
   char* argv2[64];
@@ -85,22 +88,22 @@ int32_t test_main_c_api_env_with_esm_loader(int32_t argc, char* argv[]) {
     argv2[i] = argv[i];
   }
   argv2[argc] = "--experimental-vm-modules";
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                                 argc,
-                                                 argv2,
-                                                 NULL,
-                                                 NULL,
-                                                 ConfigureRuntimeWithEsmLoader,
-                                                 NULL));
-  return 0;
+  NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
+                                              argc,
+                                              argv2,
+                                              NULL,
+                                              NULL,
+                                              ConfigureRuntimeWithEsmLoader,
+                                              NULL));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 static node_embedding_status ConfigureRuntimeWithNoEsmLoader(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
-  NODE_EMBEDDED_CALL(LoadUtf8Script(
+  return LoadUtf8Script(
       runtime_config,
       "globalThis.require = "
       "require('module').createRequire(process.execPath);\n"
@@ -118,20 +121,19 @@ static node_embedding_status ConfigureRuntimeWithNoEsmLoader(
       "  await m.link(() => 0);\n"
       "  await m.evaluate();\n"
       "  delete globalThis.importResult;\n"
-      "})();\n"));
-
-  return node_embedding_status_ok;
+      "})();\n");
 }
 
 // Test ESM loaded
 int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc, char* argv[]) {
-  CHECK_EXPECTED_OR_EXIT(argv[0],
-                         node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                                 argc,
-                                                 argv,
-                                                 NULL,
-                                                 NULL,
-                                                 ConfigureRuntimeWithEsmLoader,
-                                                 NULL));
-  return 0;
+  node_embedding_status embedding_status = node_embedding_status_ok;
+  NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
+                                              argc,
+                                              argv,
+                                              NULL,
+                                              NULL,
+                                              ConfigureRuntimeWithEsmLoader,
+                                              NULL));
+fail:
+  return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

@@ -100,29 +100,21 @@ void dynamic_string_append(dynamic_string_t* str, const char* value);
     }                                                                          \
   } while (0)
 
-#define NODE_EMBEDDED_CALL(expr)                                               \
+#define NODE_EMBEDDING_CALL(expr)                                              \
   do {                                                                         \
-    node_embedding_status status = (expr);                                     \
-    if (status != node_embedding_status_ok) {                                  \
-      return status;                                                           \
+    embedding_status = (expr);                                                 \
+    if (embedding_status != node_embedding_status_ok) {                        \
+      goto fail;                                                               \
     }                                                                          \
   } while (0)
 
-#define CHECK_EXPECTED_OR_EXIT(exe_name, expr)                                 \
-  do {                                                                         \
-    node_embedding_status status_ = (expr);                                    \
-    if (status_ != node_embedding_status_ok) {                                 \
-      exit(StatusToExitCode(PrintErrorMessage(exe_name, status_)));            \
-    }                                                                          \
-  } while (0)
-
-#define ASSERT_OR_EXIT(expr)                                                   \
+#define NODE_EMBEDDING_ASSERT(expr)                                            \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      fprintf(stderr, "Failed: %s\n", #expr);                                  \
-      fprintf(stderr, "File: %s\n", __FILE__);                                 \
-      fprintf(stderr, "Line: %d\n", __LINE__);                                 \
-      exit(1);                                                                 \
+      embedding_status = node_embedding_status_generic_error;                  \
+      node_embedding_last_error_message_set_format(                            \
+          "Failed: %s\nFile: %s\nLine: %d\n", #expr, __FILE__, __LINE__);      \
+      goto fail;                                                               \
     }                                                                          \
   } while (0)
 
