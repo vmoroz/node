@@ -12,16 +12,18 @@ static void HandleExecutionResult(void* cb_data,
                                   node_embedding_runtime runtime,
                                   napi_env env,
                                   napi_value execution_result) {
+  napi_status status = napi_ok;
   test_data1_t* data = (test_data1_t*)cb_data;
   napi_value global, my_count;
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "myCount", &my_count));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "myCount", &my_count));
   int32_t count;
-  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
   uv_mutex_lock(&data->mutex);
   ++data->global_count;
   uv_mutex_unlock(&data->mutex);
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 static node_embedding_status ConfigureRuntime(
@@ -38,7 +40,7 @@ static node_embedding_status ConfigureRuntime(
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
   NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_loaded(
       runtime_config, HandleExecutionResult, cb_data, NULL));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -67,7 +69,7 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &test_data.platform));
   if (test_data.platform == NULL) {
-    goto fail;  // early return
+    goto on_exit;  // early return
   }
 
   for (size_t i = 0; i < thread_count; i++) {
@@ -84,7 +86,7 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
 
   fprintf(stdout, "%d\n", test_data.global_count);
 
-fail:
+on_exit:
   uv_mutex_destroy(&test_data.mutex);
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
@@ -100,38 +102,41 @@ node_embedding_status ConfigureRuntime2(
       node_embedding_runtime_flags_default |
           node_embedding_runtime_flags_no_create_inspector));
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
-fail:
+on_exit:
   return embedding_status;
 }
 
 void IncMyCount(void* cb_data, napi_env env) {
+  napi_status status = napi_ok;
   napi_value undefined, global, func;
-  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "incMyCount", &func));
+  NODE_API_CALL(napi_get_undefined(env, &undefined));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "incMyCount", &func));
 
   napi_valuetype func_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-  NODE_API_CALL_RETURN_VOID(
-      napi_call_function(env, undefined, func, 0, NULL, NULL));
+  NODE_API_CALL(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT(func_type == napi_function);
+  NODE_API_CALL(napi_call_function(env, undefined, func, 0, NULL, NULL));
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 void SumMyCount(void* cb_data, napi_env env) {
+  napi_status status = napi_ok;
   int32_t* global_count = (int32_t*)cb_data;
   napi_value global, my_count;
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "myCount", &my_count));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "myCount", &my_count));
 
   napi_valuetype my_count_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &my_count_type));
-  NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
+  NODE_API_CALL(napi_typeof(env, my_count, &my_count_type));
+  NODE_API_ASSERT(my_count_type == napi_number);
   int32_t count;
-  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
 
   *global_count += count;
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 // Tests that multiple runtimes can run in the same thread.
@@ -180,7 +185,7 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
 
   fprintf(stdout, "%d\n", global_count);
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
@@ -199,27 +204,27 @@ node_embedding_status ConfigureRuntime3(
 }
 
 void RunNodeApi3(void* cb_data, napi_env env) {
+  napi_status status = napi_ok;
   thread_data3* data = (thread_data3*)cb_data;
   napi_value undefined, global, func, my_count;
-  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "incMyCount", &func));
+  NODE_API_CALL(napi_get_undefined(env, &undefined));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "incMyCount", &func));
 
   napi_valuetype func_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-  NODE_API_CALL_RETURN_VOID(
-      napi_call_function(env, undefined, func, 0, NULL, NULL));
+  NODE_API_CALL(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT(func_type == napi_function);
+  NODE_API_CALL(napi_call_function(env, undefined, func, 0, NULL, NULL));
 
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "myCount", &my_count));
+  NODE_API_CALL(napi_get_named_property(env, global, "myCount", &my_count));
   napi_valuetype count_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
-  NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+  NODE_API_CALL(napi_typeof(env, my_count, &count_type));
+  NODE_API_ASSERT(count_type == napi_number);
   int32_t count;
-  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
   data->result_count = count;
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 void ThreadCallback3(void* arg) {
@@ -268,7 +273,7 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtime));
 
   fprintf(stdout, "%d\n", data.result_count);
-fail:
+on_exit:
   uv_mutex_destroy(&data.mutex);
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
@@ -379,6 +384,7 @@ typedef struct {
 
 void RunTestTask(void* cb_data) {
   node_embedding_status embedding_status = node_embedding_status_ok;
+  napi_status status = napi_ok;
   test_task_t* test_task = (test_task_t*)cb_data;
   test_task->run_task(test_task->task_data);  // TODO: handle result
 
@@ -390,13 +396,12 @@ void RunTestTask(void* cb_data) {
   NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_open(
       runtime, &node_api_scope, &env));
   napi_value global, my_count;
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "myCount", &my_count));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "myCount", &my_count));
   napi_valuetype count_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
-  NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-  NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+  NODE_API_CALL(napi_typeof(env, my_count, &count_type));
+  NODE_API_ASSERT(count_type == napi_number);
+  NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
   NODE_EMBEDDING_CALL(
       node_embedding_runtime_node_api_scope_close(runtime, node_api_scope));
   if (count == 5) {
@@ -404,8 +409,14 @@ void RunTestTask(void* cb_data) {
     fprintf(stdout, "%d\n", count);
     ui_queue_stop(&test_task->test_data->ui_queue);
   }
-fail:;
-  // TODO: handle error
+on_exit:
+  if (embedding_status != node_embedding_status_ok) {
+    ThrowLastErrorMessage(env,
+                          "RunTestTask failed: %s\n",
+                          node_embedding_last_error_message_get());
+    status = napi_generic_failure;
+  }
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 void ReleaseTestTask(void* cb_data) {
@@ -452,28 +463,37 @@ static node_embedding_status ConfigureRuntime4(
       runtime_config, PostTask, cb_data, NULL));
 
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
-fail:
+on_exit:
   return embedding_status;
 }
 
 static void StartProcessing(void* cb_data) {
+  napi_status status = napi_ok;
+  node_embedding_status embedding_status = node_embedding_status_ok;
   test_data4_t* data = (test_data4_t*)cb_data;
   node_embedding_node_api_scope node_api_scope;
   napi_env env;
-  node_embedding_runtime_node_api_scope_open(
-      data->runtime, &node_api_scope, &env);
+  NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_open(
+      data->runtime, &node_api_scope, &env));
   napi_value undefined, global, func;
-  NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(
-      napi_get_named_property(env, global, "incMyCount", &func));
+  NODE_API_CALL(napi_get_undefined(env, &undefined));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_get_named_property(env, global, "incMyCount", &func));
 
   napi_valuetype func_type;
-  NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-  NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-  NODE_API_CALL_RETURN_VOID(
-      napi_call_function(env, undefined, func, 0, NULL, NULL));
-  node_embedding_runtime_node_api_scope_close(data->runtime, node_api_scope);
+  NODE_API_CALL(napi_typeof(env, func, &func_type));
+  NODE_API_ASSERT(func_type == napi_function);
+  NODE_API_CALL(napi_call_function(env, undefined, func, 0, NULL, NULL));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_close(
+      data->runtime, node_api_scope));
+on_exit:
+  if (embedding_status != node_embedding_status_ok) {
+    ThrowLastErrorMessage(env,
+                          "RunTestTask failed: %s\n",
+                          node_embedding_last_error_message_get());
+    status = napi_generic_failure;
+  }
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 // Tests that a the runtime's event loop can be called from the UI thread
@@ -508,6 +528,6 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
 
   NODE_EMBEDDING_CALL(node_embedding_runtime_delete(data.runtime));
   NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

@@ -18,7 +18,7 @@ node_embedding_status PrintErrorMessage(const char* exe_name,
 node_embedding_status LoadUtf8Script(
     node_embedding_runtime_config runtime_config, const char* script);
 
-void GetAndThrowLastErrorMessage(napi_env env);
+napi_status GetAndThrowLastErrorMessage(napi_env env, napi_status status);
 
 void ThrowLastErrorMessage(napi_env env, const char* format, ...);
 
@@ -36,75 +36,40 @@ void dynamic_string_set(dynamic_string_t* str, const char* value);
 void dynamic_string_append(dynamic_string_t* str, const char* value);
 
 //==============================================================================
-// Error handling macros copied from test/js_native_api/common.h
+// Error handing macros
 //==============================================================================
-
-// Empty value so that macros here are able to return NULL or void
-#define NODE_API_RETVAL_NOTHING
-
-#define NODE_API_FAIL_BASE(ret_val, ...)                                       \
-  do {                                                                         \
-    ThrowLastErrorMessage(env, __VA_ARGS__);                                   \
-    return ret_val;                                                            \
-  } while (0)
-
-// Returns NULL on failed assertion.
-// This is meant to be used inside napi_callback methods.
-#define NODE_API_FAIL(...) NODE_API_FAIL_BASE(napi_generic_failure, __VA_ARGS__)
-
-// Returns empty on failed assertion.
-// This is meant to be used inside functions with void return type.
-#define NODE_API_FAIL_RETURN_VOID(...)                                         \
-  NODE_API_FAIL_BASE(NODE_API_RETVAL_NOTHING, __VA_ARGS__)
-
-#define NODE_API_ASSERT_BASE(expr, ret_val)                                    \
-  do {                                                                         \
-    if (!(expr)) {                                                             \
-      napi_throw_error(env, NULL, "Failed: (" #expr ")");                      \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
-// Returns NULL on failed assertion.
-// This is meant to be used inside napi_callback methods.
-#define NODE_API_ASSERT(expr) NODE_API_ASSERT_BASE(expr, NULL)
-
-// Returns empty on failed assertion.
-// This is meant to be used inside functions with void return type.
-#define NODE_API_ASSERT_RETURN_VOID(expr)                                      \
-  NODE_API_ASSERT_BASE(expr, NODE_API_RETVAL_NOTHING)
-
-#define NODE_API_CALL_BASE(expr, ret_val)                                      \
-  do {                                                                         \
-    if ((expr) != napi_ok) {                                                   \
-      GetAndThrowLastErrorMessage(env);                                        \
-      return ret_val;                                                          \
-    }                                                                          \
-  } while (0)
-
-// Returns NULL if the_call doesn't return napi_ok.
-#define NODE_API_CALL_RETURN(expr) NODE_API_CALL_BASE(expr, NULL)
-
-// Returns empty if the_call doesn't return napi_ok.
-#define NODE_API_CALL_RETURN_VOID(expr)                                        \
-  NODE_API_CALL_BASE(expr, NODE_API_RETVAL_NOTHING)
-
-#define NODE_API_CALL_EXPECTED(expr)                                           \
-  NODE_API_CALL_BASE(expr, NodeExpected<napi_value>(nullptr))
 
 #define NODE_API_CALL(expr)                                                    \
   do {                                                                         \
-    napi_status status = (expr);                                               \
+    status = (expr);                                                           \
     if (status != napi_ok) {                                                   \
-      return status;                                                           \
+      goto on_exit;                                                            \
     }                                                                          \
+  } while (0)
+
+// TODO: The GetAndThrowLastErrorMessage is not going to work in this mode.
+// TODO: Use the napi_is_exception_pending to check if there is an exception
+#define NODE_API_ASSERT(expr)                                                  \
+  do {                                                                         \
+    if (!(expr)) {                                                             \
+      status = napi_generic_failure;                                           \
+      napi_throw_error(env, NULL, "Failed: (" #expr ")");                      \
+      goto on_exit;                                                            \
+    }                                                                          \
+  } while (0)
+
+#define NODE_API_FAIL(format, ...)                                             \
+  do {                                                                         \
+    status = napi_generic_failure;                                             \
+    ThrowLastErrorMessage(env, format, __VA_ARGS__);                           \
+    goto on_exit;                                                              \
   } while (0)
 
 #define NODE_EMBEDDING_CALL(expr)                                              \
   do {                                                                         \
     embedding_status = (expr);                                                 \
     if (embedding_status != node_embedding_status_ok) {                        \
-      goto fail;                                                               \
+      goto on_exit;                                                            \
     }                                                                          \
   } while (0)
 
@@ -114,7 +79,7 @@ void dynamic_string_append(dynamic_string_t* str, const char* value);
       embedding_status = node_embedding_status_generic_error;                  \
       node_embedding_last_error_message_set_format(                            \
           "Failed: %s\nFile: %s\nLine: %d\n", #expr, __FILE__, __LINE__);      \
-      goto fail;                                                               \
+      goto on_exit;                                                            \
     }                                                                          \
   } while (0)
 

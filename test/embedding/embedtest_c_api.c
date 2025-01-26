@@ -14,9 +14,12 @@ void HandleExecutionResult(void* cb_data,
                            node_embedding_runtime runtime,
                            napi_env env,
                            napi_value execution_result) {
-  NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
-  NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-  NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
+  napi_status status = napi_ok;
+  NODE_API_CALL(CallMe(runtime, env));
+  NODE_API_CALL(WaitMe(runtime, env));
+  NODE_API_CALL(WaitMeWithCheese(runtime, env));
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 node_embedding_status ConfigureRuntime(
@@ -27,7 +30,7 @@ node_embedding_status ConfigureRuntime(
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
   NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_loaded(
       runtime_config, HandleExecutionResult, NULL, NULL));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -40,11 +43,12 @@ int32_t test_main_c_api(int32_t argc, char* argv[]) {
                                               NULL,
                                               ConfigureRuntime,
                                               NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
 napi_status CallMe(node_embedding_runtime runtime, napi_env env) {
+  napi_status status = napi_ok;
   napi_value global, cb, key;
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -74,21 +78,28 @@ napi_status CallMe(node_embedding_runtime runtime, napi_env env) {
   } else if (cb_type != napi_undefined) {
     NODE_API_FAIL("Invalid callMe value\n");
   }
-  return napi_ok;
+on_exit:
+  return status;
 }
 
+// TODO: remove static variables
 char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {
+  napi_status status = napi_ok;
   size_t argc = 1;
   napi_value arg;
-  NODE_API_CALL_RETURN(napi_get_cb_info(env, info, &argc, &arg, NULL, NULL));
-  NODE_API_CALL_RETURN(napi_get_value_string_utf8(
+  NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, NULL, NULL));
+  NODE_API_CALL(napi_get_value_string_utf8(
       env, arg, callback_buf, 32, &callback_buf_len));
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
   return NULL;
 }
 
 napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
+  napi_status status = napi_ok;
+  node_embedding_status embedding_status = node_embedding_status_ok;
   napi_value global, cb, key;
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -115,19 +126,10 @@ napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
       NODE_API_FAIL("Anachronism detected: %s\n", callback_buf);
     }
 
-    for (;;) {
-      bool has_more_events;
-      node_embedding_status loop_result =
-          node_embedding_runtime_event_loop_run_once(runtime, &has_more_events);
-      if (loop_result != node_embedding_status_ok) {
-        // TODO:
-        // node_embedding_get_last_error_message
-        // NODE_API_FAIL("Failed to run event loop: %s\n",
-        //               NodeErrorInfo::GetLastErrorMessageString().c_str());
-      }
-      if (!has_more_events) {
-        break;
-      }
+    bool has_more_events = true;
+    while (has_more_events) {
+      NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run_once(
+          runtime, &has_more_events));
     }
 
     if (strcmp(callback_buf, "waited you") != 0) {
@@ -137,7 +139,13 @@ napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
   } else if (cb_type != napi_undefined) {
     NODE_API_FAIL("Invalid waitMe value\n");
   }
-  return napi_ok;
+
+on_exit:
+  if (embedding_status != node_embedding_status_ok) {
+    NODE_API_FAIL("WaitMe failed: %s\n",
+                  node_embedding_last_error_message_get());
+  }
+  return status;
 }
 
 typedef enum {
@@ -167,6 +175,8 @@ napi_value OnRejected(napi_env env, napi_callback_info info) {
 }
 
 napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
+  napi_status status = napi_ok;
+  node_embedding_status embedding_status = node_embedding_status_ok;
   PromiseState promise_state = kPromiseStatePending;
   napi_value global, wait_promise, undefined;
   napi_value on_fulfilled, on_rejected;
@@ -225,19 +235,10 @@ napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
   then_args[1] = on_rejected;
   NODE_API_CALL(napi_call_function(env, promise, then, 2, then_args, NULL));
 
-  while (promise_state == kPromiseStatePending) {
-    bool has_more_events;
-    node_embedding_status loop_result =
-        node_embedding_runtime_event_loop_run_once(runtime, &has_more_events);
-    if (loop_result != node_embedding_status_ok) {
-      // TODO:
-      // node_embedding_get_last_error_message
-      // NODE_API_FAIL("Failed to run event loop: %s\n",
-      //               NodeErrorInfo::GetLastErrorMessageString().c_str());
-    }
-    if (!has_more_events) {
-      break;
-    }
+  bool has_more_events = true;
+  while (has_more_events && promise_state == kPromiseStatePending) {
+    NODE_EMBEDDING_CALL(
+        node_embedding_runtime_event_loop_run_once(runtime, &has_more_events));
   }
 
   expected = (promise_state == kPromiseStateFulfilled)
@@ -248,5 +249,12 @@ napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
     NODE_API_FAIL("Invalid value received: %s\n", callback_buf);
   }
   printf("%s", callback_buf);
-  return napi_ok;
+
+on_exit:
+  if (embedding_status != node_embedding_status_ok) {
+    ThrowLastErrorMessage(env,
+                          "WaitMeWithCheese failed: %s",
+                          node_embedding_last_error_message_get());
+  }
+  return status;
 }

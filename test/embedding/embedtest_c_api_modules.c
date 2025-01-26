@@ -8,19 +8,22 @@ typedef struct {
 } test_data_t;
 
 static napi_value GreeterFunction(napi_env env, napi_callback_info info) {
+  napi_status status = napi_ok;
   char greeting_buf[256] = {0};
   strcpy(greeting_buf, "Hello, ");
   size_t offset = strlen(greeting_buf);
+  napi_value result = NULL;
 
   napi_value arg;
   size_t arg_count = 1;
-  NODE_API_CALL_RETURN(
-      napi_get_cb_info(env, info, &arg_count, &arg, NULL, NULL));
-  NODE_API_CALL_RETURN(napi_get_value_string_utf8(
+  NODE_API_CALL(napi_get_cb_info(env, info, &arg_count, &arg, NULL, NULL));
+  NODE_API_CALL(napi_get_value_string_utf8(
       env, arg, greeting_buf + offset, 256 - offset, NULL));
-  napi_value result;
-  NODE_API_CALL_RETURN(
+  NODE_API_CALL(
       napi_create_string_utf8(env, greeting_buf, NAPI_AUTO_LENGTH, &result));
+
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
   return result;
 }
 
@@ -29,34 +32,40 @@ static napi_value InitGreeterModule(void* cb_data,
                                     napi_env env,
                                     const char* module_name,
                                     napi_value exports) {
+  napi_status status = napi_ok;
   test_data_t* test_data = (test_data_t*)cb_data;
   uv_mutex_lock(&test_data->mutex);
   ++test_data->greeter_module_init_call_count;
   uv_mutex_unlock(&test_data->mutex);
 
   napi_value greet_func;
-  NODE_API_CALL_RETURN(napi_create_function(
+  NODE_API_CALL(napi_create_function(
       env, "greet", NAPI_AUTO_LENGTH, GreeterFunction, NULL, &greet_func));
-  NODE_API_CALL_RETURN(
-      napi_set_named_property(env, exports, "greet", greet_func));
+  NODE_API_CALL(napi_set_named_property(env, exports, "greet", greet_func));
+
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
   return exports;
 }
 
 static napi_value ReplicatorFunction(napi_env env, napi_callback_info info) {
+  napi_status status = napi_ok;
   char greeting_buf[256] = {0};
 
   napi_value arg;
   size_t arg_count = 1;
-  NODE_API_CALL_RETURN(
-      napi_get_cb_info(env, info, &arg_count, &arg, NULL, NULL));
+  NODE_API_CALL(napi_get_cb_info(env, info, &arg_count, &arg, NULL, NULL));
   size_t str_size = 0;
-  NODE_API_CALL_RETURN(
+  NODE_API_CALL(
       napi_get_value_string_utf8(env, arg, greeting_buf, 256, &str_size));
   strcpy(greeting_buf + str_size, " ");
   strcpy(greeting_buf + str_size + 1, greeting_buf);
   napi_value result;
-  NODE_API_CALL_RETURN(
+  NODE_API_CALL(
       napi_create_string_utf8(env, greeting_buf, NAPI_AUTO_LENGTH, &result));
+
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
   return result;
 }
 
@@ -65,20 +74,23 @@ static napi_value InitReplicatorModule(void* cb_data,
                                        napi_env env,
                                        const char* module_name,
                                        napi_value exports) {
+  napi_status status = napi_ok;
   test_data_t* test_data = (test_data_t*)cb_data;
   uv_mutex_lock(&test_data->mutex);
   ++test_data->replicator_module_init_call_count;
   uv_mutex_unlock(&test_data->mutex);
 
   napi_value greet_func;
-  NODE_API_CALL_RETURN(napi_create_function(env,
-                                            "replicate",
-                                            NAPI_AUTO_LENGTH,
-                                            ReplicatorFunction,
-                                            NULL,
-                                            &greet_func));
-  NODE_API_CALL_RETURN(
-      napi_set_named_property(env, exports, "replicate", greet_func));
+  NODE_API_CALL(napi_create_function(env,
+                                     "replicate",
+                                     NAPI_AUTO_LENGTH,
+                                     ReplicatorFunction,
+                                     NULL,
+                                     &greet_func));
+  NODE_API_CALL(napi_set_named_property(env, exports, "replicate", greet_func));
+
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
   return exports;
 }
 
@@ -87,9 +99,12 @@ void OnPreload(void* cb_data,
                napi_env env,
                napi_value process,
                napi_value require) {
+  napi_status status = napi_ok;
   napi_value global;
-  napi_get_global(env, &global);
-  napi_set_named_property(env, global, "process", process);
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_set_named_property(env, global, "process", process));
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 static node_embedding_status ConfigureRuntime(
@@ -114,7 +129,7 @@ static node_embedding_status ConfigureRuntime(
                                                NULL,
                                                NAPI_VERSION));
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -141,7 +156,7 @@ int32_t test_main_c_api_linked_modules(int32_t argc, char* argv[]) {
   NODE_EMBEDDING_ASSERT(test_data.replicator_module_init_call_count ==
                         expected_replicator_module_init_call_count);
 
-fail:
+on_exit:
   uv_mutex_destroy(&test_data.mutex);
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

@@ -31,7 +31,7 @@ static node_embedding_status ConfigureRuntimeNoBrowserGlobals(
       "  leaks.push(item);\n"
       "}\n"
       "assert.deepStrictEqual(leaks, []);\n"));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -45,7 +45,7 @@ int32_t test_main_c_api_env_no_browser_globals(int32_t argc, char* argv[]) {
                                               NULL,
                                               ConfigureRuntimeNoBrowserGlobals,
                                               NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
@@ -74,7 +74,7 @@ static node_embedding_status ConfigureRuntimeWithEsmLoader(
       "  delete globalThis.importResult;\n"
       "  process.exit(0);\n"
       "})();\n"));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -95,7 +95,7 @@ int32_t test_main_c_api_env_with_esm_loader(int32_t argc, char* argv[]) {
                                               NULL,
                                               ConfigureRuntimeWithEsmLoader,
                                               NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
@@ -134,6 +134,6 @@ int32_t test_main_c_api_env_with_no_esm_loader(int32_t argc, char* argv[]) {
                                               NULL,
                                               ConfigureRuntimeWithEsmLoader,
                                               NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

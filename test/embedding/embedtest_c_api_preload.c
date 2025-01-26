@@ -5,11 +5,13 @@ static void OnPreload(void* cb_data,
                       napi_env env,
                       napi_value process,
                       napi_value require) {
+  napi_status status = napi_ok;
   napi_value global, value;
-  NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-  NODE_API_CALL_RETURN_VOID(napi_create_int32(env, 42, &value));
-  NODE_API_CALL_RETURN_VOID(
-      napi_set_named_property(env, global, "preloadValue", value));
+  NODE_API_CALL(napi_get_global(env, &global));
+  NODE_API_CALL(napi_create_int32(env, 42, &value));
+  NODE_API_CALL(napi_set_named_property(env, global, "preloadValue", value));
+on_exit:
+  GetAndThrowLastErrorMessage(env, status);
 }
 
 static node_embedding_status ConfigureRuntime(
@@ -20,7 +22,7 @@ static node_embedding_status ConfigureRuntime(
   NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_preload(
       runtime_config, OnPreload, NULL, NULL));
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
-fail:
+on_exit:
   return embedding_status;
 }
 
@@ -30,6 +32,6 @@ int32_t test_main_c_api_preload(int32_t argc, char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   NODE_EMBEDDING_CALL(node_embedding_main_run(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, ConfigureRuntime, NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }

@@ -7,6 +7,6 @@ int32_t test_main_c_api_nodejs_main(int32_t argc, char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   NODE_EMBEDDING_CALL(node_embedding_main_run(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, NULL, NULL));
-fail:
+on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
