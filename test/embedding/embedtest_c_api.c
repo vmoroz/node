@@ -15,6 +15,8 @@ void HandleExecutionResult(void* cb_data,
                            napi_env env,
                            napi_value execution_result) {
   NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
+  NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
+  NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
 }
 
 node_embedding_status ConfigureRuntime(

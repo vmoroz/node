@@ -6,13 +6,13 @@ typedef struct {
   uv_mutex_t mutex;
   int32_t global_count;
   node_embedding_status global_status;
-} thread_data;
+} test_data1_t;
 
 static void HandleExecutionResult(void* cb_data,
                                   node_embedding_runtime runtime,
                                   napi_env env,
                                   napi_value execution_result) {
-  thread_data* data = (thread_data*)cb_data;
+  test_data1_t* data = (test_data1_t*)cb_data;
   napi_value global, my_count;
   NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
   NODE_API_CALL_RETURN_VOID(
@@ -41,7 +41,7 @@ static node_embedding_status ConfigureRuntime(
 }
 
 static void ThreadCallback(void* arg) {
-  thread_data* data = (thread_data*)arg;
+  test_data1_t* data = (test_data1_t*)arg;
   node_embedding_status status =
       node_embedding_runtime_run(data->platform, ConfigureRuntime, arg);
   if (status != node_embedding_status_ok) {
@@ -58,23 +58,19 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
                                                      char* argv[]) {
   size_t thread_count = 12;
   uv_thread_t threads[12] = {0};
-  thread_data data = {0};
-  uv_mutex_init(&data.mutex);
+  test_data1_t test_data = {0};
+  uv_mutex_init(&test_data.mutex);
 
-  int32_t global_count = 0;
-  node_embedding_status global_status = node_embedding_status_ok;
-
-  node_embedding_platform platform;
   CHECK_EXPECTED_OR_EXIT(
       argv[0],
       node_embedding_platform_create(
-          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
-  if (platform == NULL) {
+          NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &test_data.platform));
+  if (test_data.platform == NULL) {
     return 0;  // early return
   }
 
   for (size_t i = 0; i < thread_count; i++) {
-    uv_thread_create(&threads[i], ThreadCallback, &data);
+    uv_thread_create(&threads[i], ThreadCallback, &test_data);
   }
 
   for (size_t i = 0; i < thread_count; i++) {
@@ -82,10 +78,13 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
   }
 
   // TODO: Add passing error message
-  CHECK_EXPECTED_OR_EXIT(argv[0], global_status);
-  CHECK_EXPECTED_OR_EXIT(argv[0], node_embedding_platform_delete(platform));
+  CHECK_EXPECTED_OR_EXIT(argv[0], test_data.global_status);
+  CHECK_EXPECTED_OR_EXIT(argv[0],
+                         node_embedding_platform_delete(test_data.platform));
 
-  fprintf(stdout, "%d\n", global_count);
+  fprintf(stdout, "%d\n", test_data.global_count);
+  uv_mutex_destroy(&test_data.mutex);
+
   return 0;
 }
 

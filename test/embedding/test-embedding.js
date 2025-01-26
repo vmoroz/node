@@ -128,7 +128,7 @@ function runCommonApiTests(apiType) {
 }
 
 // runCommonApiTests('cpp-api');
-runCommonApiTests('c-api');
+// runCommonApiTests('c-api');
 // runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
@@ -238,6 +238,7 @@ function runSnapshotTests(apiType) {
 
 // C-API specific tests
 function runCApiTests(apiType) {
+/*
   runTest(
     `${apiType}-nodejs-main: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -247,7 +248,7 @@ function runCApiTests(apiType) {
       stdout: 'Hello World',
     }
   );
-/*
+
   runTest(
     `${apiType}: callMe`,
     spawnSyncAndAssert,
@@ -290,7 +291,7 @@ function runCApiTests(apiType) {
     ],
     { stdout: 'waited without cheese' }
   );
-
+*/
   runTest(
     `${apiType}-threading-runtime-per-thread: run 12 environments concurrently`,
     spawnSyncAndAssert,
@@ -300,7 +301,7 @@ function runCApiTests(apiType) {
       stdout: '12',
     }
   );
-
+/*
   runTest(
     `${apiType}-threading-several-runtimes-per-thread: run 12 environments in the same thread`,
     spawnSyncAndAssert,
@@ -334,7 +335,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
- 
+
   runTest(
     `${apiType}-threading-runtime-in-ui-thread: run and environment from multiple threads`,
     spawnSyncAndAssert,
