@@ -12,7 +12,8 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
 napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
 extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
-  NodeExpected<void> result = NodePlatform::RunMain(
+  TestExitCodeHandler error_handler(argv[0]);
+  NODE_EMBEDDING_CALL(NodePlatform::RunMain(
       NodeArgs(argc, argv),
       [](const NodePlatformConfig& platform_config) {
         return platform_config.SetFlags(
@@ -20,20 +21,23 @@ extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
       },
       [](const NodePlatform& platform,
          const NodeRuntimeConfig& runtime_config) {
-        return LoadUtf8Script(
-            runtime_config,
-            main_script,
+        TestErrorHandler<NodeExpected<void>> error_handler;
+        NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+        NODE_EMBEDDING_CALL(runtime_config.OnLoaded(
             [](const NodeRuntime& runtime, napi_env env, napi_value
                /*value*/) {
-              NODE_API_CALL_RETURN_VOID(CallMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMe(runtime, env));
-              NODE_API_CALL_RETURN_VOID(WaitMeWithCheese(runtime, env));
-            });
-      });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+              TestErrorHandler<void> error_handler(env);
+              NODE_API_CALL(CallMe(runtime, env));
+              NODE_API_CALL(WaitMe(runtime, env));
+              NODE_API_CALL(WaitMeWithCheese(runtime, env));
+            }));
+        return NodeExpected<void>();
+      }));
+  return 0;
 }
 
 napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
+  TestErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -69,16 +73,17 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
 char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {
+  TestErrorHandler<napi_value> error_handler(env);
   size_t argc = 1;
   napi_value arg{};
-  NODE_API_CALL_RETURN(
-      napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
-  NODE_API_CALL_RETURN(napi_get_value_string_utf8(
+  NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
+  NODE_API_CALL(napi_get_value_string_utf8(
       env, arg, callback_buf, 32, &callback_buf_len));
   return nullptr;
 }
 
 napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
+  TestErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -133,6 +138,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
     kRejected,
   };
 
+  TestErrorHandler<napi_status> error_handler(env);
   PromiseState promise_state = PromiseState::kPending;
   napi_value global{}, wait_promise{}, undefined{};
   napi_value on_fulfilled{}, on_rejected{};
@@ -178,12 +184,14 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
       "onFulfilled",
       NAPI_AUTO_LENGTH,
       [](napi_env env, napi_callback_info info) -> napi_value {
+        TestErrorHandler<napi_value> error_handler(env);
         size_t argc = 1;
         napi_value result;
         void* data;
-        napi_get_cb_info(env, info, &argc, &result, nullptr, &data);
-        napi_get_value_string_utf8(
-            env, result, callback_buf, 32, &callback_buf_len);
+        NODE_API_CALL(
+            napi_get_cb_info(env, info, &argc, &result, nullptr, &data));
+        NODE_API_CALL(napi_get_value_string_utf8(
+            env, result, callback_buf, 32, &callback_buf_len));
         *static_cast<PromiseState*>(data) = PromiseState::kFulfilled;
         return nullptr;
       },
@@ -194,12 +202,14 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
       "rejected",
       NAPI_AUTO_LENGTH,
       [](napi_env env, napi_callback_info info) -> napi_value {
+        TestErrorHandler<napi_value> error_handler(env);
         size_t argc = 1;
         napi_value result;
         void* data;
-        napi_get_cb_info(env, info, &argc, &result, nullptr, &data);
-        napi_get_value_string_utf8(
-            env, result, callback_buf, 32, &callback_buf_len);
+        NODE_API_CALL(
+            napi_get_cb_info(env, info, &argc, &result, nullptr, &data));
+        NODE_API_CALL(napi_get_value_string_utf8(
+            env, result, callback_buf, 32, &callback_buf_len));
         *static_cast<PromiseState*>(data) = PromiseState::kRejected;
         return nullptr;
       },

@@ -15,29 +15,30 @@ class GreeterModule {
                         napi_env env,
                         std::string_view module_name,
                         napi_value exports) {
+    TestErrorHandler<napi_value> error_handler(env);
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
-    NODE_API_CALL_RETURN(napi_create_function(
+    NODE_API_CALL(napi_create_function(
         env,
         "greet",
         NAPI_AUTO_LENGTH,
         [](napi_env env, napi_callback_info info) -> napi_value {
+          TestErrorHandler<napi_value> error_handler(env);
           std::string greeting = "Hello, ";
           napi_value arg{};
           size_t arg_count = 1;
-          NODE_API_CALL_RETURN(
+          NODE_API_CALL(
               napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-          NODE_API_CALL_RETURN(AddUtf8String(greeting, env, arg));
+          NODE_API_CALL(AddUtf8String(greeting, env, arg));
           napi_value result;
-          NODE_API_CALL_RETURN(napi_create_string_utf8(
+          NODE_API_CALL(napi_create_string_utf8(
               env, greeting.c_str(), greeting.size(), &result));
           return result;
         },
         nullptr,
         &greet_func));
-    NODE_API_CALL_RETURN(
-        napi_set_named_property(env, exports, "greet", greet_func));
+    NODE_API_CALL(napi_set_named_property(env, exports, "greet", greet_func));
     return exports;
   }
 
@@ -54,28 +55,31 @@ class ReplicatorModule {
                         napi_env env,
                         std::string_view module_name,
                         napi_value exports) {
+    TestErrorHandler<napi_value> error_handler(env);
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
-    NODE_API_CALL_RETURN(napi_create_function(
+    NODE_API_CALL(napi_create_function(
         env,
         "replicate",
         NAPI_AUTO_LENGTH,
         [](napi_env env, napi_callback_info info) -> napi_value {
+          TestErrorHandler<napi_value> error_handler(env);
           std::string str;
           napi_value arg{};
           size_t arg_count = 1;
-          NODE_API_CALL_RETURN(
+          NODE_API_CALL(
               napi_get_cb_info(env, info, &arg_count, &arg, nullptr, nullptr));
-          NODE_API_CALL_RETURN(AddUtf8String(str, env, arg));
+          NODE_API_CALL(AddUtf8String(str, env, arg));
           str += " " + str;
           napi_value result;
-          napi_create_string_utf8(env, str.c_str(), str.size(), &result);
+          NODE_API_CALL(
+              napi_create_string_utf8(env, str.c_str(), str.size(), &result));
           return result;
         },
         nullptr,
         &greet_func));
-    NODE_API_CALL_RETURN(
+    NODE_API_CALL(
         napi_set_named_property(env, exports, "replicate", greet_func));
     return exports;
   }
@@ -86,20 +90,22 @@ class ReplicatorModule {
 
 extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
                                                       char* argv[]) {
-  ASSERT_OR_EXIT(argc == 4);
+  TestExitCodeHandler error_handler(argv[0]);
+  NODE_EMBEDDING_ASSERT(argc == 4);
   int32_t expectedGreeterModuleInitCallCount = atoi(argv[2]);
   int32_t expectedReplicatorModuleInitCallCount = atoi(argv[2]);
 
   std::atomic<int32_t> greeterModuleInitCallCount{0};
   std::atomic<int32_t> replicatorModuleInitCallCount{0};
 
-  NodeExpected<void> result = NodePlatform::RunMain(
+  NODE_EMBEDDING_CALL(NodePlatform::RunMain(
       NodeArgs(argc, argv),
       nullptr,
       NodeConfigureRuntimeCallback(
           [&](const NodePlatform& platform,
               const NodeRuntimeConfig& runtime_config) {
-            NODE_EMBEDDED_CALL(
+            TestErrorHandler<NodeExpected<void>> error_handler;
+            NODE_EMBEDDING_CALL(
                 runtime_config.OnPreload([](const NodeRuntime& runtime,
                                             napi_env env,
                                             napi_value process,
@@ -110,29 +116,25 @@ extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
                   napi_set_named_property(env, global, "process", process);
                 }));
 
-            NODE_EMBEDDED_CALL(runtime_config.AddModule(
+            NODE_EMBEDDING_CALL(runtime_config.AddModule(
                 "greeter_module",
                 GreeterModule(&greeterModuleInitCallCount),
                 NAPI_VERSION));
 
-            NODE_EMBEDDED_CALL(runtime_config.AddModule(
+            NODE_EMBEDDING_CALL(runtime_config.AddModule(
                 "replicator_module",
                 ReplicatorModule(&replicatorModuleInitCallCount),
                 NAPI_VERSION));
 
-            NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+            NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
 
             return NodeExpected<void>();
-          }));
-  int32_t exit_code = PrintErrorMessage(argv[0], std::move(result)).exit_code();
-  if (exit_code != 0) {
-    return exit_code;
-  }
+          })));
 
-  ASSERT_OR_EXIT(greeterModuleInitCallCount ==
-                 expectedGreeterModuleInitCallCount);
-  ASSERT_OR_EXIT(replicatorModuleInitCallCount ==
-                 expectedReplicatorModuleInitCallCount);
+  NODE_EMBEDDING_ASSERT(greeterModuleInitCallCount ==
+                        expectedGreeterModuleInitCallCount);
+  NODE_EMBEDDING_ASSERT(replicatorModuleInitCallCount ==
+                        expectedReplicatorModuleInitCallCount);
 
   return 0;
 }

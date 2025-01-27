@@ -5,6 +5,7 @@
 
 // TODO: Rename C++ CHECK_EXPECTED_OR_EXIT macro
 // TODO: avoid passing argv[0] every time
+// TODO: use NodeStatus instead of node_embedding_status
 
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
 

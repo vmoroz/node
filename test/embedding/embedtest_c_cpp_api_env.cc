@@ -5,15 +5,17 @@ namespace node::embedding {
 // Test the no_browser_globals option.
 extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
                                                               char* argv[]) {
-  NodeExpected<void> result = NodePlatform::RunMain(
+  TestExitCodeHandler error_handler(argv[0]);
+  NODE_EMBEDDING_CALL(NodePlatform::RunMain(
       NodeArgs(argc, argv),
       nullptr,
       [](const NodePlatform& platform,
          const NodeRuntimeConfig& runtime_config) {
-        NODE_EMBEDDED_CALL(
+        TestErrorHandler<NodeExpected<void>> error_handler;
+        NODE_EMBEDDING_CALL(
             runtime_config.SetFlags(NodeRuntimeFlags::kNoBrowserGlobals));
-        return LoadUtf8Script(runtime_config,
-                              R"JS(
+        NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config,
+                                           R"JS(
 const assert = require('assert');
 const path = require('path');
 const relativeRequire =
@@ -35,20 +37,22 @@ for (const item of items) {
   leaks.push(item);
 }
 assert.deepStrictEqual(leaks, []);
-)JS");
-      });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+)JS"));
+        return NodeExpected<void>();
+      }));
+  return 0;
 }
 
 // Test ESM loaded
 extern "C" int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
                                                            char* argv[]) {
+  TestExitCodeHandler error_handler(argv[0]);
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
   std::vector<std::string> args_vec(argv, argv + argc);
   args_vec.push_back("--experimental-vm-modules");
   NodeCStringArray args(args_vec);
-  NodeExpected<void> result =
+  NODE_EMBEDDING_CALL(
       NodePlatform::RunMain(NodeArgs(args),
                             nullptr,
                             [](const NodePlatform& platform,
@@ -73,14 +77,15 @@ const { SourceTextModule } = require('node:vm');
   process.exit(0);
 })();
 )JS");
-                            });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+                            }));
+  return 0;
 }
 
 // Test ESM loaded
 extern "C" int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
                                                               char* argv[]) {
-  NodeExpected<void> result =
+  TestExitCodeHandler error_handler(argv[0]);
+  NODE_EMBEDDING_CALL(
       NodePlatform::RunMain(NodeArgs(argc, argv),
                             nullptr,
                             [](const NodePlatform& platform,
@@ -104,7 +109,8 @@ const { SourceTextModule } = require('node:vm');
   delete globalThis.importResult;
 })();
 )JS");
-                            });
-  return PrintErrorMessage(argv[0], std::move(result)).exit_code();
+                            }));
+  return 0;
 }
+
 }  // namespace node::embedding

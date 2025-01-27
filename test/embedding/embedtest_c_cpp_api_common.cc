@@ -43,37 +43,34 @@ void ThrowLastErrorMessage(napi_env env, const char* message) {
   }
 }
 
-NodeExpected<void> LoadUtf8Script(
-    const NodeRuntimeConfig& runtime_config,
-    std::string_view script,
-    NodeHandleExecutionResultCallback handle_result) {
-  NODE_EMBEDDED_CALL(runtime_config.OnStartExecution(
+NodeExpected<void> LoadUtf8Script(const NodeRuntimeConfig& runtime_config,
+                                  std::string_view script) {
+  TestErrorHandler<NodeExpected<void>> error_handler;
+  NODE_EMBEDDING_CALL(runtime_config.OnStartExecution(
       [script = std::string(script)](const NodeRuntime& /*runtime*/,
                                      napi_env env,
                                      napi_value /*process*/,
                                      napi_value /*require*/,
                                      napi_value run_cjs) -> napi_value {
-        napi_value script_value, null_value, result;
-        NODE_API_CALL_RETURN(napi_create_string_utf8(
+        TestErrorHandler<napi_value> error_handler(env);
+        napi_value script_value{}, null_value{}, result{};
+        NODE_API_CALL(napi_create_string_utf8(
             env, script.c_str(), script.size(), &script_value));
-        NODE_API_CALL_RETURN(napi_get_null(env, &null_value));
-        NODE_API_CALL_RETURN(napi_call_function(
+        NODE_API_CALL(napi_get_null(env, &null_value));
+        NODE_API_CALL(napi_call_function(
             env, null_value, run_cjs, 1, &script_value, &result));
         return result;
       }));
-  NODE_EMBEDDED_CALL(
-      runtime_config.OnHandleExecutionResult(std::move(handle_result)));
   return NodeExpected<void>();
 }
 
 NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
-                                     NodeExpected<void> expected) {
-  if (expected.has_value()) {
-    return expected;
+                                     NodeStatus status) {
+  if (status != NodeStatus::kOk) {
+    std::string error_message = NodeErrorInfo::GetAndClearLastErrorMessage();
+    fprintf(stderr, "%s: %s\n", exe_name.data(), error_message.c_str());
   }
-  std::string error_message = NodeErrorInfo::GetAndClearLastErrorMessage();
-  fprintf(stderr, "%s: %s\n", exe_name.data(), error_message.c_str());
-  return NodeExpected<void>(expected.status());
+  return NodeExpected<void>(status);
 }
 
 }  // namespace node::embedding

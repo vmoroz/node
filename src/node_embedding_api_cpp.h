@@ -169,11 +169,6 @@ class [[nodiscard]] NodeExpected<void> {
     return 1;
   }
 
-  template <typename T>
-  NodeExpected<void> AndThen(T&& lambda) && {
-    return (status_ == NodeStatus::kOk) ? lambda() : std::move(*this);
-  }
-
  private:
   NodeStatus status_{NodeStatus::kOk};
 };
@@ -408,13 +403,18 @@ using NodeRunNodeApiCallback =
     NodeFunctorRef<node_embedding_node_api_run_callback>;
 
 inline std::string NodeFormatString(const char* format, ...) {
-  va_list args1;
-  va_start(args1, format);
+  va_list args;
+  va_start(args, format);
+  std::string result = NodeFormatString(format, args);
+  va_end(args);
+  return result;
+}
+
+inline std::string NodeFormatString(const char* format, va_list args) {
   va_list args2;  // Required for some compilers like GCC since we go over the
                   // args twice.
-  va_copy(args2, args1);
-  std::string result(std::vsnprintf(nullptr, 0, format, args1), '\0');
-  va_end(args1);
+  va_copy(args2, args);
+  std::string result(std::vsnprintf(nullptr, 0, format, args), '\0');
   std::vsnprintf(&result[0], result.size() + 1, format, args2);
   va_end(args2);
   return result;
@@ -808,7 +808,7 @@ class NodeRuntimeConfig {
         start_execution.data_release()));
   }
 
-  NodeExpected<void> OnHandleExecutionResult(
+  NodeExpected<void> OnLoaded(
       NodeHandleExecutionResultCallback handle_start_result) const {
     return NodeExpected<void>(node_embedding_runtime_config_on_loaded(
         runtime_config_.ptr(),

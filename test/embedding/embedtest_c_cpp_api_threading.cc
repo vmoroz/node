@@ -15,19 +15,20 @@ namespace node::embedding {
 // own thread.
 extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
     int32_t argc, char* argv[]) {
+  TestExitCodeHandler error_handler(argv[0]);
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
   std::atomic<int32_t> global_count{0};
   std::atomic<NodeStatus> global_status{NodeStatus::kOk};
 
-  NodeScopedErrorHandler error_handler{};
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NODE_EMBEDDING_CALL(expected_platform);
     NodePlatform platform = std::move(expected_platform).value();
     if (!platform) {
+      // TODO: Print early return message
       return 0;  // early return
     }
 
@@ -37,24 +38,24 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
             platform,
             [&](const NodePlatform& platform,
                 const NodeRuntimeConfig& runtime_config) {
+              TestErrorHandler<NodeExpected<void>> error_handler;
               // Inspector can be associated with only one
               // runtime in the process.
-              NODE_EMBEDDED_CALL(runtime_config.SetFlags(
+              NODE_EMBEDDING_CALL(runtime_config.SetFlags(
                   NodeRuntimeFlags::kDefault |
                   NodeRuntimeFlags::kNoCreateInspector));
-              NODE_EMBEDDED_CALL(LoadUtf8Script(
-                  runtime_config,
-                  main_script,
-                  [&](const NodeRuntime& runtime,
-                      napi_env env,
-                      napi_value /*value*/) {
+              NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
+              NODE_EMBEDDING_CALL(
+                  runtime_config.OnLoaded([&](const NodeRuntime& runtime,
+                                              napi_env env,
+                                              napi_value /*value*/) {
+                    TestErrorHandler<void> error_handler(env);
                     napi_value global, my_count;
-                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                    NODE_API_CALL(napi_get_global(env, &global));
+                    NODE_API_CALL(napi_get_named_property(
                         env, global, "myCount", &my_count));
                     int32_t count;
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_get_value_int32(env, my_count, &count));
+                    NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
                     global_count.fetch_add(count);
                   }));
               return NodeExpected<void>{};
@@ -69,7 +70,7 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
       threads[i].join();
     }
 
-    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(global_status.load()));
+    NODE_EMBEDDING_CALL(NodeExpected<void>(global_status.load()));
   }
 
   fprintf(stdout, "%d\n", global_count.load());
@@ -85,11 +86,11 @@ extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
   bool more_work = false;
   int32_t global_count = 0;
 
-  NodeScopedErrorHandler error_handler{};
+  TestExitCodeHandler error_handler(argv[0]);
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NODE_EMBEDDING_CALL(expected_platform);
     NodePlatform platform = std::move(expected_platform).value();
 
     // We declared list of NodeRuntime after NodePlatform to ensure that they
@@ -102,28 +103,30 @@ extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
           platform,
           [](const NodePlatform& platform,
              const NodeRuntimeConfig& runtime_config) {
+            TestErrorHandler<NodeExpected<void>> error_handler;
             // Inspector can be associated with only one runtime in the process.
-            NODE_EMBEDDED_CALL(
+            NODE_EMBEDDING_CALL(
                 runtime_config.SetFlags(NodeRuntimeFlags::kDefault |
                                         NodeRuntimeFlags::kNoCreateInspector));
-            NODE_EMBEDDED_CALL(LoadUtf8Script(runtime_config, main_script));
+            NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
             return NodeExpected<void>();
           });
 
-      CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+      NODE_EMBEDDING_CALL(expected_runtime);
       NodeRuntime runtime = std::move(expected_runtime).value();
 
-      CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunNodeApi([&](napi_env env) {
+      NODE_EMBEDDING_CALL(runtime.RunNodeApi([&](napi_env env) {
+        TestErrorHandler<void> error_handler(env);
         napi_value undefined, global, func;
-        NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-        NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-        NODE_API_CALL_RETURN_VOID(
+        NODE_API_CALL(napi_get_undefined(env, &undefined));
+        NODE_API_CALL(napi_get_global(env, &global));
+        NODE_API_CALL(
             napi_get_named_property(env, global, "incMyCount", &func));
 
         napi_valuetype func_type;
-        NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-        NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-        NODE_API_CALL_RETURN_VOID(
+        NODE_API_CALL(napi_typeof(env, func, &func_type));
+        NODE_API_ASSERT(func_type == napi_function);
+        NODE_API_CALL(
             napi_call_function(env, undefined, func, 0, nullptr, nullptr));
       }));
 
@@ -134,27 +137,28 @@ extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
       more_work = false;
       for (const NodeRuntime& runtime : runtimes) {
         NodeExpected<bool> has_more_work = runtime.RunEventLoopNoWait();
-        CHECK_EXPECTED_OR_EXIT(argv[0], has_more_work);
+        NODE_EMBEDDING_CALL(has_more_work);
         more_work |= has_more_work.value();
       }
     } while (more_work);
 
     for (const NodeRuntime& runtime : runtimes) {
-      CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunNodeApi([&](napi_env env) {
+      NODE_EMBEDDING_CALL(runtime.RunNodeApi([&](napi_env env) {
+        TestErrorHandler<void> error_handler(env);
         napi_value global, my_count;
-        NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-        NODE_API_CALL_RETURN_VOID(
+        NODE_API_CALL(napi_get_global(env, &global));
+        NODE_API_CALL(
             napi_get_named_property(env, global, "myCount", &my_count));
 
         napi_valuetype my_count_type;
-        NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &my_count_type));
-        NODE_API_ASSERT_RETURN_VOID(my_count_type == napi_number);
+        NODE_API_CALL(napi_typeof(env, my_count, &my_count_type));
+        NODE_API_ASSERT(my_count_type == napi_number);
         int32_t count;
-        NODE_API_CALL_RETURN_VOID(napi_get_value_int32(env, my_count, &count));
+        NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
 
         global_count += count;
       }));
-      CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
+      NODE_EMBEDDING_CALL(runtime.RunEventLoop());
     }
   }
 
@@ -174,11 +178,11 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
 
-  NodeScopedErrorHandler error_handler{};
+  TestExitCodeHandler error_handler(argv[0]);
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NODE_EMBEDDING_CALL(expected_platform);
     NodePlatform platform = std::move(expected_platform).value();
     if (!platform) {
       return 0;  // early return
@@ -191,33 +195,33 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
           return LoadUtf8Script(runtime_config, main_script);
         });
 
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+    NODE_EMBEDDING_CALL(expected_runtime);
     NodeRuntime runtime = std::move(expected_runtime).value();
 
     for (size_t i = 0; i < thread_count; i++) {
       threads.emplace_back([&runtime, &result_count, &result_status, &mutex] {
         std::scoped_lock lock(mutex);
         NodeExpected<void> run_result = runtime.RunNodeApi([&](napi_env env) {
+          TestErrorHandler<void> error_handler(env);
           napi_value undefined, global, func, my_count;
-          NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-          NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-          NODE_API_CALL_RETURN_VOID(
+          NODE_API_CALL(napi_get_undefined(env, &undefined));
+          NODE_API_CALL(napi_get_global(env, &global));
+          NODE_API_CALL(
               napi_get_named_property(env, global, "incMyCount", &func));
 
           napi_valuetype func_type;
-          NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-          NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-          NODE_API_CALL_RETURN_VOID(
+          NODE_API_CALL(napi_typeof(env, func, &func_type));
+          NODE_API_ASSERT(func_type == napi_function);
+          NODE_API_CALL(
               napi_call_function(env, undefined, func, 0, nullptr, nullptr));
 
-          NODE_API_CALL_RETURN_VOID(
+          NODE_API_CALL(
               napi_get_named_property(env, global, "myCount", &my_count));
           napi_valuetype count_type;
-          NODE_API_CALL_RETURN_VOID(napi_typeof(env, my_count, &count_type));
-          NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
+          NODE_API_CALL(napi_typeof(env, my_count, &count_type));
+          NODE_API_ASSERT(count_type == napi_number);
           int32_t count;
-          NODE_API_CALL_RETURN_VOID(
-              napi_get_value_int32(env, my_count, &count));
+          NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
           result_count.store(count);
         });
         if (run_result.has_error()) {
@@ -230,8 +234,8 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
       threads[i].join();
     }
 
-    CHECK_EXPECTED_OR_EXIT(argv[0], NodeExpected<void>(result_status.load()));
-    CHECK_EXPECTED_OR_EXIT(argv[0], runtime.RunEventLoop());
+    NODE_EMBEDDING_CALL(NodeExpected<void>(result_status.load()));
+    NODE_EMBEDDING_CALL(runtime.RunEventLoop());
   }
 
   fprintf(stdout, "%d\n", result_count.load());
@@ -284,11 +288,11 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
     bool is_finished_{false};
   } ui_queue;
 
-  NodeScopedErrorHandler error_handler{};
+  TestExitCodeHandler error_handler(argv[0]);
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_platform);
+    NODE_EMBEDDING_CALL(expected_platform);
     NodePlatform platform = std::move(expected_platform).value();
     if (!platform) {
       return 0;  // early return
@@ -299,10 +303,11 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
         platform,
         [&](const NodePlatform& platform,
             const NodeRuntimeConfig& runtime_config) {
+          TestErrorHandler<NodeExpected<void>> error_handler;
           // The callback will be invoked from the runtime's event loop
           // observer thread. It must schedule the work to the UI thread's
           // event loop.
-          NODE_EMBEDDED_CALL(runtime_config.SetTaskRunner(
+          NODE_EMBEDDING_CALL(runtime_config.SetTaskRunner(
               // We capture the ui_queue by reference here because we
               // guarantee it to be alive till the end of the test. In
               // real applications, you should use a safer way to
@@ -319,16 +324,15 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
                   // Check myCount and stop the processing when it reaches 5.
                   int32_t count{};
                   runtime.RunNodeApi([&](napi_env env) {
+                    TestErrorHandler<void> error_handler(env);
                     napi_value global, my_count;
-                    NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-                    NODE_API_CALL_RETURN_VOID(napi_get_named_property(
+                    NODE_API_CALL(napi_get_global(env, &global));
+                    NODE_API_CALL(napi_get_named_property(
                         env, global, "myCount", &my_count));
                     napi_valuetype count_type;
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_typeof(env, my_count, &count_type));
-                    NODE_API_ASSERT_RETURN_VOID(count_type == napi_number);
-                    NODE_API_CALL_RETURN_VOID(
-                        napi_get_value_int32(env, my_count, &count));
+                    NODE_API_CALL(napi_typeof(env, my_count, &count_type));
+                    NODE_API_ASSERT(count_type == napi_number);
+                    NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
                   });
                   if (count == 5) {
                     runtime.RunEventLoop();
@@ -341,23 +345,24 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
 
           return LoadUtf8Script(runtime_config, main_script);
         });
-    CHECK_EXPECTED_OR_EXIT(argv[0], expected_runtime);
+    NODE_EMBEDDING_CALL(expected_runtime);
     runtime = std::move(expected_runtime).value();
 
     // The initial task starts the JS code that then will do the timer
     // scheduling. The timer supposed to be handled by the runtime's event loop.
     ui_queue.PostTask([&runtime]() {
       runtime.RunNodeApi([&](napi_env env) {
+        TestErrorHandler<void> error_handler(env);
         napi_value undefined, global, func;
-        NODE_API_CALL_RETURN_VOID(napi_get_undefined(env, &undefined));
-        NODE_API_CALL_RETURN_VOID(napi_get_global(env, &global));
-        NODE_API_CALL_RETURN_VOID(
+        NODE_API_CALL(napi_get_undefined(env, &undefined));
+        NODE_API_CALL(napi_get_global(env, &global));
+        NODE_API_CALL(
             napi_get_named_property(env, global, "incMyCount", &func));
 
         napi_valuetype func_type;
-        NODE_API_CALL_RETURN_VOID(napi_typeof(env, func, &func_type));
-        NODE_API_ASSERT_RETURN_VOID(func_type == napi_function);
-        NODE_API_CALL_RETURN_VOID(
+        NODE_API_CALL(napi_typeof(env, func, &func_type));
+        NODE_API_ASSERT(func_type == napi_function);
+        NODE_API_CALL(
             napi_call_function(env, undefined, func, 0, nullptr, nullptr));
       });
     });
