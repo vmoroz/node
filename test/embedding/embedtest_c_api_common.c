@@ -90,6 +90,7 @@ int32_t StatusToExitCode(node_embedding_status status) {
   return 1;
 }
 
+// TODO: Align with the C++ version
 node_embedding_status PrintErrorMessage(const char* exe_name,
                                         node_embedding_status status) {
   if (status == node_embedding_status_ok) {

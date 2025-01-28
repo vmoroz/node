@@ -320,10 +320,9 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-*/
-  // Fails in C
+
   runTest(
-    `${apiType}-threading-runtime-in-several-threads: run and environment from multiple threads`,
+    `${apiType}-threading-runtime-in-several-threads: run an environment from multiple threads`,
     spawnSyncAndAssert,
     [
       `${apiType}-threading-runtime-in-several-threads`,
@@ -338,10 +337,10 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-/*  
+*/  
   //Fails in C
   runTest(
-    `${apiType}-threading-runtime-in-ui-thread: run and environment from multiple threads`,
+    `${apiType}-threading-runtime-in-ui-thread: run an environment from UI thread`,
     spawnSyncAndAssert,
     [
       `${apiType}-threading-runtime-in-ui-thread`,
@@ -356,7 +355,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-
+/*
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(

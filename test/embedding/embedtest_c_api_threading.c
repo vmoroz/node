@@ -1,5 +1,10 @@
-#include <uv.h>
 #include "embedtest_c_api_common.h"
+
+#include <uv.h>  // Tests in this file use libuv for threading.
+
+//==============================================================================
+// Test that multiple runtimes can be run at the same time in their own threads.
+//==============================================================================
 
 typedef struct {
   node_embedding_platform platform;
@@ -8,10 +13,10 @@ typedef struct {
   node_embedding_status global_status;
 } test_data1_t;
 
-static void HandleExecutionResult(void* cb_data,
-                                  node_embedding_runtime runtime,
-                                  napi_env env,
-                                  napi_value execution_result) {
+static void OnLoaded1(void* cb_data,
+                      node_embedding_runtime runtime,
+                      napi_env env,
+                      napi_value execution_result) {
   napi_status status = napi_ok;
   test_data1_t* data = (test_data1_t*)cb_data;
   napi_value global, my_count;
@@ -39,12 +44,12 @@ static node_embedding_status ConfigureRuntime(
           node_embedding_runtime_flags_no_create_inspector));
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
   NODE_EMBEDDING_CALL(node_embedding_runtime_config_on_loaded(
-      runtime_config, HandleExecutionResult, cb_data, NULL));
+      runtime_config, OnLoaded1, cb_data, NULL));
 on_exit:
   return embedding_status;
 }
 
-static void ThreadCallback(void* arg) {
+static void ThreadCallback1(void* arg) {
   test_data1_t* data = (test_data1_t*)arg;
   node_embedding_status status =
       node_embedding_runtime_run(data->platform, ConfigureRuntime, arg);
@@ -55,14 +60,16 @@ static void ThreadCallback(void* arg) {
   }
 }
 
+#define TEST_THREAD_COUNT1 12
+
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
 int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
                                                      char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
-  size_t thread_count = 12;
-  uv_thread_t threads[12] = {0};
+  size_t thread_count = TEST_THREAD_COUNT1;
+  uv_thread_t threads[TEST_THREAD_COUNT1] = {0};
   test_data1_t test_data = {0};
   uv_mutex_init(&test_data.mutex);
 
@@ -73,7 +80,7 @@ int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
   }
 
   for (size_t i = 0; i < thread_count; i++) {
-    uv_thread_create(&threads[i], ThreadCallback, &test_data);
+    uv_thread_create(&threads[i], ThreadCallback1, &test_data);
   }
 
   for (size_t i = 0; i < thread_count; i++) {
@@ -91,7 +98,11 @@ on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
-node_embedding_status ConfigureRuntime2(
+//==============================================================================
+// Test that multiple runtimes can run in the same thread.
+//==============================================================================
+
+static node_embedding_status ConfigureRuntime2(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
@@ -106,7 +117,7 @@ on_exit:
   return embedding_status;
 }
 
-void IncMyCount(void* cb_data, napi_env env) {
+static void IncMyCount2(void* cb_data, napi_env env) {
   napi_status status = napi_ok;
   napi_value undefined, global, func;
   NODE_API_CALL(napi_get_undefined(env, &undefined));
@@ -121,7 +132,7 @@ on_exit:
   GetAndThrowLastErrorMessage(env, status);
 }
 
-void SumMyCount(void* cb_data, napi_env env) {
+static void SumMyCount2(void* cb_data, napi_env env) {
   napi_status status = napi_ok;
   int32_t* global_count = (int32_t*)cb_data;
   napi_value global, my_count;
@@ -162,7 +173,7 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
         platform, ConfigureRuntime2, NULL, &runtimes[i]));
 
     NODE_EMBEDDING_CALL(
-        node_embedding_runtime_node_api_run(runtimes[i], IncMyCount, NULL));
+        node_embedding_runtime_node_api_run(runtimes[i], IncMyCount2, NULL));
   }
 
   do {
@@ -177,7 +188,7 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
 
   for (size_t i = 0; i < runtime_count; ++i) {
     NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_run(
-        runtimes[i], SumMyCount, &global_count));
+        runtimes[i], SumMyCount2, &global_count));
     NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtimes[i]));
     NODE_EMBEDDING_CALL(node_embedding_runtime_delete(runtimes[i]));
   }
@@ -189,6 +200,11 @@ on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
+//==============================================================================
+// Test that a runtime can be invoked from different threads as long as only
+// one thread uses it at a time.
+//==============================================================================
+
 typedef struct {
   node_embedding_runtime runtime;
   uv_mutex_t mutex;
@@ -196,14 +212,14 @@ typedef struct {
   node_embedding_status result_status;
 } thread_data3;
 
-node_embedding_status ConfigureRuntime3(
+static node_embedding_status ConfigureRuntime3(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
   return LoadUtf8Script(runtime_config, main_script);
 }
 
-void RunNodeApi3(void* cb_data, napi_env env) {
+static void RunNodeApi3(void* cb_data, napi_env env) {
   napi_status status = napi_ok;
   thread_data3* data = (thread_data3*)cb_data;
   napi_value undefined, global, func, my_count;
@@ -227,7 +243,7 @@ on_exit:
   GetAndThrowLastErrorMessage(env, status);
 }
 
-void ThreadCallback3(void* arg) {
+static void ThreadCallback3(void* arg) {
   thread_data3* data = (thread_data3*)arg;
   uv_mutex_lock(&data->mutex);
   node_embedding_status status =
@@ -276,6 +292,14 @@ on_exit:
   uv_mutex_destroy(&data.mutex);
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
+
+//==============================================================================
+// Test that a runtime's event loop can be called from the UI thread event loop.
+//==============================================================================
+
+//------------------------------------------------------------------------------
+// Simulation of the UI queue.
+//------------------------------------------------------------------------------
 
 struct task_t {
   struct task_t* prev;
@@ -368,6 +392,10 @@ static void ui_queue_destroy(ui_queue_t* queue) {
   uv_cond_destroy(&queue->wakeup);
 }
 
+//------------------------------------------------------------------------------
+// Test data and task implementation.
+//------------------------------------------------------------------------------
+
 typedef struct {
   ui_queue_t ui_queue;
   node_embedding_runtime runtime;
@@ -381,7 +409,7 @@ typedef struct {
   test_data4_t* test_data;
 } test_task_t;
 
-void RunTestTask(void* cb_data) {
+static void RunTestTask4(void* cb_data) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   napi_status status = napi_ok;
   test_task_t* test_task = (test_task_t*)cb_data;
@@ -418,7 +446,7 @@ on_exit:
   GetAndThrowLastErrorMessage(env, status);
 }
 
-void ReleaseTestTask(void* cb_data) {
+static void ReleaseTestTask4(void* cb_data) {
   test_task_t* test_task = (test_task_t*)cb_data;
   if (test_task->release_task_data != NULL) {
     test_task->release_task_data(test_task->task_data);
@@ -438,9 +466,9 @@ static node_embedding_status PostTask(
     return node_embedding_status_out_of_memory;
   }
   memset(test_task, 0, sizeof(test_task_t));
-  test_task->parent_task.run_task = RunTestTask;
+  test_task->parent_task.run_task = RunTestTask4;
   test_task->parent_task.task_data = test_task;
-  test_task->parent_task.release_task_data = ReleaseTestTask;
+  test_task->parent_task.release_task_data = ReleaseTestTask4;
   test_task->run_task = run_task;
   test_task->task_data = task_data;
   test_task->release_task_data = release_task_data;
@@ -466,7 +494,7 @@ on_exit:
   return embedding_status;
 }
 
-static void StartProcessing(void* cb_data) {
+static void StartProcessing4(void* cb_data) {
   napi_status status = napi_ok;
   node_embedding_status embedding_status = node_embedding_status_ok;
   test_data4_t* data = (test_data4_t*)cb_data;
@@ -519,7 +547,8 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
   task_t task = {0};
-  task.run_task = StartProcessing;
+  task.run_task = StartProcessing4;
+  task.task_data = &data;
   ui_queue_post_task(&data.ui_queue, &task);
 
   ui_queue_run(&data.ui_queue);
