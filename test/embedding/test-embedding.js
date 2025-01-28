@@ -320,7 +320,7 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-
+*/
   // Fails in C
   runTest(
     `${apiType}-threading-runtime-in-several-threads: run and environment from multiple threads`,
@@ -338,7 +338,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-  
+/*  
   //Fails in C
   runTest(
     `${apiType}-threading-runtime-in-ui-thread: run and environment from multiple threads`,
@@ -390,7 +390,7 @@ function runCApiTests(apiType) {
 */
 }
 
-// runCApiTests('c-api');
+runCApiTests('c-api');
 // runCApiTests('c-cpp-api');
 
 function runEnvTests(apiType) {

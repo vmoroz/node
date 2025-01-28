@@ -257,9 +257,8 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
     return 0;  // early return
   }
 
-  node_embedding_runtime runtime;
   NODE_EMBEDDING_CALL(node_embedding_runtime_create(
-      platform, ConfigureRuntime3, NULL, &runtime));
+      platform, ConfigureRuntime3, NULL, &data.runtime));
 
   for (size_t i = 0; i < thread_count; ++i) {
     uv_thread_create(&threads[i], ThreadCallback3, &data);
@@ -270,7 +269,7 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
   }
 
   NODE_EMBEDDING_CALL(data.result_status);
-  NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtime));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(data.runtime));
 
   fprintf(stdout, "%d\n", data.result_count);
 on_exit:

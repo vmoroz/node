@@ -85,7 +85,7 @@ int32_t test_main_c_api_env_with_esm_loader(int32_t argc, char* argv[]) {
   // They must be parsed by the platform.
   char* argv2[64];
   for (int32_t i = 0; i < argc; ++i) {
-    argv2[i] = argv[i];
+    argv2[i] = argv[i]; 
   }
   argv2[argc] = "--experimental-vm-modules";
   NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
@@ -116,7 +116,7 @@ static node_embedding_status ConfigureRuntimeWithNoEsmLoader(
       "      await m.link(() => 0);\n"
       "      await m.evaluate();\n"
       "      return m.namespace;\n"
-      "    }),\n"
+      "    }),\n"   
       "  });\n"
       "  await m.link(() => 0);\n"
       "  await m.evaluate();\n"
