@@ -93,12 +93,12 @@ int32_t StatusToExitCode(node_embedding_status status) {
 node_embedding_status PrintErrorMessage(const char* exe_name,
                                         node_embedding_status status) {
   const char* error_message = node_embedding_last_error_message_get();
-  node_embedding_last_error_message_set(NULL);
   if (status != node_embedding_status_ok) {
     fprintf(stderr, "%s: %s\n", exe_name, error_message);
   } else if (error_message != NULL) {
     fprintf(stdout, "%s", error_message);
   }
+  node_embedding_last_error_message_set(NULL);
   return status;
 }
 

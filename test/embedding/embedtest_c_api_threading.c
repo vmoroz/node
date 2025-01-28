@@ -436,6 +436,7 @@ static void RunTestTask4(void* cb_data) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   napi_status status = napi_ok;
   test_task_t* test_task = (test_task_t*)cb_data;
+
   test_task->run_task(test_task->task_data);  // TODO: handle result
 
   // Check myCount and stop the processing when it reaches 5.
@@ -445,6 +446,7 @@ static void RunTestTask4(void* cb_data) {
   napi_env env;
   NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_open(
       runtime, &node_api_scope, &env));
+
   napi_value global, my_count;
   NODE_API_CALL(napi_get_global(env, &global));
   NODE_API_CALL(napi_get_named_property(env, global, "myCount", &my_count));
@@ -452,6 +454,7 @@ static void RunTestTask4(void* cb_data) {
   NODE_API_CALL(napi_typeof(env, my_count, &count_type));
   NODE_API_ASSERT(count_type == napi_number);
   NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
+
   NODE_EMBEDDING_CALL(
       node_embedding_runtime_node_api_scope_close(runtime, node_api_scope));
   if (count == 5) {
@@ -477,7 +480,9 @@ static void ReleaseTestTask4(void* cb_data) {
   free(test_task);
 }
 
-static node_embedding_status PostTask(
+// The callback will be invoked from the runtime's event loop observer thread.
+// It must schedule the work to the UI thread's event loop.
+static node_embedding_status PostTask4(
     void* cb_data,
     node_embedding_task_run_callback run_task,
     void* task_data,
@@ -497,7 +502,10 @@ static node_embedding_status PostTask(
   test_task->release_task_data = release_task_data;
   test_task->test_data = test_data;
 
-  ui_queue_post_task(&test_data->ui_queue, test_task);
+  ui_queue_post_task(&test_data->ui_queue, &test_task->parent_task);
+  if (succeeded != NULL) {
+    *succeeded = true;
+  }
   return node_embedding_status_ok;
 }
 
@@ -506,12 +514,8 @@ static node_embedding_status ConfigureRuntime4(
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
   node_embedding_status embedding_status = node_embedding_status_ok;
-  // The callback will be invoked from the runtime's event loop
-  // observer thread. It must schedule the work to the UI thread's
-  // event loop.
   NODE_EMBEDDING_CALL(node_embedding_runtime_config_set_task_runner(
-      runtime_config, PostTask, cb_data, NULL));
-
+      runtime_config, PostTask4, cb_data, NULL));
   NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
 on_exit:
   return embedding_status;
@@ -525,6 +529,7 @@ static void StartProcessing4(void* cb_data) {
   napi_env env;
   NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_open(
       data->runtime, &node_api_scope, &env));
+
   napi_value undefined, global, func;
   NODE_API_CALL(napi_get_undefined(env, &undefined));
   NODE_API_CALL(napi_get_global(env, &global));
@@ -534,14 +539,16 @@ static void StartProcessing4(void* cb_data) {
   NODE_API_CALL(napi_typeof(env, func, &func_type));
   NODE_API_ASSERT(func_type == napi_function);
   NODE_API_CALL(napi_call_function(env, undefined, func, 0, NULL, NULL));
+
   NODE_EMBEDDING_CALL(node_embedding_runtime_node_api_scope_close(
       data->runtime, node_api_scope));
 on_exit:
+  // TODO: extract into a separate function
   if (embedding_status != node_embedding_status_ok) {
     ThrowLastErrorMessage(env,
                           "RunTestTask failed: %s\n",
                           node_embedding_last_error_message_get());
-    status = napi_generic_failure;
+    status = napi_pending_exception;
   }
   GetAndThrowLastErrorMessage(env, status);
 }
@@ -554,8 +561,8 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   // queue. Note that it is a very simplistic implementation not suitable
   // for the real apps.
   node_embedding_status embedding_status = node_embedding_status_ok;
-  test_data4_t data = {0};
-  ui_queue_init(&data.ui_queue);
+  test_data4_t test_data = {0};
+  ui_queue_init(&test_data.ui_queue);
 
   node_embedding_platform platform;
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
@@ -565,19 +572,19 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   }
 
   NODE_EMBEDDING_CALL(node_embedding_runtime_create(
-      platform, ConfigureRuntime4, &data, &data.runtime));
+      platform, ConfigureRuntime4, &test_data, &test_data.runtime));
 
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
   task_t task = {0};
   task.run_task = StartProcessing4;
-  task.task_data = &data;
-  ui_queue_post_task(&data.ui_queue, &task);
+  task.task_data = &test_data;
+  ui_queue_post_task(&test_data.ui_queue, &task);
 
-  ui_queue_run(&data.ui_queue);
-  ui_queue_destroy(&data.ui_queue);
+  ui_queue_run(&test_data.ui_queue);
+  ui_queue_destroy(&test_data.ui_queue);
 
-  NODE_EMBEDDING_CALL(node_embedding_runtime_delete(data.runtime));
+  NODE_EMBEDDING_CALL(node_embedding_runtime_delete(test_data.runtime));
   NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
 on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));

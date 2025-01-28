@@ -243,6 +243,9 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
 
 namespace {
 
+// A simulation of the UI thread's event loop implemented as a dispatcher
+// queue. Note that it is a very simplistic implementation not suitable
+// for the real apps.
 class UIQueue {
  public:
   void PostTask(std::function<void()>&& task) {
@@ -289,48 +292,7 @@ class UIQueue {
 // event loop.
 extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
     int32_t argc, char* argv[]) {
-  // A simulation of the UI thread's event loop implemented as a dispatcher
-  // queue. Note that it is a very simplistic implementation not suitable
-  // for the real apps.
-  class UIQueue {
-   public:
-    void PostTask(std::function<void()>&& task) {
-      std::scoped_lock lock(mutex_);
-      if (!is_finished_) {
-        tasks_.push_back(std::move(task));
-        wakeup_.notify_one();
-      }
-    }
-
-    void Run() {
-      for (;;) {
-        std::function<void()> task;
-        {
-          std::unique_lock lock(mutex_);
-          wakeup_.wait(lock, [&] { return is_finished_ || !tasks_.empty(); });
-          if (is_finished_) break;
-          task = std::move(tasks_.front());
-          tasks_.pop_front();
-        }
-        task();
-      }
-    }
-
-    void Stop() {
-      std::scoped_lock lock(mutex_);
-      if (!is_finished_) {
-        is_finished_ = true;
-        wakeup_.notify_one();
-      }
-    }
-
-   private:
-    std::mutex mutex_;
-    std::condition_variable wakeup_;
-    std::deque<std::function<void()>> tasks_;
-    bool is_finished_{false};
-  } ui_queue;
-
+  UIQueue ui_queue;
   TestExitCodeHandler error_handler(argv[0]);
   {
     NodeExpected<NodePlatform> expected_platform =

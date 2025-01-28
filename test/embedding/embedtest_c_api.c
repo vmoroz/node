@@ -4,16 +4,16 @@ napi_status CallMe(node_embedding_runtime runtime, napi_env env);
 napi_status WaitMe(node_embedding_runtime runtime, napi_env env);
 napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
 
-node_embedding_status ConfigurePlatform(
+static node_embedding_status ConfigurePlatform(
     void* cb_data, node_embedding_platform_config platform_config) {
   return node_embedding_platform_config_set_flags(
       platform_config, node_embedding_platform_flags_disable_node_options_env);
 }
 
-void HandleExecutionResult(void* cb_data,
-                           node_embedding_runtime runtime,
-                           napi_env env,
-                           napi_value execution_result) {
+static void HandleExecutionResult(void* cb_data,
+                                  node_embedding_runtime runtime,
+                                  napi_env env,
+                                  napi_value execution_result) {
   napi_status status = napi_ok;
   NODE_API_CALL(CallMe(runtime, env));
   NODE_API_CALL(WaitMe(runtime, env));
@@ -22,7 +22,7 @@ on_exit:
   GetAndThrowLastErrorMessage(env, status);
 }
 
-node_embedding_status ConfigureRuntime(
+static node_embedding_status ConfigureRuntime(
     void* cb_data,
     node_embedding_platform platform,
     node_embedding_runtime_config runtime_config) {
@@ -47,7 +47,7 @@ on_exit:
   return StatusToExitCode(PrintErrorMessage(argv[0], embedding_status));
 }
 
-napi_status CallMe(node_embedding_runtime runtime, napi_env env) {
+static napi_status CallMe(node_embedding_runtime runtime, napi_env env) {
   napi_status status = napi_ok;
   napi_value global, cb, key;
 
@@ -85,7 +85,7 @@ on_exit:
 // TODO: remove static variables
 char callback_buf[32];
 size_t callback_buf_len;
-napi_value c_cb(napi_env env, napi_callback_info info) {
+static napi_value c_cb(napi_env env, napi_callback_info info) {
   napi_status status = napi_ok;
   size_t argc = 1;
   napi_value arg;
@@ -97,7 +97,7 @@ on_exit:
   return NULL;
 }
 
-napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
+static napi_status WaitMe(node_embedding_runtime runtime, napi_env env) {
   napi_status status = napi_ok;
   node_embedding_status embedding_status = node_embedding_status_ok;
   napi_value global, cb, key;
@@ -154,7 +154,7 @@ typedef enum {
   kPromiseStateRejected,
 } PromiseState;
 
-napi_value OnFullfilled(napi_env env, napi_callback_info info) {
+static napi_value OnFullfilled(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value result;
   void* data;
@@ -164,7 +164,7 @@ napi_value OnFullfilled(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-napi_value OnRejected(napi_env env, napi_callback_info info) {
+static napi_value OnRejected(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value result;
   void* data;
@@ -174,7 +174,8 @@ napi_value OnRejected(napi_env env, napi_callback_info info) {
   return NULL;
 }
 
-napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env) {
+static napi_status WaitMeWithCheese(node_embedding_runtime runtime,
+                                    napi_env env) {
   napi_status status = napi_ok;
   node_embedding_status embedding_status = node_embedding_status_ok;
   PromiseState promise_state = kPromiseStatePending;

@@ -127,10 +127,9 @@ function runCommonApiTests(apiType) {
   );
 }
 
-// All OK
-// runCommonApiTests('cpp-api');
-// runCommonApiTests('c-api');
-// runCommonApiTests('c-cpp-api');
+runCommonApiTests('cpp-api');
+runCommonApiTests('c-api');
+runCommonApiTests('c-cpp-api');
 
 function getReadFileCodeForPath(path) {
   return `(require("fs").readFileSync(${JSON.stringify(path)}, "utf8"))`;
@@ -235,12 +234,10 @@ function runSnapshotTests(apiType) {
   }
 }
 
-// All OK
-// runSnapshotTests('cpp-api');
+runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
-  /*
   runTest(
     `${apiType}-nodejs-main: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -337,8 +334,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-*/  
-  //Fails in C
+
   runTest(
     `${apiType}-threading-runtime-in-ui-thread: run an environment from UI thread`,
     spawnSyncAndAssert,
@@ -355,7 +351,7 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-/*
+
   const preloadScriptPath = path.join(__dirname, 'preload-with-worker.js');
 
   runTest(
@@ -386,11 +382,10 @@ function runCApiTests(apiType) {
       stdout: 'main=Hello, World World; worker=Hello, Node Node',
     }
   );
-*/
 }
 
 runCApiTests('c-api');
-// runCApiTests('c-cpp-api');
+runCApiTests('c-cpp-api');
 
 function runEnvTests(apiType) {
   runTest(
@@ -418,8 +413,8 @@ function runEnvTests(apiType) {
   );
 }
 
-// runEnvTests('c-api');
-// runEnvTests('c-cpp-api');
+runEnvTests('c-api');
+runEnvTests('c-cpp-api');
 
 /*
 runTest(
