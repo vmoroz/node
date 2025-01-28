@@ -241,6 +241,50 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
   return error_handler.ReportResult();
 }
 
+namespace {
+
+class UIQueue {
+ public:
+  void PostTask(std::function<void()>&& task) {
+    std::scoped_lock lock(mutex_);
+    if (!is_finished_) {
+      tasks_.push_back(std::move(task));
+      wakeup_.notify_one();
+    }
+  }
+
+  void Run() {
+    for (;;) {
+      // Invoke task outside of the lock.
+      std::function<void()> task;
+      {
+        std::unique_lock lock(mutex_);
+        wakeup_.wait(lock, [&] { return is_finished_ || !tasks_.empty(); });
+        if (is_finished_) return;
+        task = std::move(tasks_.front());
+        tasks_.pop_front();
+      }
+      task();
+    }
+  }
+
+  void Stop() {
+    std::scoped_lock lock(mutex_);
+    if (!is_finished_) {
+      is_finished_ = true;
+      wakeup_.notify_one();
+    }
+  }
+
+ private:
+  std::mutex mutex_;
+  std::condition_variable wakeup_;
+  std::deque<std::function<void()>> tasks_;
+  bool is_finished_{false};
+};
+
+}  // namespace
+
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
 extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(

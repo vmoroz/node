@@ -301,44 +301,80 @@ on_exit:
 // Simulation of the UI queue.
 //------------------------------------------------------------------------------
 
-struct task_t {
-  struct task_t* prev;
-  struct task_t* next;
+struct deq_item_t {
+  struct deq_item_t* prev;
+  struct deq_item_t* next;
+};
+typedef struct deq_item_t deq_item_t;
+
+static void deq_item_init(deq_item_t* item) {
+  item->prev = NULL;
+  item->next = NULL;
+}
+
+typedef struct {
+  deq_item_t* head;
+  deq_item_t* tail;
+} deq_t;
+
+static void deq_init(deq_t* deq) {
+  deq->head = NULL;
+  deq->tail = NULL;
+}
+
+static void deq_push_back(deq_t* deq, deq_item_t* item) {
+  if (deq->tail == NULL) {
+    deq->head = item;
+    deq->tail = item;
+  } else {
+    deq->tail->next = item;
+    item->prev = deq->tail;
+    deq->tail = item;
+  }
+}
+
+static deq_item_t* deq_pop_front(deq_t* deq) {
+  deq_item_t* item = deq->head;
+  if (item != NULL) {
+    deq->head = item->next;
+    if (deq->head == NULL) {
+      deq->tail = NULL;
+    } else {
+      deq->head->prev = NULL;
+    }
+  }
+  return item;
+}
+
+static bool deq_empty(deq_t* deq) {
+  return deq->head == NULL;
+}
+
+typedef struct {
+  deq_item_t deq_item;
   void* task_data;
   void (*run_task)(void*);
   void (*release_task_data)(void*);
-};
-typedef struct task_t task_t;
+} task_t;
 
 typedef struct {
   uv_mutex_t mutex;
   uv_cond_t wakeup;
-  task_t* queue_in;
-  task_t* queue_out;
+  deq_t tasks;
   bool is_finished;
 } ui_queue_t;
 
-// TODO: Change implementation from doubly linked list to using read/write
-// buffer.
 static void ui_queue_init(ui_queue_t* queue) {
   uv_mutex_init(&queue->mutex);
   uv_cond_init(&queue->wakeup);
-  queue->queue_in = NULL;
-  queue->queue_out = NULL;
+  deq_init(&queue->tasks);
   queue->is_finished = false;
 }
 
 static void ui_queue_post_task(ui_queue_t* queue, task_t* task) {
   uv_mutex_lock(&queue->mutex);
   if (!queue->is_finished) {
-    if (queue->queue_in == NULL) {
-      queue->queue_out = task;
-    } else {
-      queue->queue_in->prev = task;
-    }
-    task->prev = NULL;
-    task->next = queue->queue_in;
-    queue->queue_in = task;
+    deq_push_back(&queue->tasks, &task->deq_item);
     uv_cond_signal(&queue->wakeup);
   }
   uv_mutex_unlock(&queue->mutex);
@@ -346,34 +382,21 @@ static void ui_queue_post_task(ui_queue_t* queue, task_t* task) {
 
 static void ui_queue_run(ui_queue_t* queue) {
   for (;;) {
-    task_t* task;
     uv_mutex_lock(&queue->mutex);
-    while (queue->queue_out == NULL && !queue->is_finished) {
+    while (!queue->is_finished && deq_empty(&queue->tasks)) {
       uv_cond_wait(&queue->wakeup, &queue->mutex);
     }
     if (queue->is_finished) {
       uv_mutex_unlock(&queue->mutex);
-      break;
+      return;
     }
-    task = queue->queue_out;
-    if (task != NULL) {
-      queue->queue_out = task->prev;
-      if (queue->queue_out == NULL) {
-        queue->queue_in = NULL;
-      } else {
-        queue->queue_out->next = NULL;
-      }
-    }
+    task_t* task = (task_t*)deq_pop_front(&queue->tasks);
     uv_mutex_unlock(&queue->mutex);
-    if (task != NULL) {
-      task->prev = NULL;
-      task->next = NULL;
-      if (task->run_task != NULL) {
-        task->run_task(task->task_data);
-      }
-      if (task->release_task_data != NULL) {
-        task->release_task_data(task->task_data);
-      }
+    if (task->run_task != NULL) {
+      task->run_task(task->task_data);
+    }
+    if (task->release_task_data != NULL) {
+      task->release_task_data(task->task_data);
     }
   }
 }
