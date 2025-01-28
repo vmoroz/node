@@ -165,7 +165,7 @@ int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
-    return 0;  // early return
+    goto on_exit;  // early return
   }
 
   for (size_t i = 0; i < runtime_count; ++i) {
@@ -270,7 +270,7 @@ int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
-    return 0;  // early return
+    goto on_exit;  // early return
   }
 
   NODE_EMBEDDING_CALL(node_embedding_runtime_create(
@@ -538,7 +538,7 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, &platform));
   if (platform == NULL) {
-    return 0;  // early return
+    goto on_exit;  // early return
   }
 
   NODE_EMBEDDING_CALL(node_embedding_runtime_create(
