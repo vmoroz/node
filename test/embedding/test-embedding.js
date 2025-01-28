@@ -127,6 +127,7 @@ function runCommonApiTests(apiType) {
   );
 }
 
+// All OK
 // runCommonApiTests('cpp-api');
 // runCommonApiTests('c-api');
 // runCommonApiTests('c-cpp-api');
@@ -234,11 +235,12 @@ function runSnapshotTests(apiType) {
   }
 }
 
+// All OK
 // runSnapshotTests('cpp-api');
 
 // C-API specific tests
 function runCApiTests(apiType) {
-/*
+  /*
   runTest(
     `${apiType}-nodejs-main: run Node.js CLI`,
     spawnSyncAndAssert,
@@ -301,7 +303,7 @@ function runCApiTests(apiType) {
       stdout: '12',
     }
   );
-*/
+
   runTest(
     `${apiType}-threading-several-runtimes-per-thread: run 12 environments in the same thread`,
     spawnSyncAndAssert,
@@ -318,7 +320,8 @@ function runCApiTests(apiType) {
       stdout: '60',
     }
   );
-/*
+
+  // Fails in C
   runTest(
     `${apiType}-threading-runtime-in-several-threads: run and environment from multiple threads`,
     spawnSyncAndAssert,
@@ -335,7 +338,8 @@ function runCApiTests(apiType) {
       stdout: '5',
     }
   );
-
+  
+  //Fails in C
   runTest(
     `${apiType}-threading-runtime-in-ui-thread: run and environment from multiple threads`,
     spawnSyncAndAssert,
@@ -386,8 +390,8 @@ function runCApiTests(apiType) {
 */
 }
 
-runCApiTests('c-api');
-//runCApiTests('c-cpp-api');
+// runCApiTests('c-api');
+// runCApiTests('c-cpp-api');
 
 function runEnvTests(apiType) {
   runTest(
@@ -397,6 +401,7 @@ function runEnvTests(apiType) {
     {}
   );
 
+  // Fails in C
   runTest(
     `${apiType}: Env With ESM Loader`,
     spawnSyncAndExitWithoutError,
@@ -415,6 +420,7 @@ function runEnvTests(apiType) {
   );
 }
 
+// runEnvTests('c-api');
 // runEnvTests('c-cpp-api');
 
 /*

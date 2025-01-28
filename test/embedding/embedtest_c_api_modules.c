@@ -50,19 +50,19 @@ on_exit:
 
 static napi_value ReplicatorFunction(napi_env env, napi_callback_info info) {
   napi_status status = napi_ok;
-  char greeting_buf[256] = {0};
+  char replicator_buf[256] = {0};
 
+  napi_value result = NULL;
   napi_value arg;
   size_t arg_count = 1;
   NODE_API_CALL(napi_get_cb_info(env, info, &arg_count, &arg, NULL, NULL));
   size_t str_size = 0;
   NODE_API_CALL(
-      napi_get_value_string_utf8(env, arg, greeting_buf, 256, &str_size));
-  strcpy(greeting_buf + str_size, " ");
-  strcpy(greeting_buf + str_size + 1, greeting_buf);
-  napi_value result;
+      napi_get_value_string_utf8(env, arg, replicator_buf, 256, &str_size));
+  strcpy(replicator_buf + str_size, " ");
+  strncpy(replicator_buf + str_size + 1, replicator_buf, str_size);
   NODE_API_CALL(
-      napi_create_string_utf8(env, greeting_buf, NAPI_AUTO_LENGTH, &result));
+      napi_create_string_utf8(env, replicator_buf, NAPI_AUTO_LENGTH, &result));
 
 on_exit:
   GetAndThrowLastErrorMessage(env, status);
