@@ -13,6 +13,8 @@
 // C-based API.
 //
 
+// TODO: add setting user data for the runtime
+
 #ifndef SRC_NODE_EMBEDDING_API_H_
 #define SRC_NODE_EMBEDDING_API_H_
 

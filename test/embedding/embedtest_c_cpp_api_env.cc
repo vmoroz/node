@@ -11,7 +11,7 @@ extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
       nullptr,
       [](const NodePlatform& platform,
          const NodeRuntimeConfig& runtime_config) {
-        TestErrorHandler<NodeExpected<void>> error_handler;
+        NodeEmbeddingErrorHandler error_handler;
         NODE_EMBEDDING_CALL(
             runtime_config.SetFlags(NodeRuntimeFlags::kNoBrowserGlobals));
         NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config,
@@ -40,7 +40,7 @@ assert.deepStrictEqual(leaks, []);
 )JS"));
         return NodeExpected<void>();
       }));
-  return 0;
+  return error_handler.ReportResult();
 }
 
 // Test ESM loaded
@@ -78,7 +78,7 @@ const { SourceTextModule } = require('node:vm');
 })();
 )JS");
                             }));
-  return 0;
+  return error_handler.ReportResult();
 }
 
 // Test ESM loaded
@@ -110,7 +110,7 @@ const { SourceTextModule } = require('node:vm');
 })();
 )JS");
                             }));
-  return 0;
+  return error_handler.ReportResult();
 }
 
 }  // namespace node::embedding

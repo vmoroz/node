@@ -464,54 +464,155 @@ class NodeErrorInfo {
   }
 };
 
-class NodeScopedErrorHandler {
+class NodeEmbeddingErrorHandler {
  public:
-  static void SetStatus(NodeStatus status) {
-    if (status == NodeStatus::kOk) return;
-    NodeScopedErrorHandler* current_handler = Current();
-    if (current_handler != nullptr) {
-      napi_fatal_error("NodeScopedErrorHandler::SetStatus",
-                       NAPI_AUTO_LENGTH,
-                       "NodeScopedErrorHandler is not found om the stack.",
-                       NAPI_AUTO_LENGTH);
+  NodeEmbeddingErrorHandler() = default;
+
+  ~NodeEmbeddingErrorHandler() { current_internal() = previous_handler_; }
+
+  void SetLastErrorMessage(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    std::string message = NodeFormatString(format, args);
+    va_end(args);
+    node_embedding_last_error_message_set(message.c_str());
+    embedding_status_ = NodeStatus::kGenericError;
+  }
+
+  NodeExpected<void> ReportResult() const {
+    return NodeExpected<void>(embedding_status_);
+  }
+
+  bool has_embedding_error() const {
+    return embedding_status_ != NodeStatus::kOk;
+  }
+
+  NodeStatus embedding_status() const { return embedding_status_; }
+
+  void set_embedding_status(NodeStatus status) { embedding_status_ = status; }
+
+  void set_embedding_status(const NodeExpected<void>& expected) {
+    embedding_status_ = expected.status();
+  }
+
+  static NodeEmbeddingErrorHandler* current() { return current_internal(); }
+
+  static void CurrentSetEmbeddingStatus(NodeStatus status) {
+    if (NodeEmbeddingErrorHandler* current = current_internal()) {
+      current->set_embedding_status(status);
     }
-    current_handler->SetStatusInternal(status);
   }
 
-  NodeScopedErrorHandler() {}
-
-  ~NodeScopedErrorHandler() {
-    if (status_.has_value()) {
-      napi_fatal_error("NodeScopedErrorHandler::~NodeScopedErrorHandler",
-                       NAPI_AUTO_LENGTH,
-                       "NodeScopedErrorHandler status is not read and cleared.",
-                       NAPI_AUTO_LENGTH);
-    }
-    Current() = previous_handler_;
-  }
-
-  NodeStatus GetAndClearStatus() {
-    NodeStatus result_status = status_.value_or(NodeStatus::kOk);
-    status_.reset();
-    return result_status;
-  }
+  NodeEmbeddingErrorHandler(const NodeEmbeddingErrorHandler&) = delete;
+  NodeEmbeddingErrorHandler& operator=(const NodeEmbeddingErrorHandler&) =
+      delete;
 
  private:
-  static NodeScopedErrorHandler*& Current() {
-    static thread_local NodeScopedErrorHandler* current_handler = nullptr;
+  // Declaring operator new and delete as deleted is not spec compliant.
+  // Therefore declare them private instead to disable dynamic alloc
+  void* operator new(size_t size) { std::abort(); }
+  void* operator new[](size_t size) { std::abort(); }
+  void operator delete(void*, size_t) { std::abort(); }
+  void operator delete[](void*, size_t) { std::abort(); }
+
+  static NodeEmbeddingErrorHandler*& current_internal() {
+    static thread_local NodeEmbeddingErrorHandler* current_handler = nullptr;
     return current_handler;
   }
 
-  void SetStatusInternal(NodeStatus status) {
-    if (status_ != NodeStatus::kOk) return;
-    status_ = status;
-    error_message_ = NodeErrorInfo::GetLastErrorMessage();
+ private:
+  NodeEmbeddingErrorHandler* previous_handler_{
+      std::exchange(current_internal(), this)};
+  NodeStatus embedding_status_{NodeStatus::kOk};
+};
+
+class NodeApiErrorHandlerBase {
+ public:
+  void SetLastErrorMessage(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    std::string message = NodeFormatString(format, args);
+    va_end(args);
+    ThrowLastErrorMessage(env_, message.c_str());
+    node_api_status_ = napi_pending_exception;
   }
 
+  static void GetAndThrowLastErrorMessage(napi_env env) {
+    const napi_extended_error_info* error_info;
+    napi_get_last_error_info(env, &error_info);
+    ThrowLastErrorMessage(env, error_info->error_message);
+  }
+
+  static void ThrowLastErrorMessage(napi_env env, const char* message) {
+    bool is_pending;
+    napi_is_exception_pending(env, &is_pending);
+    /* If an exception is already pending, don't rethrow it */
+    if (!is_pending) {
+      const char* error_message =
+          message != nullptr ? message : "empty error message";
+      napi_throw_error(env, nullptr, error_message);
+    }
+  }
+
+  napi_status ReportResult() const { return node_api_status_; }
+
+  napi_env env() const { return env_; }
+
+  bool has_node_api_error() const { return node_api_status_ != napi_ok; }
+
+  napi_status node_api_status() const { return node_api_status_; }
+
+  void set_node_api_status(napi_status status) { node_api_status_ = status; }
+
+  bool has_embedding_error() const {
+    return embedding_status_ != NodeStatus::kOk;
+  }
+
+  NodeStatus embedding_status() const { return embedding_status_; }
+
+  void set_embedding_status(NodeStatus status) {
+    embedding_status_ = status;
+    ThrowLastErrorMessage(env_, node_embedding_last_error_message_get());
+    node_api_status_ = napi_pending_exception;
+  }
+
+  void set_embedding_status(const NodeExpected<void>& expected) {
+    set_embedding_status(expected.status());
+  }
+
+  NodeApiErrorHandlerBase(const NodeApiErrorHandlerBase&) = delete;
+  NodeApiErrorHandlerBase& operator=(const NodeApiErrorHandlerBase&) = delete;
+
+ protected:
+  NodeApiErrorHandlerBase(napi_env env) : env_(env) {}
+
  private:
-  std::optional<NodeStatus> status_;
-  std::string error_message_;
-  NodeScopedErrorHandler* previous_handler_{Current()};
+  // Declaring operator new and delete as deleted is not spec compliant.
+  // Therefore declare them private instead to disable dynamic alloc
+  void* operator new(size_t size) { std::abort(); }
+  void* operator new[](size_t size) { std::abort(); }
+  void operator delete(void*, size_t) { std::abort(); }
+  void operator delete[](void*, size_t) { std::abort(); }
+
+ private:
+  napi_env env_{nullptr};
+  napi_status node_api_status_{napi_ok};
+  NodeStatus embedding_status_{NodeStatus::kOk};
+};
+
+template <typename TValue>
+class NodeApiErrorHandler : public NodeApiErrorHandlerBase {
+ public:
+  NodeApiErrorHandler(napi_env env) : NodeApiErrorHandlerBase(env) {}
+
+  TValue ReportResult() const {
+    if constexpr (std::is_same_v<TValue, napi_status>) {
+      return NodeApiErrorHandlerBase::ReportResult();
+    } else {
+      GetAndThrowLastErrorMessage(env());
+      return TValue();
+    }
+  }
 };
 
 // Wraps the Node.js platform instance.
@@ -525,8 +626,11 @@ class NodePlatform {
 
   ~NodePlatform() {
     if (platform_) {
-      NodeScopedErrorHandler::SetStatus(
-          node_embedding_platform_delete(platform_.ptr()));
+      NodeStatus status = node_embedding_platform_delete(platform_.ptr());
+      if (NodeEmbeddingErrorHandler* current =
+              NodeEmbeddingErrorHandler::current()) {
+        current->set_embedding_status(status);
+      }
     }
   }
 
@@ -650,7 +754,7 @@ class NodeApiScope {
 
   ~NodeApiScope() {
     if (runtime_) {
-      NodeScopedErrorHandler::SetStatus(
+      NodeEmbeddingErrorHandler::CurrentSetEmbeddingStatus(
           node_embedding_runtime_node_api_scope_close(runtime_.ptr(),
                                                       node_api_scope_.ptr()));
     }
@@ -697,7 +801,7 @@ class NodeRuntime {
 
   ~NodeRuntime() {
     if (runtime_) {
-      NodeScopedErrorHandler::SetStatus(
+      NodeEmbeddingErrorHandler::CurrentSetEmbeddingStatus(
           node_embedding_runtime_delete(runtime_.ptr()));
       ;
     }

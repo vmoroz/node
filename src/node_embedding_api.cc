@@ -1534,7 +1534,7 @@ void NAPI_CDECL node_embedding_last_error_message_set(const char* message) {
 }
 
 void NAPI_CDECL node_embedding_last_error_message_set_format(const char* format,
-  ...) {
+                                                             ...) {
   constexpr size_t buffer_size = 1024;
   char buffer[buffer_size];
   std::unique_ptr<char[]> dynamic_buffer;

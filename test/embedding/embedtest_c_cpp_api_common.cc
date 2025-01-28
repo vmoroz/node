@@ -26,33 +26,16 @@ napi_status AddUtf8String(std::string& str, napi_env env, napi_value value) {
   return status;
 }
 
-void GetAndThrowLastErrorMessage(napi_env env) {
-  const napi_extended_error_info* error_info;
-  napi_get_last_error_info(env, &error_info);
-  ThrowLastErrorMessage(env, error_info->error_message);
-}
-
-void ThrowLastErrorMessage(napi_env env, const char* message) {
-  bool is_pending;
-  napi_is_exception_pending(env, &is_pending);
-  /* If an exception is already pending, don't rethrow it */
-  if (!is_pending) {
-    const char* error_message =
-        message != nullptr ? message : "empty error message";
-    napi_throw_error(env, nullptr, error_message);
-  }
-}
-
 NodeExpected<void> LoadUtf8Script(const NodeRuntimeConfig& runtime_config,
                                   std::string_view script) {
-  TestErrorHandler<NodeExpected<void>> error_handler;
+  NodeEmbeddingErrorHandler error_handler;
   NODE_EMBEDDING_CALL(runtime_config.OnStartExecution(
       [script = std::string(script)](const NodeRuntime& /*runtime*/,
                                      napi_env env,
                                      napi_value /*process*/,
                                      napi_value /*require*/,
                                      napi_value run_cjs) -> napi_value {
-        TestErrorHandler<napi_value> error_handler(env);
+        NodeApiErrorHandler<napi_value> error_handler(env);
         napi_value script_value{}, null_value{}, result{};
         NODE_API_CALL(napi_create_string_utf8(
             env, script.c_str(), script.size(), &script_value));
@@ -61,14 +44,16 @@ NodeExpected<void> LoadUtf8Script(const NodeRuntimeConfig& runtime_config,
             env, null_value, run_cjs, 1, &script_value, &result));
         return result;
       }));
-  return NodeExpected<void>();
+  return error_handler.ReportResult();
 }
 
 NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
                                      NodeStatus status) {
+  std::string error_message = NodeErrorInfo::GetAndClearLastErrorMessage();
   if (status != NodeStatus::kOk) {
-    std::string error_message = NodeErrorInfo::GetAndClearLastErrorMessage();
     fprintf(stderr, "%s: %s\n", exe_name.data(), error_message.c_str());
+  } else if (!error_message.empty()) {
+    fprintf(stdout, error_message.c_str());
   }
   return NodeExpected<void>(status);
 }

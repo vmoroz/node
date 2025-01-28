@@ -21,23 +21,23 @@ extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
       },
       [](const NodePlatform& platform,
          const NodeRuntimeConfig& runtime_config) {
-        TestErrorHandler<NodeExpected<void>> error_handler;
+        NodeEmbeddingErrorHandler error_handler;
         NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
         NODE_EMBEDDING_CALL(runtime_config.OnLoaded(
             [](const NodeRuntime& runtime, napi_env env, napi_value
                /*value*/) {
-              TestErrorHandler<void> error_handler(env);
+              NodeApiErrorHandler<void> error_handler(env);
               NODE_API_CALL(CallMe(runtime, env));
               NODE_API_CALL(WaitMe(runtime, env));
               NODE_API_CALL(WaitMeWithCheese(runtime, env));
             }));
-        return NodeExpected<void>();
+        return error_handler.ReportResult();
       }));
-  return 0;
+  return error_handler.ReportResult();
 }
 
 napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
-  TestErrorHandler<napi_status> error_handler(env);
+  NodeApiErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -61,11 +61,11 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
     size_t len{};
     NODE_API_CALL(napi_get_value_string_utf8(env, result, buf, 32, &len));
     if (strcmp(buf, "called you") != 0) {
-      NODE_API_FAIL("Invalid value received: %s\n", buf);
+      NODE_FAIL("Invalid value received: %s", buf);
     }
     printf("%s", buf);
   } else if (cb_type != napi_undefined) {
-    NODE_API_FAIL("Invalid callMe value\n");
+    NODE_FAIL("Invalid callMe value");
   }
   return napi_ok;
 }
@@ -73,7 +73,7 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
 char callback_buf[32];
 size_t callback_buf_len;
 napi_value c_cb(napi_env env, napi_callback_info info) {
-  TestErrorHandler<napi_value> error_handler(env);
+  NodeApiErrorHandler<napi_value> error_handler(env);
   size_t argc = 1;
   napi_value arg{};
   NODE_API_CALL(napi_get_cb_info(env, info, &argc, &arg, nullptr, nullptr));
@@ -83,7 +83,7 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
 }
 
 napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
-  TestErrorHandler<napi_status> error_handler(env);
+  NodeApiErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
   NODE_API_CALL(napi_get_global(env, &global));
@@ -107,14 +107,14 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
     memset(callback_buf, 0, 32);
     NODE_API_CALL(napi_call_function(env, undef, cb, 2, args, &result));
     if (strcmp(callback_buf, "waited you") == 0) {
-      NODE_API_FAIL("Anachronism detected: %s\n", callback_buf);
+      NODE_FAIL("Anachronism detected: %s", callback_buf);
     }
 
     for (;;) {
       NodeExpected<bool> loop_result = runtime.RunEventLoopOnce();
       if (loop_result.has_error()) {
-        NODE_API_FAIL("Failed to run event loop: %s\n",
-                      NodeErrorInfo::GetLastErrorMessage());
+        NODE_FAIL("Failed to run event loop: %s",
+                  NodeErrorInfo::GetLastErrorMessage());
       }
       if (!loop_result.value()) {
         break;
@@ -122,11 +122,11 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
     }
 
     if (strcmp(callback_buf, "waited you") != 0) {
-      NODE_API_FAIL("Invalid value received: %s\n", callback_buf);
+      NODE_FAIL("Invalid value received: %s", callback_buf);
     }
     printf("%s", callback_buf);
   } else if (cb_type != napi_undefined) {
-    NODE_API_FAIL("Invalid waitMe value\n");
+    NODE_FAIL("Invalid waitMe value");
   }
   return napi_ok;
 }
@@ -138,7 +138,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
     kRejected,
   };
 
-  TestErrorHandler<napi_status> error_handler(env);
+  NodeApiErrorHandler<napi_status> error_handler(env);
   PromiseState promise_state = PromiseState::kPending;
   napi_value global{}, wait_promise{}, undefined{};
   napi_value on_fulfilled{}, on_rejected{};
@@ -158,7 +158,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   if (wait_promise_type == napi_undefined) {
     return napi_ok;
   } else if (wait_promise_type != napi_function) {
-    NODE_API_FAIL("Invalid waitPromise value\n");
+    NODE_FAIL("Invalid waitPromise value");
   }
 
   napi_value arg;
@@ -170,13 +170,13 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
       napi_call_function(env, undefined, wait_promise, 1, &arg, &promise));
 
   if (strcmp(callback_buf, "waited with cheese") == 0) {
-    NODE_API_FAIL("Anachronism detected: %s\n", callback_buf);
+    NODE_FAIL("Anachronism detected: %s", callback_buf);
   }
 
   bool is_promise;
   NODE_API_CALL(napi_is_promise(env, promise, &is_promise));
   if (!is_promise) {
-    NODE_API_FAIL("Result is not a Promise\n");
+    NODE_FAIL("Result is not a Promise");
   }
 
   NODE_API_CALL(napi_create_function(
@@ -184,7 +184,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
       "onFulfilled",
       NAPI_AUTO_LENGTH,
       [](napi_env env, napi_callback_info info) -> napi_value {
-        TestErrorHandler<napi_value> error_handler(env);
+        NodeApiErrorHandler<napi_value> error_handler(env);
         size_t argc = 1;
         napi_value result;
         void* data;
@@ -202,7 +202,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
       "rejected",
       NAPI_AUTO_LENGTH,
       [](napi_env env, napi_callback_info info) -> napi_value {
-        TestErrorHandler<napi_value> error_handler(env);
+        NodeApiErrorHandler<napi_value> error_handler(env);
         size_t argc = 1;
         napi_value result;
         void* data;
@@ -224,8 +224,8 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   while (promise_state == PromiseState::kPending) {
     NodeExpected<bool> loop_result = runtime.RunEventLoopOnce();
     if (loop_result.has_error()) {
-      NODE_API_FAIL("Failed to run event loop: %s\n",
-                    NodeErrorInfo::GetLastErrorMessage());
+      NODE_FAIL("Failed to run event loop: %s",
+                NodeErrorInfo::GetLastErrorMessage());
     }
     if (!loop_result.value()) {
       break;
@@ -237,7 +237,7 @@ napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
                  : "waited without cheese";
 
   if (strcmp(callback_buf, expected) != 0) {
-    NODE_API_FAIL("Invalid value received: %s\n", callback_buf);
+    NODE_FAIL("Invalid value received: %s", callback_buf);
   }
   printf("%s", callback_buf);
   return napi_ok;

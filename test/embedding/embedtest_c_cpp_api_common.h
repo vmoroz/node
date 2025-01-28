@@ -21,96 +21,18 @@ NodeExpected<void> LoadUtf8Script(const NodeRuntimeConfig& runtime_config,
 NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
                                      NodeStatus status);
 
-class NodeErrorHandler {
- public:
-  void SetEmbeddingStatus(NodeStatus embedding_status) {
-    embedding_status_ = embedding_status;
-  }
-
-  void SetEmbeddingError(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    std::string message = NodeFormatString(format, args);
-    va_end(args);
-    node_embedding_last_error_message_set(message.c_str());
-  }
-
-  NodeStatus error_value() { return embedding_status_; }
-
-  bool has_embedding_error() const {
-    return embedding_status_ != NodeStatus::kOk;
-  }
-
-  NodeStatus embedding_status() const { return embedding_status_; }
-
- private:
-  NodeStatus embedding_status_ = NodeStatus::kOk;
-};
-
-template <typename TValue>
-class TestErrorHandler : public NodeErrorHandler {
- public:
-  TestErrorHandler(napi_env env) : env_(env) {}
-
-  void SetNodeApiStatus(napi_status node_api_status) {
-    node_api_status_ = node_api_status;
-  }
-
-  void ThrowNodeApiError(const char* format, ...) {
-    va_list args;
-    va_start(args, format);
-    std::string message = NodeFormatString(format, args);
-    va_end(args);
-    ThrowLastErrorMessage(env_, message.c_str());
-  }
-
-  TValue error_value() { return TValue(); }
-
-  bool has_node_api_error() const { return node_api_status_ != napi_ok; }
-
- private:
-  napi_env env_ = nullptr;
-  napi_status node_api_status_ = napi_ok;
-};
-
-template <typename TValue>
-class TestErrorHandler<NodeExpected<TValue>> : public NodeErrorHandler {
- public:
-  TestErrorHandler() {}
-
-  void SetNodeApiStatus(napi_status node_api_status) {
-    node_api_status_ = node_api_status;
-  }
-
-  void ThrowNodeApiError(const char* format, ...);
-
-  NodeExpected<TValue> error_value() {
-    return NodeExpected<TValue>(embedding_status());
-  }
-
-  bool has_node_api_error() const { return node_api_status_ != napi_ok; }
-
- private:
-  napi_status node_api_status_ = napi_ok;
-};
-
-class TestExitCodeHandler : public NodeErrorHandler {
+class TestExitCodeHandler : public NodeEmbeddingErrorHandler {
  public:
   TestExitCodeHandler(const char* exe_name) : exe_name_(exe_name) {}
 
-  void SetNodeApiStatus(napi_status node_api_status) {
-    node_api_status_ = node_api_status;
-  }
-
-  void ThrowNodeApiError(const char* format, ...);
-
-  int32_t error_value() {
-    return PrintErrorMessage(exe_name_, embedding_status()).exit_code();
+  int32_t ReportResult() {
+    return PrintErrorMessage(exe_name_,
+                             NodeEmbeddingErrorHandler::ReportResult().status())
+        .exit_code();
   }
 
  private:
   const char* exe_name_ = nullptr;
-  napi_status node_api_status_ = napi_ok;
 };
 
 }  // namespace node::embedding
@@ -119,44 +41,38 @@ class TestExitCodeHandler : public NodeErrorHandler {
 // Error handing macros
 //==============================================================================
 
-#define NODE_API_CALL(expr)                                                    \
-  do {                                                                         \
-    error_handler.SetNodeApiStatus(expr);                                      \
-    if (error_handler.has_node_api_error()) {                                  \
-      return error_handler.error_value();                                      \
-    }                                                                          \
-  } while (0)
-
-#define NODE_API_ASSERT(expr)                                                  \
+#define NODE_ASSERT(expr)                                                      \
   do {                                                                         \
     if (!(expr)) {                                                             \
-      error_handler.ThrowNodeApiError(                                         \
+      error_handler.SetLastErrorMessage(                                       \
           "Failed: %s\nFile: %s\nLine: %d\n", #expr, __FILE__, __LINE__);      \
-      return error_handler.error_value();                                      \
+      return error_handler.ReportResult();                                     \
     }                                                                          \
   } while (0)
 
-#define NODE_API_FAIL(format, ...)                                             \
+#define NODE_FAIL(format, ...)                                                 \
   do {                                                                         \
-    error_handler.ThrowNodeApiError(format, __VA_ARGS__);                      \
-    return error_handler.error_value();                                        \
+    error_handler.SetLastErrorMessage("Failed: " format                        \
+                                      "\nFile: %s\nLine: %d\n",                \
+                                      ##__VA_ARGS__,                           \
+                                      __FILE__,                                \
+                                      __LINE__);                               \
+    return error_handler.ReportResult();                                       \
+  } while (0)
+
+#define NODE_API_CALL(expr)                                                    \
+  do {                                                                         \
+    error_handler.set_node_api_status(expr);                                   \
+    if (error_handler.has_node_api_error()) {                                  \
+      return error_handler.ReportResult();                                     \
+    }                                                                          \
   } while (0)
 
 #define NODE_EMBEDDING_CALL(expr)                                              \
   do {                                                                         \
-    error_handler.SetEmbeddingStatus((expr).status());                         \
+    error_handler.set_embedding_status(expr);                                  \
     if (error_handler.has_embedding_error()) {                                 \
-      return error_handler.error_value();                                      \
-    }                                                                          \
-  } while (0)
-
-#define NODE_EMBEDDING_ASSERT(expr)                                            \
-  do {                                                                         \
-    if (!(expr)) {                                                             \
-      error_handler.SetEmbeddingError(                                         \
-          "Failed: %s\nFile: %s\nLine: %d\n", #expr, __FILE__, __LINE__);      \
-      error_handler.SetEmbeddingStatus(NodeStatus::kGenericError);             \
-      return error_handler.error_value();                                      \
+      return error_handler.ReportResult();                                     \
     }                                                                          \
   } while (0)
 

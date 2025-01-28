@@ -15,7 +15,7 @@ class GreeterModule {
                         napi_env env,
                         std::string_view module_name,
                         napi_value exports) {
-    TestErrorHandler<napi_value> error_handler(env);
+    NodeApiErrorHandler<napi_value> error_handler(env);
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
@@ -24,7 +24,7 @@ class GreeterModule {
         "greet",
         NAPI_AUTO_LENGTH,
         [](napi_env env, napi_callback_info info) -> napi_value {
-          TestErrorHandler<napi_value> error_handler(env);
+          NodeApiErrorHandler<napi_value> error_handler(env);
           std::string greeting = "Hello, ";
           napi_value arg{};
           size_t arg_count = 1;
@@ -55,7 +55,7 @@ class ReplicatorModule {
                         napi_env env,
                         std::string_view module_name,
                         napi_value exports) {
-    TestErrorHandler<napi_value> error_handler(env);
+    NodeApiErrorHandler<napi_value> error_handler(env);
     counter_ptr_->fetch_add(1);
 
     napi_value greet_func{};
@@ -64,7 +64,7 @@ class ReplicatorModule {
         "replicate",
         NAPI_AUTO_LENGTH,
         [](napi_env env, napi_callback_info info) -> napi_value {
-          TestErrorHandler<napi_value> error_handler(env);
+          NodeApiErrorHandler<napi_value> error_handler(env);
           std::string str;
           napi_value arg{};
           size_t arg_count = 1;
@@ -91,7 +91,7 @@ class ReplicatorModule {
 extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
                                                       char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
-  NODE_EMBEDDING_ASSERT(argc == 4);
+  NODE_ASSERT(argc == 4);
   int32_t expectedGreeterModuleInitCallCount = atoi(argv[2]);
   int32_t expectedReplicatorModuleInitCallCount = atoi(argv[2]);
 
@@ -104,7 +104,7 @@ extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
       NodeConfigureRuntimeCallback(
           [&](const NodePlatform& platform,
               const NodeRuntimeConfig& runtime_config) {
-            TestErrorHandler<NodeExpected<void>> error_handler;
+            NodeEmbeddingErrorHandler error_handler;
             NODE_EMBEDDING_CALL(
                 runtime_config.OnPreload([](const NodeRuntime& runtime,
                                             napi_env env,
@@ -128,15 +128,14 @@ extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
 
             NODE_EMBEDDING_CALL(LoadUtf8Script(runtime_config, main_script));
 
-            return NodeExpected<void>();
+            return error_handler.ReportResult();
           })));
 
-  NODE_EMBEDDING_ASSERT(greeterModuleInitCallCount ==
-                        expectedGreeterModuleInitCallCount);
-  NODE_EMBEDDING_ASSERT(replicatorModuleInitCallCount ==
-                        expectedReplicatorModuleInitCallCount);
+  NODE_ASSERT(greeterModuleInitCallCount == expectedGreeterModuleInitCallCount);
+  NODE_ASSERT(replicatorModuleInitCallCount ==
+              expectedReplicatorModuleInitCallCount);
 
-  return 0;
+  return error_handler.ReportResult();
 }
 
 extern "C" int32_t test_main_modules_node_api(int32_t argc, char* argv[]) {
