@@ -3,8 +3,6 @@
 #include <unordered_map>
 #include "executable_wrapper.h"
 
-// TODO: use NodeStatus instead of node_embedding_status
-
 extern "C" int32_t test_main_cpp_api(int32_t argc, char* argv[]);
 
 extern "C" int32_t test_main_c_api(int32_t argc, char* argv[]);

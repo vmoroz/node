@@ -675,7 +675,7 @@ class NodePlatform {
   NodeExpected<std::vector<std::string>> GetArgs() const {
     int32_t argc = 0;
     const char** argv = nullptr;
-    node_embedding_status status = node_embedding_platform_get_parsed_args(
+    NodeStatus status = node_embedding_platform_get_parsed_args(
         platform_.ptr(), &argc, &argv, nullptr, nullptr);
     if (status != NodeStatus::kOk) {
       return NodeExpected<std::vector<std::string>>(status);
@@ -687,7 +687,7 @@ class NodePlatform {
   NodeExpected<std::vector<std::string>> GetRuntimeArgs() const {
     int32_t argc = 0;
     const char** argv = nullptr;
-    node_embedding_status status = node_embedding_platform_get_parsed_args(
+    NodeStatus status = node_embedding_platform_get_parsed_args(
         platform_.ptr(), nullptr, nullptr, &argc, &argv);
     if (status != NodeStatus::kOk) {
       return NodeExpected<std::vector<std::string>>(status);
@@ -1077,7 +1077,7 @@ class NodeFunctorInvoker<
     TFunctor,
     std::enable_if_t<std::is_invocable_r_v<NodeExpected<void>, TFunctor>>> {
  public:
-  static node_embedding_status Invoke(void* cb_data) {
+  static NodeStatus Invoke(void* cb_data) {
     TFunctor* callback = reinterpret_cast<TFunctor*>(cb_data);
     return (*callback)().status();
   }
@@ -1091,7 +1091,7 @@ class NodeFunctorInvoker<
                                            TFunctor,
                                            NodeRunTaskCallback>>> {
  public:
-  static node_embedding_status Invoke(
+  static NodeStatus Invoke(
       void* cb_data,
       node_embedding_task_run_callback run_task,
       void* task_data,
