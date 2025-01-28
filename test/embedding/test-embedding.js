@@ -415,14 +415,3 @@ function runEnvTests(apiType) {
 
 runEnvTests('c-api');
 runEnvTests('c-cpp-api');
-
-/*
-runTest(
-  `modules-node-api: load modules`,
-  spawnSyncAndExitWithoutError,
-  ['modules-node-api', 'cjs.cjs', 'es6.mjs', ],
-  {
-    cwd: __dirname,
-  }
-);
-*/

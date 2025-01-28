@@ -44,9 +44,6 @@ extern "C" int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
 extern "C" int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
                                                               char* argv[]);
 
-// extern "C" int32_t test_main_modules_node_api(int32_t argc, char*
-// argv[]);
-
 typedef int32_t (*main_callback)(int32_t argc, char* argv[]);
 
 int32_t CallWithoutArg1(main_callback main, int32_t argc, char** argv) {
@@ -96,7 +93,6 @@ NODE_MAIN(int32_t argc, node::argv_type raw_argv[]) {
        test_main_c_cpp_api_env_with_esm_loader},
       {"c-cpp-api-env-with-no-esm-loader",
        test_main_c_cpp_api_env_with_no_esm_loader},
-      //   {"modules-node-api",test_main_modules_node_api}
   };
   if (argc > 1) {
     const char* arg1 = argv[1];
