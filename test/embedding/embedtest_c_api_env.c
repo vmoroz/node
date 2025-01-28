@@ -89,7 +89,7 @@ int32_t test_main_c_api_env_with_esm_loader(int32_t argc, char* argv[]) {
   }
   argv2[argc] = "--experimental-vm-modules";
   NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
-                                              argc,
+                                              argc + 1,
                                               argv2,
                                               NULL,
                                               NULL,

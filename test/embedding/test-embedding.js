@@ -401,7 +401,6 @@ function runEnvTests(apiType) {
     {}
   );
 
-  // Fails in C
   runTest(
     `${apiType}: Env With ESM Loader`,
     spawnSyncAndExitWithoutError,
