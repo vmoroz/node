@@ -28,7 +28,7 @@ on_exit:
 
 // Tests that the same preload callback is called from the main thread and from
 // the worker thread.
-int32_t test_main_c_api_preload(int32_t argc, char* argv[]) {
+int32_t test_main_c_api_preload(int32_t argc, const char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   NODE_EMBEDDING_CALL(node_embedding_main_run(
       NODE_EMBEDDING_VERSION, argc, argv, NULL, NULL, ConfigureRuntime, NULL));

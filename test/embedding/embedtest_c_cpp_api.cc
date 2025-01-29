@@ -7,11 +7,11 @@
 
 namespace node::embedding {
 
-napi_status CallMe(const NodeRuntime& runtime, napi_env env);
-napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
-napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
+static napi_status CallMe(const NodeRuntime& runtime, napi_env env);
+static napi_status WaitMe(const NodeRuntime& runtime, napi_env env);
+static napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env);
 
-extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
+int32_t test_main_c_cpp_api(int32_t argc, const char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
   NODE_EMBEDDING_CALL(NodePlatform::RunMain(
       NodeArgs(argc, argv),
@@ -36,7 +36,7 @@ extern "C" int32_t test_main_c_cpp_api(int32_t argc, char* argv[]) {
   return error_handler.ReportResult();
 }
 
-napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
+static napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
   NodeApiErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
@@ -70,9 +70,10 @@ napi_status CallMe(const NodeRuntime& runtime, napi_env env) {
   return napi_ok;
 }
 
+// TODO: remove static variables
 char callback_buf[32];
 size_t callback_buf_len;
-napi_value c_cb(napi_env env, napi_callback_info info) {
+static napi_value c_cb(napi_env env, napi_callback_info info) {
   NodeApiErrorHandler<napi_value> error_handler(env);
   size_t argc = 1;
   napi_value arg{};
@@ -82,7 +83,7 @@ napi_value c_cb(napi_env env, napi_callback_info info) {
   return nullptr;
 }
 
-napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
+static napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
   NodeApiErrorHandler<napi_status> error_handler(env);
   napi_value global{}, cb{}, key{};
 
@@ -131,7 +132,7 @@ napi_status WaitMe(const NodeRuntime& runtime, napi_env env) {
   return napi_ok;
 }
 
-napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
+static napi_status WaitMeWithCheese(const NodeRuntime& runtime, napi_env env) {
   enum class PromiseState {
     kPending,
     kFulfilled,

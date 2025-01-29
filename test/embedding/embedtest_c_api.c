@@ -1,8 +1,9 @@
 #include "embedtest_c_api_common.h"
 
-napi_status CallMe(node_embedding_runtime runtime, napi_env env);
-napi_status WaitMe(node_embedding_runtime runtime, napi_env env);
-napi_status WaitMeWithCheese(node_embedding_runtime runtime, napi_env env);
+static napi_status CallMe(node_embedding_runtime runtime, napi_env env);
+static napi_status WaitMe(node_embedding_runtime runtime, napi_env env);
+static napi_status WaitMeWithCheese(node_embedding_runtime runtime,
+                                    napi_env env);
 
 static node_embedding_status ConfigurePlatform(
     void* cb_data, node_embedding_platform_config platform_config) {
@@ -34,7 +35,7 @@ on_exit:
   return embedding_status;
 }
 
-int32_t test_main_c_api(int32_t argc, char* argv[]) {
+int32_t test_main_c_api(int32_t argc, const char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   NODE_EMBEDDING_CALL(node_embedding_main_run(NODE_EMBEDDING_VERSION,
                                               argc,

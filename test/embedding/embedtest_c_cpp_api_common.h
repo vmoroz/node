@@ -35,6 +35,24 @@ class TestExitCodeHandler : public NodeEmbeddingErrorHandler {
   const char* exe_name_ = nullptr;
 };
 
+class TestExitOnErrorHandler : public NodeEmbeddingErrorHandler {
+ public:
+  TestExitOnErrorHandler(const char* exe_name) : exe_name_(exe_name) {}
+
+  void ReportResult() {
+    int32_t exit_code =
+        PrintErrorMessage(exe_name_,
+                          NodeEmbeddingErrorHandler::ReportResult().status())
+            .exit_code();
+    if (exit_code != 0) {
+      exit(exit_code);
+    }
+  }
+
+ private:
+  const char* exe_name_ = nullptr;
+};
+
 }  // namespace node::embedding
 
 //==============================================================================

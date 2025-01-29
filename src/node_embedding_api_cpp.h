@@ -25,6 +25,7 @@
 #include <array>
 #include <cstdarg>
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <optional>
 #include <string>

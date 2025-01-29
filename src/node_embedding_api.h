@@ -24,19 +24,20 @@
 
 #if defined(__cplusplus) && !defined(NODE_EMBEDDING_DISABLE_CPP_ENUMS)
 
-#define NODE_ENUM(c_name, cpp_name)                                            \
-  enum class cpp_name : int32_t cpp_name;                                      \
-  enum class cpp_name : int32_t
+#define NODE_ENUM(c_name, cpp_name) enum class cpp_name : int32_t
 
 #define NODE_ENUM_FLAGS(c_name, cpp_name)                                      \
-  enum class cpp_name : int32_t cpp_name;                                      \
+  enum class cpp_name : int32_t;                                               \
+                                                                               \
   inline constexpr cpp_name operator|(cpp_name lhs, cpp_name rhs) {            \
     return static_cast<cpp_name>(static_cast<int32_t>(lhs) |                   \
                                  static_cast<int32_t>(rhs));                   \
   }                                                                            \
+                                                                               \
   inline constexpr bool IsFlagSet(cpp_name flags, cpp_name flag) {             \
     return (static_cast<int32_t>(flags) & static_cast<int32_t>(flag)) != 0;    \
   }                                                                            \
+                                                                               \
   enum class cpp_name : int32_t
 
 #define NODE_ENUM_ITEM(c_name, cpp_name) cpp_name
@@ -44,7 +45,7 @@
 #else
 
 #define NODE_ENUM(c_name, cpp_name)                                            \
-  enum c_name c_name;                                                          \
+  typedef enum c_name c_name;                                                  \
   enum c_name
 
 #define NODE_ENUM_FLAGS(c_name, cpp_name) NODE_ENUM(c_name, cpp_name)
@@ -68,7 +69,7 @@ namespace node::embedding {
 #endif
 
 // The status returned by the Node.js embedding API functions.
-typedef NODE_ENUM(node_embedding_status, NodeStatus){
+NODE_ENUM(node_embedding_status, NodeStatus){
   NODE_ENUM_ITEM(node_embedding_status_ok, kOk) = 0,
   NODE_ENUM_ITEM(node_embedding_status_generic_error, kGenericError) = 1,
   NODE_ENUM_ITEM(node_embedding_status_null_arg, kNullArg) = 2,
@@ -81,7 +82,7 @@ typedef NODE_ENUM(node_embedding_status, NodeStatus){
 
 // The flags for the Node.js platform initialization.
 // They match the internal ProcessInitializationFlags::Flags enum.
-typedef NODE_ENUM_FLAGS(node_embedding_platform_flags, NodePlatformFlags){
+NODE_ENUM_FLAGS(node_embedding_platform_flags, NodePlatformFlags){
     NODE_ENUM_ITEM(node_embedding_platform_flags_none, kNone) = 0,
     // Enable stdio inheritance, which is disabled by default.
     // This flag is also implied by
@@ -127,7 +128,7 @@ typedef NODE_ENUM_FLAGS(node_embedding_platform_flags, NodePlatformFlags){
 
 // The flags for the Node.js runtime initialization.
 // They match the internal EnvironmentFlags::Flags enum.
-typedef NODE_ENUM_FLAGS(node_embedding_runtime_flags, NodeRuntimeFlags){
+NODE_ENUM_FLAGS(node_embedding_runtime_flags, NodeRuntimeFlags){
     NODE_ENUM_ITEM(node_embedding_runtime_flags_none, kNone) = 0,
     // Use the default behavior for Node.js instances.
     NODE_ENUM_ITEM(node_embedding_runtime_flags_default, kDefault) = 1 << 0,

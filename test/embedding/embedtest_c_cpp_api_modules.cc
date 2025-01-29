@@ -6,6 +6,8 @@
 
 namespace node::embedding {
 
+namespace {
+
 class GreeterModule {
  public:
   explicit GreeterModule(std::atomic<int32_t>* counter_ptr)
@@ -88,8 +90,9 @@ class ReplicatorModule {
   std::atomic<int32_t>* counter_ptr_;
 };
 
-extern "C" int32_t test_main_c_cpp_api_linked_modules(int32_t argc,
-                                                      char* argv[]) {
+}  // namespace
+
+int32_t test_main_c_cpp_api_linked_modules(int32_t argc, const char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
   NODE_ASSERT(argc == 4);
   int32_t expectedGreeterModuleInitCallCount = atoi(argv[2]);

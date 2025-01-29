@@ -10,6 +10,7 @@
 #include <mutex>
 #include <string>
 #include <string_view>
+#include <thread>
 
 #if defined(__APPLE__)
 #include <sys/select.h>

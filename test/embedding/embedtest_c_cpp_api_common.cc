@@ -53,7 +53,7 @@ NodeExpected<void> PrintErrorMessage(std::string_view exe_name,
   if (status != NodeStatus::kOk) {
     fprintf(stderr, "%s: %s\n", exe_name.data(), error_message.c_str());
   } else if (!error_message.empty()) {
-    fprintf(stdout, error_message.c_str());
+    fprintf(stdout, "%s\n", error_message.c_str());
   }
   return NodeExpected<void>(status);
 }

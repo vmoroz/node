@@ -94,11 +94,11 @@ on_exit:
   return exports;
 }
 
-void OnPreload(void* cb_data,
-               node_embedding_runtime runtime,
-               napi_env env,
-               napi_value process,
-               napi_value require) {
+static void OnPreload(void* cb_data,
+                      node_embedding_runtime runtime,
+                      napi_env env,
+                      napi_value process,
+                      napi_value require) {
   napi_status status = napi_ok;
   napi_value global;
   NODE_API_CALL(napi_get_global(env, &global));
@@ -133,7 +133,7 @@ on_exit:
   return embedding_status;
 }
 
-int32_t test_main_c_api_linked_modules(int32_t argc, char* argv[]) {
+int32_t test_main_c_api_linked_modules(int32_t argc, const char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   int32_t expected_greeter_module_init_call_count = atoi(argv[2]);
   int32_t expected_replicator_module_init_call_count = atoi(argv[2]);

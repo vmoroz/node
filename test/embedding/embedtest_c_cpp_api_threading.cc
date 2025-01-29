@@ -13,8 +13,8 @@ namespace node::embedding {
 // Tests that multiple runtimes can be run at the same time in their own
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
-    int32_t argc, char* argv[]) {
+int32_t test_main_c_cpp_api_threading_runtime_per_thread(int32_t argc,
+                                                         const char* argv[]) {
   const size_t thread_count = 12;
   std::vector<std::thread> threads;
   threads.reserve(thread_count);
@@ -79,8 +79,8 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_per_thread(
 // Tests that multiple runtimes can run in the same thread.
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.
-extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
-    int32_t argc, char* argv[]) {
+int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
+    int32_t argc, const char* argv[]) {
   const size_t runtime_count = 12;
   bool more_work = false;
   int32_t global_count = 0;
@@ -167,8 +167,8 @@ extern "C" int32_t test_main_c_cpp_api_threading_several_runtimes_per_thread(
 
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
-    int32_t argc, char* argv[]) {
+int32_t test_main_c_cpp_api_threading_runtime_in_several_threads(
+    int32_t argc, const char* argv[]) {
   // Use mutex to synchronize access to the runtime.
   std::mutex mutex;
   std::atomic<int32_t> result_count{0};
@@ -290,10 +290,11 @@ class UIQueue {
 
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
-extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
-    int32_t argc, char* argv[]) {
+int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(int32_t argc,
+                                                           const char* argv[]) {
   UIQueue ui_queue;
-  TestExitCodeHandler error_handler(argv[0]);
+  const char* exe_name = argv[0];
+  TestExitCodeHandler error_handler(exe_name);
   {
     NodeExpected<NodePlatform> expected_platform =
         NodePlatform::Create(NodeArgs(argc, argv), nullptr);
@@ -317,18 +318,20 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
               // guarantee it to be alive till the end of the test. In
               // real applications, you should use a safer way to
               // capture the dispatcher queue.
-              [&ui_queue, &runtime](NodeRunTaskCallback run_task) {
+              [&ui_queue, &runtime, exe_name](NodeRunTaskCallback run_task) {
                 // TODO: figure out the termination scenario.
                 // TODO: Release run_task data.
                 ui_queue.PostTask([run_task =
                                        std::make_shared<NodeRunTaskCallback>(
                                            std::move(run_task)),
                                    &runtime,
-                                   &ui_queue]() {
-                  (*run_task)();  // TODO: handle result
+                                   &ui_queue,
+                                   exe_name]() {
+                  TestExitOnErrorHandler error_handler(exe_name);
+                  NODE_EMBEDDING_CALL((*run_task)());
                   // Check myCount and stop the processing when it reaches 5.
                   int32_t count{};
-                  runtime.RunNodeApi([&](napi_env env) {
+                  NODE_EMBEDDING_CALL(runtime.RunNodeApi([&](napi_env env) {
                     NodeApiErrorHandler<void> error_handler(env);
                     napi_value global, my_count;
                     NODE_API_CALL(napi_get_global(env, &global));
@@ -338,9 +341,9 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
                     NODE_API_CALL(napi_typeof(env, my_count, &count_type));
                     NODE_ASSERT(count_type == napi_number);
                     NODE_API_CALL(napi_get_value_int32(env, my_count, &count));
-                  });
+                  }));
                   if (count == 5) {
-                    runtime.RunEventLoop();
+                    NODE_EMBEDDING_CALL(runtime.RunEventLoop());
                     fprintf(stdout, "%d\n", count);
                     ui_queue.Stop();
                   }
@@ -356,8 +359,9 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
 
     // The initial task starts the JS code that then will do the timer
     // scheduling. The timer supposed to be handled by the runtime's event loop.
-    ui_queue.PostTask([&runtime]() {
-      runtime.RunNodeApi([&](napi_env env) {
+    ui_queue.PostTask([&runtime, exe_name]() {
+      TestExitOnErrorHandler error_handler(exe_name);
+      NODE_EMBEDDING_CALL(runtime.RunNodeApi([&](napi_env env) {
         NodeApiErrorHandler<void> error_handler(env);
         napi_value undefined, global, func;
         NODE_API_CALL(napi_get_undefined(env, &undefined));
@@ -370,7 +374,7 @@ extern "C" int32_t test_main_c_cpp_api_threading_runtime_in_ui_thread(
         NODE_ASSERT(func_type == napi_function);
         NODE_API_CALL(
             napi_call_function(env, undefined, func, 0, nullptr, nullptr));
-      });
+      }));
     });
 
     ui_queue.Run();

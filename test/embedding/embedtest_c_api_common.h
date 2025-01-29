@@ -61,7 +61,7 @@ void dynamic_string_append(dynamic_string_t* str, const char* value);
 #define NODE_API_FAIL(format, ...)                                             \
   do {                                                                         \
     status = napi_generic_failure;                                             \
-    ThrowLastErrorMessage(env, format, __VA_ARGS__);                           \
+    ThrowLastErrorMessage(env, format, ##__VA_ARGS__);                         \
     goto on_exit;                                                              \
   } while (0)
 

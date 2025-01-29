@@ -66,7 +66,7 @@ static void ThreadCallback1(void* arg) {
 // threads. The test creates 12 threads and 12 runtimes. Each runtime runs in it
 // own thread.
 int32_t test_main_c_api_threading_runtime_per_thread(int32_t argc,
-                                                     char* argv[]) {
+                                                     const char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   size_t thread_count = TEST_THREAD_COUNT1;
   uv_thread_t threads[TEST_THREAD_COUNT1] = {0};
@@ -153,8 +153,8 @@ on_exit:
 // Tests that multiple runtimes can run in the same thread.
 // The runtime scope must be opened and closed for each use.
 // There are 12 runtimes that share the same main thread.
-int32_t test_main_c_api_threading_several_runtimes_per_thread(int32_t argc,
-                                                              char* argv[]) {
+int32_t test_main_c_api_threading_several_runtimes_per_thread(
+    int32_t argc, const char* argv[]) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   const size_t runtime_count = 12;
   bool more_work = false;
@@ -256,8 +256,8 @@ static void ThreadCallback3(void* arg) {
 
 // Tests that a runtime can be invoked from different threads as long as only
 // one thread uses it at a time.
-int32_t test_main_c_api_threading_runtime_in_several_threads(int32_t argc,
-                                                             char* argv[]) {
+int32_t test_main_c_api_threading_runtime_in_several_threads(
+    int32_t argc, const char* argv[]) {
   // Use mutex to synchronize access to the runtime.
   node_embedding_status embedding_status = node_embedding_status_ok;
   thread_data3 data = {0};
@@ -356,6 +356,16 @@ typedef struct {
   void (*run_task)(void*);
   void (*release_task_data)(void*);
 } task_t;
+
+static void task_init(task_t* task,
+                      void* task_data,
+                      void (*run_task)(void*),
+                      void (*release_task_data)(void*)) {
+  deq_item_init(&task->deq_item);
+  task->task_data = task_data;
+  task->run_task = run_task;
+  task->release_task_data = release_task_data;
+}
 
 typedef struct {
   uv_mutex_t mutex;
@@ -494,9 +504,7 @@ static node_embedding_status PostTask4(
     return node_embedding_status_out_of_memory;
   }
   memset(test_task, 0, sizeof(test_task_t));
-  test_task->parent_task.run_task = RunTestTask4;
-  test_task->parent_task.task_data = test_task;
-  test_task->parent_task.release_task_data = ReleaseTestTask4;
+  task_init(&test_task->parent_task, test_task, RunTestTask4, ReleaseTestTask4);
   test_task->run_task = run_task;
   test_task->task_data = task_data;
   test_task->release_task_data = release_task_data;
@@ -556,7 +564,7 @@ on_exit:
 // Tests that a the runtime's event loop can be called from the UI thread
 // event loop.
 int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
-                                                       char* argv[]) {
+                                                       const char* argv[]) {
   // A simulation of the UI thread's event loop implemented as a dispatcher
   // queue. Note that it is a very simplistic implementation not suitable
   // for the real apps.
@@ -576,9 +584,8 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
 
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
-  task_t task = {0};
-  task.run_task = StartProcessing4;
-  task.task_data = &test_data;
+  task_t task;
+  task_init(&task, &test_data, StartProcessing4, NULL);
   ui_queue_post_task(&test_data.ui_queue, &task);
 
   ui_queue_run(&test_data.ui_queue);

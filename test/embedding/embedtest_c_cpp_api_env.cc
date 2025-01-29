@@ -3,8 +3,8 @@
 namespace node::embedding {
 
 // Test the no_browser_globals option.
-extern "C" int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
-                                                              char* argv[]) {
+int32_t test_main_c_cpp_api_env_no_browser_globals(int32_t argc,
+                                                   const char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
   NODE_EMBEDDING_CALL(NodePlatform::RunMain(
       NodeArgs(argc, argv),
@@ -44,8 +44,8 @@ assert.deepStrictEqual(leaks, []);
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
-                                                           char* argv[]) {
+int32_t test_main_c_cpp_api_env_with_esm_loader(int32_t argc,
+                                                const char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
   // We currently cannot pass argument to command line arguments to the runtime.
   // They must be parsed by the platform.
@@ -82,8 +82,8 @@ const { SourceTextModule } = require('node:vm');
 }
 
 // Test ESM loaded
-extern "C" int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
-                                                              char* argv[]) {
+int32_t test_main_c_cpp_api_env_with_no_esm_loader(int32_t argc,
+                                                   const char* argv[]) {
   TestExitCodeHandler error_handler(argv[0]);
   NODE_EMBEDDING_CALL(
       NodePlatform::RunMain(NodeArgs(argc, argv),
