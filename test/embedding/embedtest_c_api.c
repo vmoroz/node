@@ -155,7 +155,7 @@ typedef enum {
   kPromiseStateRejected,
 } PromiseState;
 
-static napi_value OnFullfilled(napi_env env, napi_callback_info info) {
+static napi_value OnFulfilled(napi_env env, napi_callback_info info) {
   size_t argc = 1;
   napi_value result;
   void* data;
@@ -222,7 +222,7 @@ static napi_status WaitMeWithCheese(node_embedding_runtime runtime,
   NODE_API_CALL(napi_create_function(env,
                                      "onFulfilled",
                                      NAPI_AUTO_LENGTH,
-                                     OnFullfilled,
+                                     OnFulfilled,
                                      &promise_state,
                                      &on_fulfilled));
   NODE_API_CALL(napi_create_function(env,
