@@ -1,4 +1,4 @@
-#include "node_version.h" // define NODE_VERSION first
+#include "node_version.h"  // define NODE_VERSION first
 
 #include "node_embedding_api_cpp.h"
 
@@ -327,6 +327,11 @@ class EmbeddedRuntime {
       void* post_task_data,
       node_embedding_data_release_callback release_post_task_data);
 
+  node_embedding_status SetUserData(
+      void* user_data, node_embedding_data_release_callback release_user_data);
+
+  node_embedding_status GetUserData(void** user_data);
+
   node_embedding_status RunEventLoop();
 
   node_embedding_status TerminateEventLoop();
@@ -423,6 +428,22 @@ class EmbeddedRuntime {
     size_t v8_scope_nest_level_;
   };
 
+  class ReleaseCallbackDeleter {
+   public:
+    explicit ReleaseCallbackDeleter(
+        node_embedding_data_release_callback release_callback)
+        : release_callback_(release_callback) {}
+
+    void operator()(void* data) {
+      if (release_callback_) {
+        release_callback_(data);
+      }
+    }
+
+   private:
+    node_embedding_data_release_callback release_callback_;
+  };
+
  private:
   EmbeddedPlatform* platform_;
   bool is_initialized_{false};
@@ -444,6 +465,9 @@ class EmbeddedRuntime {
 
   std::unique_ptr<node::CommonEnvironmentSetup> env_setup_;
   std::optional<V8ScopeData> v8_scope_data_;
+
+  std::unique_ptr<void, ReleaseCallbackDeleter> user_data_{
+      nullptr, ReleaseCallbackDeleter(nullptr)};
 
   NodePostTaskCallback post_task_{};
   uv_async_t polling_async_handle_{};
@@ -1046,6 +1070,20 @@ node_embedding_status EmbeddedRuntime::Initialize(
   InitializePollingThread();
   WakeupPollingThread();
 
+  return node_embedding_status::kOk;
+}
+
+node_embedding_status EmbeddedRuntime::SetUserData(
+    void* user_data, node_embedding_data_release_callback release_user_data) {
+  user_data_.release();  // Do not call the release callback on set
+  user_data_ = std::unique_ptr<void, ReleaseCallbackDeleter>(
+      user_data, ReleaseCallbackDeleter(release_user_data));
+  return node_embedding_status::kOk;
+}
+
+node_embedding_status EmbeddedRuntime::GetUserData(void** user_data) {
+  ASSERT_ARG_NOT_NULL(user_data);
+  *user_data = user_data_.get();
   return node_embedding_status::kOk;
 }
 
@@ -1700,6 +1738,18 @@ node_embedding_status NAPI_CDECL node_embedding_runtime_config_add_module(
                   init_module_data,
                   release_init_module_data,
                   module_node_api_version);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_user_data_set(
+    node_embedding_runtime runtime,
+    void* user_data,
+    node_embedding_data_release_callback release_user_data) {
+  return EMBEDDED_RUNTIME(runtime)->SetUserData(user_data, release_user_data);
+}
+
+node_embedding_status NAPI_CDECL node_embedding_runtime_user_data_get(
+    node_embedding_runtime runtime, void** user_data) {
+  return EMBEDDED_RUNTIME(runtime)->GetUserData(user_data);
 }
 
 node_embedding_status NAPI_CDECL node_embedding_runtime_config_set_task_runner(
