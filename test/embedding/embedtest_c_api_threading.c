@@ -301,28 +301,28 @@ on_exit:
 // Simulation of the UI queue.
 //------------------------------------------------------------------------------
 
-struct deq_item_t {
-  struct deq_item_t* prev;
-  struct deq_item_t* next;
+struct test_deq_item_t {
+  struct test_deq_item_t* prev;
+  struct test_deq_item_t* next;
 };
-typedef struct deq_item_t deq_item_t;
+typedef struct test_deq_item_t test_deq_item_t;
 
-static void deq_item_init(deq_item_t* item) {
+static void test_deq_item_init(test_deq_item_t* item) {
   item->prev = NULL;
   item->next = NULL;
 }
 
 typedef struct {
-  deq_item_t* head;
-  deq_item_t* tail;
-} deq_t;
+  test_deq_item_t* head;
+  test_deq_item_t* tail;
+} test_deq_t;
 
-static void deq_init(deq_t* deq) {
+static void test_deq_init(test_deq_t* deq) {
   deq->head = NULL;
   deq->tail = NULL;
 }
 
-static void deq_push_back(deq_t* deq, deq_item_t* item) {
+static void test_deq_push_back(test_deq_t* deq, test_deq_item_t* item) {
   if (deq->tail == NULL) {
     deq->head = item;
     deq->tail = item;
@@ -333,8 +333,8 @@ static void deq_push_back(deq_t* deq, deq_item_t* item) {
   }
 }
 
-static deq_item_t* deq_pop_front(deq_t* deq) {
-  deq_item_t* item = deq->head;
+static test_deq_item_t* test_deq_pop_front(test_deq_t* deq) {
+  test_deq_item_t* item = deq->head;
   if (item != NULL) {
     deq->head = item->next;
     if (deq->head == NULL) {
@@ -346,22 +346,22 @@ static deq_item_t* deq_pop_front(deq_t* deq) {
   return item;
 }
 
-static bool deq_empty(deq_t* deq) {
+static bool test_deq_empty(test_deq_t* deq) {
   return deq->head == NULL;
 }
 
 typedef struct {
-  deq_item_t deq_item;
+  test_deq_item_t deq_item;
   void* task_data;
   void (*run_task)(void*);
   void (*release_task_data)(void*);
-} task_t;
+} test_task_t;
 
-static void task_init(task_t* task,
-                      void* task_data,
-                      void (*run_task)(void*),
-                      void (*release_task_data)(void*)) {
-  deq_item_init(&task->deq_item);
+static void test_task_init(test_task_t* task,
+                           void* task_data,
+                           void (*run_task)(void*),
+                           void (*release_task_data)(void*)) {
+  test_deq_item_init(&task->deq_item);
   task->task_data = task_data;
   task->run_task = run_task;
   task->release_task_data = release_task_data;
@@ -370,37 +370,37 @@ static void task_init(task_t* task,
 typedef struct {
   uv_mutex_t mutex;
   uv_cond_t wakeup;
-  deq_t tasks;
+  test_deq_t tasks;
   bool is_finished;
-} ui_queue_t;
+} test_ui_queue_t;
 
-static void ui_queue_init(ui_queue_t* queue) {
+static void test_ui_queue_init(test_ui_queue_t* queue) {
   uv_mutex_init(&queue->mutex);
   uv_cond_init(&queue->wakeup);
-  deq_init(&queue->tasks);
+  test_deq_init(&queue->tasks);
   queue->is_finished = false;
 }
 
-static void ui_queue_post_task(ui_queue_t* queue, task_t* task) {
+static void test_ui_queue_post_task(test_ui_queue_t* queue, test_task_t* task) {
   uv_mutex_lock(&queue->mutex);
   if (!queue->is_finished) {
-    deq_push_back(&queue->tasks, &task->deq_item);
+    test_deq_push_back(&queue->tasks, &task->deq_item);
     uv_cond_signal(&queue->wakeup);
   }
   uv_mutex_unlock(&queue->mutex);
 }
 
-static void ui_queue_run(ui_queue_t* queue) {
+static void test_ui_queue_run(test_ui_queue_t* queue) {
   for (;;) {
     uv_mutex_lock(&queue->mutex);
-    while (!queue->is_finished && deq_empty(&queue->tasks)) {
+    while (!queue->is_finished && test_deq_empty(&queue->tasks)) {
       uv_cond_wait(&queue->wakeup, &queue->mutex);
     }
     if (queue->is_finished) {
       uv_mutex_unlock(&queue->mutex);
       return;
     }
-    task_t* task = (task_t*)deq_pop_front(&queue->tasks);
+    test_task_t* task = (test_task_t*)test_deq_pop_front(&queue->tasks);
     uv_mutex_unlock(&queue->mutex);
     if (task->run_task != NULL) {
       task->run_task(task->task_data);
@@ -411,7 +411,7 @@ static void ui_queue_run(ui_queue_t* queue) {
   }
 }
 
-static void ui_queue_stop(ui_queue_t* queue) {
+static void test_ui_queue_stop(test_ui_queue_t* queue) {
   uv_mutex_lock(&queue->mutex);
   if (!queue->is_finished) {
     queue->is_finished = true;
@@ -420,7 +420,7 @@ static void ui_queue_stop(ui_queue_t* queue) {
   uv_mutex_unlock(&queue->mutex);
 }
 
-static void ui_queue_destroy(ui_queue_t* queue) {
+static void test_ui_queue_destroy(test_ui_queue_t* queue) {
   uv_mutex_destroy(&queue->mutex);
   uv_cond_destroy(&queue->wakeup);
 }
@@ -430,22 +430,22 @@ static void ui_queue_destroy(ui_queue_t* queue) {
 //------------------------------------------------------------------------------
 
 typedef struct {
-  ui_queue_t ui_queue;
+  test_ui_queue_t ui_queue;
   node_embedding_runtime runtime;
 } test_data4_t;
 
 typedef struct {
-  task_t parent_task;
+  test_task_t parent_task;
   node_embedding_task_run_callback run_task;
   void* task_data;
   node_embedding_data_release_callback release_task_data;
   test_data4_t* test_data;
-} test_task_t;
+} test_ext_task_t;
 
 static void RunTestTask4(void* cb_data) {
   node_embedding_status embedding_status = node_embedding_status_ok;
   napi_status status = napi_ok;
-  test_task_t* test_task = (test_task_t*)cb_data;
+  test_ext_task_t* test_task = (test_ext_task_t*)cb_data;
 
   test_task->run_task(test_task->task_data);  // TODO: handle result
 
@@ -470,7 +470,7 @@ static void RunTestTask4(void* cb_data) {
   if (count == 5) {
     NODE_EMBEDDING_CALL(node_embedding_runtime_event_loop_run(runtime));
     fprintf(stdout, "%d\n", count);
-    ui_queue_stop(&test_task->test_data->ui_queue);
+    test_ui_queue_stop(&test_task->test_data->ui_queue);
   }
 on_exit:
   if (embedding_status != node_embedding_status_ok) {
@@ -483,7 +483,7 @@ on_exit:
 }
 
 static void ReleaseTestTask4(void* cb_data) {
-  test_task_t* test_task = (test_task_t*)cb_data;
+  test_ext_task_t* test_task = (test_ext_task_t*)cb_data;
   if (test_task->release_task_data != NULL) {
     test_task->release_task_data(test_task->task_data);
   }
@@ -499,18 +499,19 @@ static node_embedding_status PostTask4(
     node_embedding_data_release_callback release_task_data,
     bool* succeeded) {
   test_data4_t* test_data = (test_data4_t*)cb_data;
-  test_task_t* test_task = (test_task_t*)malloc(sizeof(test_task_t));
+  test_ext_task_t* test_task =
+      (test_ext_task_t*)malloc(sizeof(test_ext_task_t));
   if (test_task == NULL) {
     return node_embedding_status_out_of_memory;
   }
-  memset(test_task, 0, sizeof(test_task_t));
-  task_init(&test_task->parent_task, test_task, RunTestTask4, ReleaseTestTask4);
+  memset(test_task, 0, sizeof(test_ext_task_t));
+  test_task_init(&test_task->parent_task, test_task, RunTestTask4, ReleaseTestTask4);
   test_task->run_task = run_task;
   test_task->task_data = task_data;
   test_task->release_task_data = release_task_data;
   test_task->test_data = test_data;
 
-  ui_queue_post_task(&test_data->ui_queue, &test_task->parent_task);
+  test_ui_queue_post_task(&test_data->ui_queue, &test_task->parent_task);
   if (succeeded != NULL) {
     *succeeded = true;
   }
@@ -570,7 +571,7 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
   // for the real apps.
   node_embedding_status embedding_status = node_embedding_status_ok;
   test_data4_t test_data = {0};
-  ui_queue_init(&test_data.ui_queue);
+  test_ui_queue_init(&test_data.ui_queue);
 
   node_embedding_platform platform;
   NODE_EMBEDDING_CALL(node_embedding_platform_create(
@@ -584,12 +585,12 @@ int32_t test_main_c_api_threading_runtime_in_ui_thread(int32_t argc,
 
   // The initial task starts the JS code that then will do the timer
   // scheduling. The timer supposed to be handled by the runtime's event loop.
-  task_t task;
-  task_init(&task, &test_data, StartProcessing4, NULL);
-  ui_queue_post_task(&test_data.ui_queue, &task);
+  test_task_t task;
+  test_task_init(&task, &test_data, StartProcessing4, NULL);
+  test_ui_queue_post_task(&test_data.ui_queue, &task);
 
-  ui_queue_run(&test_data.ui_queue);
-  ui_queue_destroy(&test_data.ui_queue);
+  test_ui_queue_run(&test_data.ui_queue);
+  test_ui_queue_destroy(&test_data.ui_queue);
 
   NODE_EMBEDDING_CALL(node_embedding_runtime_delete(test_data.runtime));
   NODE_EMBEDDING_CALL(node_embedding_platform_delete(platform));
