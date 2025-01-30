@@ -1,4 +1,5 @@
-#define NAPI_EXPERIMENTAL
+#include "node_version.h" // define NODE_VERSION first
+
 #include "node_embedding_api_cpp.h"
 
 #include "env-inl.h"
@@ -1150,6 +1151,7 @@ void EmbeddedRuntime::RunPollingThread(void* data) {
         &succeeded);
 
     // TODO: Handle post_result
+    (void)post_result;
     if (!succeeded) {
       // The task runner is shutting down.
       break;

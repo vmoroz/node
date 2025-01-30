@@ -403,21 +403,21 @@ using NodePostTaskCallback = NodeFunctor<node_embedding_task_post_callback>;
 using NodeRunNodeApiCallback =
     NodeFunctorRef<node_embedding_node_api_run_callback>;
 
-inline std::string NodeFormatString(const char* format, ...) {
-  va_list args;
-  va_start(args, format);
-  std::string result = NodeFormatString(format, args);
-  va_end(args);
-  return result;
-}
-
-inline std::string NodeFormatString(const char* format, va_list args) {
+inline std::string NodeFormatStringHelper(const char* format, va_list args) {
   va_list args2;  // Required for some compilers like GCC since we go over the
                   // args twice.
   va_copy(args2, args);
   std::string result(std::vsnprintf(nullptr, 0, format, args), '\0');
   std::vsnprintf(&result[0], result.size() + 1, format, args2);
   va_end(args2);
+  return result;
+}
+
+inline std::string NodeFormatString(const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+  std::string result = NodeFormatStringHelper(format, args);
+  va_end(args);
   return result;
 }
 
