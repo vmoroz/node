@@ -505,7 +505,8 @@ static node_embedding_status PostTask4(
     return node_embedding_status_out_of_memory;
   }
   memset(test_task, 0, sizeof(test_ext_task_t));
-  test_task_init(&test_task->parent_task, test_task, RunTestTask4, ReleaseTestTask4);
+  test_task_init(
+      &test_task->parent_task, test_task, RunTestTask4, ReleaseTestTask4);
   test_task->run_task = run_task;
   test_task->task_data = task_data;
   test_task->release_task_data = release_task_data;
