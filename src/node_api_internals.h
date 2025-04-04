@@ -9,6 +9,10 @@
 #include "util-inl.h"
 
 struct node_napi_env__ : public napi_env__ {
+  static napi_env New(v8::Local<v8::Context> context,
+                      const std::string& module_filename,
+                      int32_t module_api_version);
+
   node_napi_env__(v8::Local<v8::Context> context,
                   const std::string& module_filename,
                   int32_t module_api_version);
@@ -31,6 +35,10 @@ struct node_napi_env__ : public napi_env__ {
     return node::Environment::GetCurrent(context());
   }
   inline const char* GetFilename() const { return filename.c_str(); }
+
+  static void ThrowNodeApiVersionError(node::Environment* node_env,
+                                       const char* module_name,
+                                       int32_t module_api_version);
 
   std::string filename;
   bool destructing = false;
