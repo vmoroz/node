@@ -15,6 +15,14 @@
 
 #include "node.h"
 
-extern "C" int node_embedding_start(int argc, char** argv) {
-  return node::Start(argc, argv);
+extern "C" {
+  #ifdef _WIN32
+  __declspec(dllexport) int node_embedding_start(int argc, char** argv) {
+    return node::Start(argc, argv);
+  }
+  #else
+  int node_embedding_start(int argc, char** argv) {
+    return node::Start(argc, argv);
+  }
+  #endif
 }
