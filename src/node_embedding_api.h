@@ -15,4 +15,9 @@
 
 #include "node.h"
 
+#ifdef _WIN32
+int __cdecl node_embedding_start(int argc, char** argv);
+#else
 int node_embedding_start(int argc, char** argv);
+#endif
+
