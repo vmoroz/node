@@ -13,11 +13,18 @@
 // C-based API.
 //
 
-#include "node.h"
+#ifndef SRC_NODE_EMBEDDING_API_H_
+#define SRC_NODE_EMBEDDING_API_H_
 
-#ifdef _WIN32
-int __cdecl node_embedding_start(int argc, char** argv);
-#else
-int node_embedding_start(int argc, char** argv);
-#endif
+#include "node_api.h"
 
+#define NODE_EMBEDDING_VERSION 1
+
+EXTERN_C_START
+
+// Runs Node.js main function. It is the same as running Node.js from CLI.
+NAPI_EXTERN int32_t NAPI_CDECL node_embedding_main(int32_t argc, char* argv[]);
+
+EXTERN_C_END
+
+#endif  // SRC_NODE_EMBEDDING_API_H_

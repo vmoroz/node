@@ -13,16 +13,13 @@
 // C-based API.
 //
 
+#include "node_embedding_api.h"
 #include "node.h"
 
-extern "C" {
-  #ifdef _WIN32
-  __declspec(dllexport) int node_embedding_start(int argc, char** argv) {
-    return node::Start(argc, argv);
-  }
-  #else
-  int node_embedding_start(int argc, char** argv) {
-    return node::Start(argc, argv);
-  }
-  #endif
+EXTERN_C_START
+
+int32_t NAPI_CDECL node_embedding_main(int32_t argc, char* argv[]) {
+  return node::Start(argc, argv);
 }
+
+EXTERN_C_END
