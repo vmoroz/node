@@ -3445,12 +3445,14 @@ napi_status napi_get_dataview_info(napi_env env,
 * `[in] env`: The environment that the API is invoked under.
 * `[in] dataview`: `napi_value` representing the `DataView` whose
   properties to query.
-* `[out] byte_length`: Number of bytes in the `DataView`.
-* `[out] data`: The data buffer underlying the `DataView`.
-  If byte\_length is `0`, this may be `NULL` or any other pointer value.
-* `[out] arraybuffer`: `ArrayBuffer` underlying the `DataView`.
-* `[out] byte_offset`: The byte offset within the data buffer from which
-  to start projecting the `DataView`.
+* `[out] byte_length`: Number of bytes covered by the `DataView` window.
+* `[out] data`: Pointer to the first byte visible through the `DataView`
+  (i.e., the `ArrayBuffer` base plus `byte_offset`). When `byte_length` is 0
+  the implementation may return `NULL` or any sentinel pointer; callers
+  must not dereference it in that case.
+* `[out] arraybuffer`: `ArrayBuffer` backing the `DataView`.
+* `[out] byte_offset`: Offset, in bytes, from the start of the backing
+  `ArrayBuffer` to the first byte of the `DataView` window.
 
 Returns `napi_ok` if the API succeeded.
 
