@@ -2757,12 +2757,7 @@ napi_status NAPI_CDECL node_api_create_buffer_from_arraybuffer(napi_env env,
 
 Returns `napi_ok` if the API succeeded.
 
-This API creates a JavaScript `Buffer` object from an existing `ArrayBuffer`.
-The `Buffer` object is a Node.js-specific class that provides a way to work with binary data directly in JavaScript.
-
-The byte range `[byte_offset, byte_offset + byte_length)`
-must be within the bounds of the `ArrayBuffer`. If `byte_offset + byte_length`
-exceeds the size of the `ArrayBuffer`, a `RangeError` exception is raised.
+This API creates a JavaScript `Buffer` that views the same backing store as the source `ArrayBuffer`, just like `Buffer.from(arrayBuffer, byteOffset, byteLength)` in JavaScript. Mutations through either view are immediately visible in the other, and detaching the `ArrayBuffer` invalidates the `Buffer`. The byte range `[byte_offset, byte_offset + byte_length)` must lie within the `ArrayBuffer`; if it does not, the call raises a `RangeError`.
 
 #### `napi_create_dataview`
 
