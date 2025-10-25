@@ -6,8 +6,10 @@ import os
 def patch_android():
     print("- Patches List -")
     print("[1] [deps/v8/src/trap-handler/trap-handler.h] related to https://github.com/nodejs/node/issues/36287")
+    print("[2] [deps/zlib/zlib.gyp] Android cpufeatures integration")
     if platform.system() == "Linux":
         os.system('patch -f ./deps/v8/src/trap-handler/trap-handler.h < ./android-patches/trap-handler.h.patch')
+        os.system('patch -f ./deps/zlib/zlib.gyp < ./android-patches/zlib.gyp.patch')
     print("\033[92mInfo: \033[0m" + "Tried to patch.")
 
 if platform.system() != "Linux" and platform.system() != "Darwin":

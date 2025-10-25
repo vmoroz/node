@@ -293,6 +293,10 @@ printf 'Host compilers: CC_host=%s CXX_host=%s\n' "$HOST_CC" "$HOST_CXX"
 
 if (( APPLY_PATCH )); then
   ./android-configure patch
+  if [[ $? -ne 0 ]]; then
+    printf 'Error: failed to apply Android patches.\n' >&2
+    exit 1
+  fi
 fi
 
 CONFIG_ARGS=(
