@@ -1209,7 +1209,7 @@
           'conditions': [
             ['v8_enable_webassembly==1', {
               'conditions': [
-                ['((_toolset=="host" and host_arch=="arm64" or _toolset=="target" and target_arch=="arm64") and (OS in "linux mac ios openharmony")) or ((_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac openharmony"))', {
+                ['((_toolset=="host" and host_arch=="arm64" and (OS in "linux mac ios android openharmony")) or (_toolset=="target" and target_arch=="arm64" and (OS in "linux mac ios openharmony")) or (_toolset=="host" and host_arch=="x64" and (OS in "linux mac android openharmony")) or (_toolset=="target" and target_arch=="x64" and (OS in "linux mac openharmony")))', {
                   'sources': [
                     '<(V8_ROOT)/src/trap-handler/handler-inside-posix.cc',
                     '<(V8_ROOT)/src/trap-handler/handler-outside-posix.cc',
