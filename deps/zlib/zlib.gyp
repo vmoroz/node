@@ -201,6 +201,18 @@
                 'USE_FILE32API'
               ],
             }],
+            ['OS=="android"', {
+              # Link to the NDK cpufeatures shim that implements android_getCpuFeatures.
+              'copies': [{
+                'files': [
+                  '<(android_ndk_path)/sources/android/cpufeatures/cpu-features.c',
+                ],
+                'destination': '<(SHARED_INTERMEDIATE_DIR)/ndk_cpufeatures',
+              }],
+              'sources': [
+                '<(SHARED_INTERMEDIATE_DIR)/ndk_cpufeatures/cpu-features.c',
+              ],
+            }],
             # Incorporate optimizations where possible.
             ['(target_arch in "ia32 x64" and OS!="ios") or arm_fpu=="neon"', {
               'dependencies': [ 'zlib_data_chunk_simd' ],
