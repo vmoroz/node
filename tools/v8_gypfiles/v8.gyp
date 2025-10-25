@@ -1221,7 +1221,7 @@
                     '<(V8_ROOT)/src/trap-handler/handler-outside-win.cc',
                   ],
                 }],
-                ['(_toolset=="host" and host_arch=="x64" or _toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony")', {
+                ['((_toolset=="host" and host_arch=="x64") and (OS in "linux mac win android openharmony")) or ((_toolset=="target" and target_arch=="x64") and (OS in "linux mac win openharmony"))', {
                   'sources': [
                     '<(V8_ROOT)/src/trap-handler/handler-outside-simulator.cc',
                   ],
