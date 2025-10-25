@@ -172,6 +172,10 @@ def transform_legacy_args(argv):
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Configure and optionally build Node.js for Android",
+        epilog=(
+            "Arguments after '--' are forwarded to ./configure. "
+            "Example: ./android-configure --ndk /path -- --without-intl"
+        ),
         allow_abbrev=False,
     )
     parser.add_argument(
