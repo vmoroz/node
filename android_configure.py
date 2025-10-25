@@ -8,19 +8,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-PATCHES = (
-    {
-        "target": "./deps/v8/src/trap-handler/trap-handler.h",
-        "patch": "./android-patches/trap-handler.h.patch",
-        "description": "https://github.com/nodejs/node/issues/36287",
-    },
-    {
-        "target": "./deps/zlib/zlib.gyp",
-        "patch": "./android-patches/zlib.gyp.patch",
-        "description": "Android cpufeatures integration",
-    },
-)
-
 ARCH_CONFIG = {
     "arm": {
         "dest_cpu": "arm",
@@ -176,38 +163,6 @@ def run_command(cmd, *, env=None, verbose=False, cwd=None, stdin=None):
     subprocess.run(cmd_list, check=True, env=env, cwd=cwd, stdin=stdin)
 
 
-def apply_patches(verbose):
-    print("- Patches List -")
-    for idx, entry in enumerate(PATCHES, start=1):
-        print(f"[{idx}] [{entry['target']}] {entry['description']}")
-    system = platform.system()
-    if system not in {"Linux", "Darwin"}:
-        print_info("Patches are only applied automatically on Linux or Darwin.")
-        return
-    env = os.environ.copy()
-    for entry in PATCHES:
-        patch_path = (REPO_ROOT / entry["patch"]).resolve()
-        if not patch_path.is_file():
-            raise AndroidConfigureError(f"Patch file not found: {entry['patch']}")
-        with patch_path.open("rb") as stream:
-            run_command(
-                ["patch", "-f", entry["target"]],
-                env=env,
-                cwd=REPO_ROOT,
-                verbose=verbose,
-                stdin=stream,
-            )
-    print_info("Tried to patch.")
-
-
-def handle_patch_invocation(argv):
-    if not argv or argv[0] != "patch":
-        return False
-    verbose = any(arg in {"--verbose", "-v"} for arg in argv[1:])
-    apply_patches(verbose)
-    return True
-
-
 def transform_legacy_args(argv):
     if len(argv) == 3 and all(not arg.startswith("-") for arg in argv):
         return ["--ndk", argv[0], "--api", argv[1], "--arch", argv[2]]
@@ -240,11 +195,6 @@ def build_parser():
         "--configure-only",
         action="store_true",
         help="Run configure step but skip make",
-    )
-    parser.add_argument(
-        "--apply-patch",
-        action="store_true",
-        help="Apply android patches before configuring",
     )
     parser.add_argument(
         "--make-target", default="node", help="Make target to build (default: node)"
@@ -330,9 +280,6 @@ def run_pipeline(args, extra_flags):
     print_info(f"Target: {triple} (API {api_level})")
     print_info(f"Host compilers: CC_host={host_cc} CXX_host={host_cxx}")
 
-    if args.apply_patch:
-        apply_patches(args.verbose)
-
     configure_args = [
         f"--dest-cpu={arch_cfg['dest_cpu']}",
         "--dest-os=android",
@@ -368,14 +315,12 @@ def main():
     os.chdir(REPO_ROOT)
     argv = sys.argv[1:]
 
-    if handle_patch_invocation(argv):
-        return
-
     argv = transform_legacy_args(argv)
     parser = build_parser()
     if not argv:
+        print_info("No arguments provided. Showing help.")
         parser.print_help()
-        sys.exit(1)
+        return
 
     args, extra = parser.parse_known_args(argv)
     if not args.ndk:
