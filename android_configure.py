@@ -192,12 +192,14 @@ def build_parser():
         "--shared", action="store_true", help="Build libnode as a shared library"
     )
     parser.add_argument(
-        "--configure-only",
+        "--build",
         action="store_true",
-        help="Run configure step but skip make",
+        help="Also run make after configure",
     )
     parser.add_argument(
-        "--make-target", default="node", help="Make target to build (default: node)"
+        "--make-target",
+        default="node",
+        help="Make target to build when --build is used (default: node)",
     )
     parser.add_argument(
         "--ndk-host-tag",
@@ -295,20 +297,18 @@ def run_pipeline(args, extra_flags):
     run_command(["./configure", *configure_args], env=env, cwd=REPO_ROOT, verbose=args.verbose)
     print_info("Configure complete.")
 
-    if args.configure_only:
-        return
-
-    jobs = args.jobs if args.jobs else detect_cpu_count()
-    if jobs < 1:
-        raise AndroidConfigureError("--jobs must be at least 1")
-    print_info(f"Building target '{args.make_target}' with {jobs} jobs...")
-    run_command(
-        ["make", f"-j{jobs}", args.make_target],
-        env=env,
-        cwd=REPO_ROOT,
-        verbose=args.verbose,
-    )
-    print_info("Build complete.")
+    if args.build:
+        jobs = args.jobs if args.jobs else detect_cpu_count()
+        if jobs < 1:
+            raise AndroidConfigureError("--jobs must be at least 1")
+        print_info(f"Building target '{args.make_target}' with {jobs} jobs...")
+        run_command(
+            ["make", f"-j{jobs}", args.make_target],
+            env=env,
+            cwd=REPO_ROOT,
+            verbose=args.verbose,
+        )
+        print_info("Build complete.")
 
 
 def main():
