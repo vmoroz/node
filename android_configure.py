@@ -184,17 +184,17 @@ def build_parser():
         help="Target architecture (arm, arm64, aarch64, x86, x86_64)",
     )
     parser.add_argument(
-        "--jobs",
-        type=int,
-        help="Parallel build jobs for make (default: host CPU count)",
-    )
-    parser.add_argument(
         "--shared", action="store_true", help="Build libnode as a shared library"
     )
     parser.add_argument(
         "--build",
         action="store_true",
         help="Also run make after configure",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        help="Parallel make jobs when --build is used (default: host CPU count)",
     )
     parser.add_argument(
         "--make-target",
