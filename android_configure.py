@@ -174,14 +174,21 @@ def build_parser():
         description="Configure and optionally build Node.js for Android",
         allow_abbrev=False,
     )
-    parser.add_argument("--ndk", help="Absolute path to the Android NDK root")
+    parser.add_argument(
+        "--ndk",
+        help="Absolute path to the Android NDK root (e.g. $ANDROID_HOME/ndk/29.0.x)",
+    )
     parser.add_argument(
         "--api", type=int, default=34, help="Android API level to target (default: 34)"
     )
     parser.add_argument(
         "--arch",
         default="arm64",
-        help="Target architecture (arm, arm64, aarch64, x86, x86_64)",
+        help="Target architecture (arm, arm64, aarch64, x86, x86_64). Default: arm64",
+    )
+    parser.add_argument(
+        "--ndk-host-tag",
+        help="Override NDK host tag (e.g. linux-x86_64)",
     )
     parser.add_argument(
         "--shared", action="store_true", help="Build libnode as a shared library"
@@ -200,10 +207,6 @@ def build_parser():
         "--make-target",
         default="node",
         help="Make target to build when --build is used (default: node)",
-    )
-    parser.add_argument(
-        "--ndk-host-tag",
-        help="Override NDK host tag (e.g. linux-x86_64)",
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Print executed commands"
