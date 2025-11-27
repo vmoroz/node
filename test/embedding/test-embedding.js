@@ -39,7 +39,7 @@ function runCommonApiTests(apiType) {
     {
       trim: true,
       stdout: '42',
-    }
+    },
   );
 
   runTest(
@@ -49,7 +49,7 @@ function runCommonApiTests(apiType) {
     {
       trim: true,
       stdout: '🏳️‍🌈',
-    }
+    },
   );
 
   runTest(
@@ -59,7 +59,7 @@ function runCommonApiTests(apiType) {
     {
       status: 1,
       signal: null,
-    }
+    },
   );
 
   runTest(
@@ -69,7 +69,7 @@ function runCommonApiTests(apiType) {
     {
       status: 1,
       signal: null,
-    }
+    },
   );
 
   runTest(
@@ -79,7 +79,7 @@ function runCommonApiTests(apiType) {
     {
       status: 8,
       signal: null,
-    }
+    },
   );
 
   {
@@ -91,7 +91,7 @@ function runCommonApiTests(apiType) {
       {
         status: 92,
         signal: null,
-      }
+      },
     );
   }
 
@@ -102,7 +102,7 @@ function runCommonApiTests(apiType) {
     {
       status: 1,
       stderr: /SyntaxError: Invalid or unexpected token/,
-    }
+    },
   );
 
   // Guarantee NODE_REPL_EXTERNAL_MODULE won't bypass kDisableNodeOptionsEnv
@@ -123,7 +123,7 @@ function runCommonApiTests(apiType) {
       stderr:
         `${binary}: NODE_REPL_EXTERNAL_MODULE can't be used with` +
         ' kDisableNodeOptionsEnv',
-    }
+    },
   );
 }
 
@@ -179,9 +179,10 @@ function runSnapshotTests(apiType) {
       `${apiType}: run basic snapshot ${extraSnapshotArgs.join(' ')}`,
       spawnSyncAndAssert,
       [apiType, '--', ...runSnapshotArgs],
+      [apiType, '--', ...runSnapshotArgs],
       { cwd: tmpdir.path },
       {
-        stdout(output) {
+        stdout: common.mustCall((output) => {
           assert.deepStrictEqual(JSON.parse(output), {
             originalArgv: [
               binary,
@@ -191,25 +192,22 @@ function runSnapshotTests(apiType) {
             currentArgv: [binary, ...runSnapshotExecArgs],
           });
           return true;
-        },
-      }
+        }),
+      },
     );
   }
 
   // Create workers and vm contexts after deserialization
   {
-    const snapshotFixture = fixtures.path(
-      'snapshot',
-      'create-worker-and-vm.js'
-    );
+    const snapshotFixture = fixtures.path('snapshot', 'create-worker-and-vm.js');
     const blobPath = tmpdir.resolve('embedder-snapshot.blob');
     const buildSnapshotArgs = [
       `eval(${getReadFileCodeForPath(snapshotFixture)})`,
-      '--embedder-snapshot-blob',
-      blobPath,
-      '--embedder-snapshot-create',
+      '--embedder-snapshot-blob', blobPath, '--embedder-snapshot-create',
     ];
-    const runEmbeddedArgs = ['--embedder-snapshot-blob', blobPath];
+    const runEmbeddedArgs = [
+      '--embedder-snapshot-blob', blobPath,
+    ];
 
     fs.rmSync(blobPath, { force: true });
 
@@ -219,7 +217,7 @@ function runSnapshotTests(apiType) {
       [apiType, '--', ...buildSnapshotArgs],
       {
         cwd: tmpdir.path,
-      }
+      },
     );
 
     runTest(
@@ -228,7 +226,7 @@ function runSnapshotTests(apiType) {
       [apiType, '--', ...runEmbeddedArgs],
       {
         cwd: tmpdir.path,
-      }
+      },
     );
   }
 }

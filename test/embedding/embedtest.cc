@@ -28,7 +28,7 @@ static int RunNodeInstance(MultiIsolatePlatform* platform,
                            const std::vector<std::string>& args,
                            const std::vector<std::string>& exec_args);
 
-int32_t test_main_cpp_api(int32_t argc, const char* argv[]) {
+int32_t test_main_cpp_api(int32_t argc, char* argv[]) {
   std::vector<std::string> args(argv, argv + argc);
   std::shared_ptr<node::InitializationResult> result =
       node::InitializeOncePerProcess(
