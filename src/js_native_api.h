@@ -2,8 +2,6 @@
 #define SRC_JS_NATIVE_API_H_
 
 // This file needs to be compatible with C compilers.
-#include <stdbool.h>  // NOLINT(modernize-deprecated-headers)
-#include <stddef.h>   // NOLINT(modernize-deprecated-headers)
 
 #include "js_native_api_types.h"
 
