@@ -160,7 +160,7 @@ class NodeCStringArray {
 
   NodeCStringArray(NodeCStringArray&& other) noexcept
       : size_(std::exchange(other.size_, 0)),
-        c_strs_(std::exchange(other.c_strs_, 0)),
+        c_strs_(std::exchange(other.c_strs_, nullptr)),
         allocated_buffer_(std::exchange(other.allocated_buffer_, nullptr)) {
     if (size_ <= inplace_buffer_.size()) {
       c_strs_ = inplace_buffer_.data();
@@ -923,7 +923,7 @@ NodeStatus EmbeddedPlatform::DeleteMe() {
 NodeStatus EmbeddedPlatform::SetApiVersion(int32_t embedding_api_version) {
   ASSERT_ARG(embedding_api_version,
              embedding_api_version > 0 &&
-                 embedding_api_version <= NODE_EMBEDDING_VERSION);
+                 embedding_api_version <= NODE_RT_API_VERSION);
   return NodeStatus::kOk;
 }
 
@@ -1058,9 +1058,9 @@ EmbeddedPlatform::GetProcessInitializationFlags(NodePlatformFlags flags) {
     node_rt_env_configure_callback configure_env,
     void* configure_env_data) {
   node_rt_env rt_env{};
-  CHECK_STATUS(Create(platform, configure_env, configure_env_data, &env));
-  CHECK_STATUS(node_rt_env_event_loop_run(env));
-  CHECK_STATUS(node_rt_env_delete(env));
+  CHECK_STATUS(Create(platform, configure_env, configure_env_data, &rt_env));
+  CHECK_STATUS(node_rt_env_event_loop_run(rt_env));
+  CHECK_STATUS(node_rt_env_delete(rt_env));
   return NodeStatus::kOk;
 }
 
@@ -1780,7 +1780,7 @@ void EmbeddedRuntime::RegisterModules() {
   napi_value node_api_exports = nullptr;
   env->CallIntoModule([&](napi_env env) {
     node_api_exports =
-        module_info->init_module(module_info->env,
+        module_info->init_module(module_info->rt_env,
                                  env,
                                  module_info->module_name.c_str(),
                                  v8impl::JsValueFromV8LocalValue(exports));

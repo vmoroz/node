@@ -18,9 +18,9 @@
 
 #include "node_api.h"
 
-#define node_rt_VERSION 1
+#define NODE_RT_API_VERSION 1
 
-#if defined(__cplusplus) && !defined(node_rt_DISABLE_CPP_ENUMS)
+#if defined(__cplusplus) && !defined(NODE_RT_API_DISABLE_CPP_ENUMS)
 
 #define NODE_ENUM(c_name, cpp_name) enum class cpp_name : int32_t
 
