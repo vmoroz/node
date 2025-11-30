@@ -753,4 +753,7 @@ typedef struct {
 
 } node_api_vtable;
 
+typedef void(NAPI_CDECL* node_api_addon_set_vtable_func)(
+    node_api_vtable* vtable);
+
 #endif  // SRC_NODE_API_TYPES_H_

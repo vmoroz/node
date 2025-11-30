@@ -3,8 +3,7 @@
 
 #if defined(BUILDING_NODE_EXTENSION) && !defined(NAPI_EXTERN)
 #ifdef _WIN32
-// Building native addon against node
-#define NAPI_EXTERN __declspec(dllimport)
+#define NAPI_EXTERN
 #elif defined(__wasm__)
 #define NAPI_EXTERN __attribute__((__import_module__("napi")))
 #endif
@@ -41,23 +40,22 @@ struct uv_loop_s;  // Forward declaration.
 
 #ifdef __wasm__
 #define NAPI_MODULE_INITIALIZER_BASE napi_register_wasm_v
-#define NAPI_MODULE_INITIALIZER_INTERNAL_BASE napi_register_wasm_internal_v
 #else
 #define NAPI_MODULE_INITIALIZER_BASE napi_register_module_v
-#define NAPI_MODULE_INITIALIZER_INTERNAL_BASE napi_register_module_internal_v
 #endif
 
 #define NODE_API_MODULE_GET_API_VERSION_BASE node_api_module_get_api_version_v
+#define NODE_API_MODULE_SET_VTABLE_BASE node_api_module_set_vtable_v
 
 #define NAPI_MODULE_INITIALIZER                                                \
   NAPI_MODULE_INITIALIZER_X(NAPI_MODULE_INITIALIZER_BASE, NAPI_MODULE_VERSION)
 
-#define NAPI_MODULE_INITIALIZER_INTERNAL                                       \
-  NAPI_MODULE_INITIALIZER_X(NAPI_MODULE_INITIALIZER_INTERNAL_BASE,             \
-                            NAPI_MODULE_VERSION)
-
 #define NODE_API_MODULE_GET_API_VERSION                                        \
   NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_GET_API_VERSION_BASE,              \
+                            NAPI_MODULE_VERSION)
+
+#define NODE_API_MODULE_SET_VTABLE                                             \
+  NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_SET_VTABLE_BASE,                   \
                             NAPI_MODULE_VERSION)
 
 #define NAPI_MODULE_INIT()                                                     \
@@ -65,16 +63,15 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE_EXPORT int32_t NODE_API_MODULE_GET_API_VERSION(void) {           \
     return NAPI_VERSION;                                                       \
   }                                                                            \
-  napi_value NAPI_MODULE_INITIALIZER_INTERNAL(napi_env env,                    \
-                                              napi_value exports);             \
   node_api_vtable* g_vtable = NULL;                                            \
-  NAPI_MODULE_EXPORT napi_value NAPI_MODULE_INITIALIZER(                       \
-      node_api_vtable* vtable, napi_env env, napi_value exports) {             \
+  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE(                          \
+      node_api_vtable* vtable) {                                               \
     g_vtable = vtable;                                                         \
-    return NAPI_MODULE_INITIALIZER_INTERNAL(env, exports);                     \
   }                                                                            \
+  NAPI_MODULE_EXPORT napi_value NAPI_MODULE_INITIALIZER(napi_env env,          \
+                                                        napi_value exports);   \
   EXTERN_C_END                                                                 \
-  napi_value NAPI_MODULE_INITIALIZER_INTERNAL(napi_env env, napi_value exports)
+  napi_value NAPI_MODULE_INITIALIZER(napi_env env, napi_value exports)
 
 #define NAPI_MODULE(modname, regfunc)                                          \
   NAPI_MODULE_INIT() {                                                         \

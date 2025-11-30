@@ -1655,3 +1655,7 @@ node_api_vtable g_vtable = {
     node_api_is_sharedarraybuffer,
     node_api_create_sharedarraybuffer,
 };
+
+node_api_vtable* node_api_get_vtable() {
+  return &g_vtable;
+}
