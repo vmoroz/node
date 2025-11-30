@@ -57,7 +57,6 @@ typedef struct {
   napi_status(NAPI_CDECL* get_last_error_info)(
       node_api_basic_env env, const napi_extended_error_info** result);
 
-  // Getters for defined singletons
   napi_status(NAPI_CDECL* get_undefined)(napi_env env, napi_value* result);
   napi_status(NAPI_CDECL* get_null)(napi_env env, napi_value* result);
   napi_status(NAPI_CDECL* get_global)(napi_env env, napi_value* result);
@@ -65,17 +64,7 @@ typedef struct {
                                        bool value,
                                        napi_value* result);
 
-  // Methods to create Primitive types/Objects
   napi_status(NAPI_CDECL* create_object)(napi_env env, napi_value* result);
-#ifdef NAPI_EXPERIMENTAL
-  napi_status(NAPI_CDECL* create_object_with_properties)(
-      napi_env env,
-      napi_value prototype_or_null,
-      napi_value* property_names,
-      napi_value* property_values,
-      size_t property_count,
-      napi_value* result);
-#endif  // NAPI_EXPERIMENTAL
 
   napi_status(NAPI_CDECL* create_array)(napi_env env, napi_value* result);
   napi_status(NAPI_CDECL* create_array_with_length)(napi_env env,
@@ -105,47 +94,10 @@ typedef struct {
                                                const char16_t* str,
                                                size_t length,
                                                napi_value* result);
-#if NAPI_VERSION >= 10
-  napi_status(NAPI_CDECL* create_external_string_latin1)(
-      napi_env env,
-      char* str,
-      size_t length,
-      node_api_basic_finalize finalize_callback,
-      void* finalize_hint,
-      napi_value* result,
-      bool* copied);
-  napi_status(NAPI_CDECL* create_external_string_utf16)(
-      napi_env env,
-      char16_t* str,
-      size_t length,
-      node_api_basic_finalize finalize_callback,
-      void* finalize_hint,
-      napi_value* result,
-      bool* copied);
-
-  napi_status(NAPI_CDECL* create_property_key_latin1)(napi_env env,
-                                                      const char* str,
-                                                      size_t length,
-                                                      napi_value* result);
-  napi_status(NAPI_CDECL* create_property_key_utf8)(napi_env env,
-                                                    const char* str,
-                                                    size_t length,
-                                                    napi_value* result);
-  napi_status(NAPI_CDECL* create_property_key_utf16)(napi_env env,
-                                                     const char16_t* str,
-                                                     size_t length,
-                                                     napi_value* result);
-#endif  // NAPI_VERSION >= 10
 
   napi_status(NAPI_CDECL* create_symbol)(napi_env env,
                                          napi_value description,
                                          napi_value* result);
-#if NAPI_VERSION >= 9
-  napi_status(NAPI_CDECL* symbol_for)(napi_env env,
-                                      const char* utf8description,
-                                      size_t length,
-                                      napi_value* result);
-#endif  // NAPI_VERSION >= 9
   napi_status(NAPI_CDECL* create_function)(napi_env env,
                                            const char* utf8name,
                                            size_t length,
@@ -164,14 +116,7 @@ typedef struct {
                                               napi_value code,
                                               napi_value msg,
                                               napi_value* result);
-#if NAPI_VERSION >= 9
-  napi_status(NAPI_CDECL* create_syntax_error)(napi_env env,
-                                               napi_value code,
-                                               napi_value msg,
-                                               napi_value* result);
-#endif  // NAPI_VERSION >= 9
 
-  // Methods to get the native napi_value from Primitive type
   napi_status(NAPI_CDECL* typeof)(napi_env env,
                                   napi_value value,
                                   napi_valuetype* result);
@@ -191,29 +136,24 @@ typedef struct {
                                           napi_value value,
                                           bool* result);
 
-  // Copies LATIN-1 encoded bytes from a string into a buffer.
   napi_status(NAPI_CDECL* get_value_string_latin1)(napi_env env,
                                                    napi_value value,
                                                    char* buf,
                                                    size_t bufsize,
                                                    size_t* result);
 
-  // Copies UTF-8 encoded bytes from a string into a buffer.
   napi_status(NAPI_CDECL* get_value_string_utf8)(napi_env env,
                                                  napi_value value,
                                                  char* buf,
                                                  size_t bufsize,
                                                  size_t* result);
 
-  // Copies UTF-16 encoded bytes from a string into a buffer.
   napi_status(NAPI_CDECL* get_value_string_utf16)(napi_env env,
                                                   napi_value value,
                                                   char16_t* buf,
                                                   size_t bufsize,
                                                   size_t* result);
 
-  // Methods to coerce values
-  // These APIs may execute user scripts
   napi_status(NAPI_CDECL* coerce_to_bool)(napi_env env,
                                           napi_value value,
                                           napi_value* result);
@@ -227,7 +167,6 @@ typedef struct {
                                             napi_value value,
                                             napi_value* result);
 
-  // Methods to work with Objects
   napi_status(NAPI_CDECL* get_prototype)(napi_env env,
                                          napi_value object,
                                          napi_value* result);
@@ -288,7 +227,6 @@ typedef struct {
       size_t property_count,
       const napi_property_descriptor* properties);
 
-  // Methods to work with Arrays
   napi_status(NAPI_CDECL* is_array)(napi_env env,
                                     napi_value value,
                                     bool* result);
@@ -296,13 +234,11 @@ typedef struct {
                                             napi_value value,
                                             uint32_t* result);
 
-  // Methods to compare values
   napi_status(NAPI_CDECL* strict_equals)(napi_env env,
                                          napi_value lhs,
                                          napi_value rhs,
                                          bool* result);
 
-  // Methods to work with Functions
   napi_status(NAPI_CDECL* call_function)(napi_env env,
                                          napi_value recv,
                                          napi_value func,
@@ -396,19 +332,14 @@ typedef struct {
 
   napi_status(NAPI_CDECL* throw_error)(napi_env env, napi_value error);
   napi_status(NAPI_CDECL* throw_js_error)(napi_env env,
-                                       const char* code,
-                                       const char* msg);
+                                          const char* code,
+                                          const char* msg);
   napi_status(NAPI_CDECL* throw_type_error)(napi_env env,
                                             const char* code,
                                             const char* msg);
   napi_status(NAPI_CDECL* throw_range_error)(napi_env env,
                                              const char* code,
                                              const char* msg);
-#if NAPI_VERSION >= 9
-  napi_status(NAPI_CDECL* throw_syntax_error)(napi_env env,
-                                              const char* code,
-                                              const char* msg);
-#endif  // NAPI_VERSION >= 9
   napi_status(NAPI_CDECL* is_error)(napi_env env,
                                     napi_value value,
                                     bool* result);
@@ -467,16 +398,6 @@ typedef struct {
                                              napi_value* arraybuffer,
                                              size_t* byte_offset);
 
-#ifdef NAPI_EXPERIMENTAL
-  napi_status(NAPI_CDECL* is_sharedarraybuffer)(napi_env env,
-                                                napi_value value,
-                                                bool* result);
-  napi_status(NAPI_CDECL* create_sharedarraybuffer)(napi_env env,
-                                                    size_t byte_length,
-                                                    void** data,
-                                                    napi_value* result);
-#endif  // NAPI_EXPERIMENTAL
-
   napi_status(NAPI_CDECL* get_version)(node_api_basic_env env,
                                        uint32_t* result);
 
@@ -501,110 +422,12 @@ typedef struct {
                                                   int64_t change_in_bytes,
                                                   int64_t* adjusted_value);
 
-#if NAPI_VERSION >= 5
-
-  napi_status(NAPI_CDECL* create_date)(napi_env env,
-                                       double time,
-                                       napi_value* result);
-
-  napi_status(NAPI_CDECL* is_date)(napi_env env,
-                                   napi_value value,
-                                   bool* is_date);
-
-  napi_status(NAPI_CDECL* get_date_value)(napi_env env,
-                                          napi_value value,
-                                          double* result);
-
-  napi_status(NAPI_CDECL* add_finalizer)(napi_env env,
-                                         napi_value js_object,
-                                         void* finalize_data,
-                                         node_api_basic_finalize finalize_cb,
-                                         void* finalize_hint,
-                                         napi_ref* result);
-
-#endif  // NAPI_VERSION >= 5
-
-#ifdef NAPI_EXPERIMENTAL
-
-  napi_status(NAPI_CDECL* post_finalizer)(node_api_basic_env env,
-                                          napi_finalize finalize_cb,
-                                          void* finalize_data,
-                                          void* finalize_hint);
-
-#endif  // NAPI_EXPERIMENTAL
-
-#if NAPI_VERSION >= 6
-
-  napi_status(NAPI_CDECL* create_bigint_int64)(napi_env env,
-                                               int64_t value,
-                                               napi_value* result);
-  napi_status(NAPI_CDECL* create_bigint_uint64)(napi_env env,
-                                                uint64_t value,
-                                                napi_value* result);
-  napi_status(NAPI_CDECL* create_bigint_words)(napi_env env,
-                                               int sign_bit,
-                                               size_t word_count,
-                                               const uint64_t* words,
-                                               napi_value* result);
-  napi_status(NAPI_CDECL* get_value_bigint_int64)(napi_env env,
-                                                  napi_value value,
-                                                  int64_t* result,
-                                                  bool* lossless);
-  napi_status(NAPI_CDECL* get_value_bigint_uint64)(napi_env env,
-                                                   napi_value value,
-                                                   uint64_t* result,
-                                                   bool* lossless);
-  napi_status(NAPI_CDECL* get_value_bigint_words)(napi_env env,
-                                                  napi_value value,
-                                                  int* sign_bit,
-                                                  size_t* word_count,
-                                                  uint64_t* words);
-
-  napi_status(NAPI_CDECL* get_all_property_names)(
-      napi_env env,
-      napi_value object,
-      napi_key_collection_mode key_mode,
-      napi_key_filter key_filter,
-      napi_key_conversion key_conversion,
-      napi_value* result);
-
-  napi_status(NAPI_CDECL* set_instance_data)(node_api_basic_env env,
-                                             void* data,
-                                             napi_finalize finalize_cb,
-                                             void* finalize_hint);
-
-  napi_status(NAPI_CDECL* get_instance_data)(node_api_basic_env env,
-                                             void** data);
-#endif  // NAPI_VERSION >= 6
-
-#if NAPI_VERSION >= 7
-  napi_status(NAPI_CDECL* detach_arraybuffer)(napi_env env,
-                                              napi_value arraybuffer);
-
-  napi_status(NAPI_CDECL* is_detached_arraybuffer)(napi_env env,
-                                                   napi_value value,
-                                                   bool* result);
-#endif  // NAPI_VERSION >= 7
-
-#if NAPI_VERSION >= 8
-  napi_status(NAPI_CDECL* type_tag_object)(napi_env env,
-                                           napi_value value,
-                                           const napi_type_tag* type_tag);
-
-  napi_status(NAPI_CDECL* check_object_type_tag)(napi_env env,
-                                                 napi_value value,
-                                                 const napi_type_tag* type_tag,
-                                                 bool* result);
-  napi_status(NAPI_CDECL* object_freeze)(napi_env env, napi_value object);
-  napi_status(NAPI_CDECL* object_seal)(napi_env env, napi_value object);
-#endif  // NAPI_VERSION >= 8
-
   void(NAPI_CDECL* module_register)(napi_module* mod);
 
   void(NAPI_CDECL* fatal_error)(const char* location,
-                                               size_t location_len,
-                                               const char* message,
-                                               size_t message_len);
+                                size_t location_len,
+                                const char* message,
+                                size_t message_len);
 
   napi_status(NAPI_CDECL* async_init)(napi_env env,
                                       napi_value async_resource,
@@ -634,16 +457,6 @@ typedef struct {
       void* finalize_hint,
       napi_value* result);
 
-#if NAPI_VERSION >= 10
-
-  napi_status(NAPI_CDECL* create_buffer_from_arraybuffer)(
-      napi_env env,
-      napi_value arraybuffer,
-      size_t byte_offset,
-      size_t byte_length,
-      napi_value* result);
-#endif  // NAPI_VERSION >= 10
-
   napi_status(NAPI_CDECL* create_buffer_copy)(napi_env env,
                                               size_t length,
                                               const void* data,
@@ -657,7 +470,6 @@ typedef struct {
                                            void** data,
                                            size_t* length);
 
-  // Methods to manage simple async operations
   napi_status(NAPI_CDECL* create_async_work)(
       napi_env env,
       napi_value async_resource,
@@ -743,7 +555,94 @@ typedef struct {
 
 #endif  // NAPI_VERSION >= 4
 
+#if NAPI_VERSION >= 5
+
+  napi_status(NAPI_CDECL* create_date)(napi_env env,
+                                       double time,
+                                       napi_value* result);
+
+  napi_status(NAPI_CDECL* is_date)(napi_env env,
+                                   napi_value value,
+                                   bool* is_date);
+
+  napi_status(NAPI_CDECL* get_date_value)(napi_env env,
+                                          napi_value value,
+                                          double* result);
+
+  napi_status(NAPI_CDECL* add_finalizer)(napi_env env,
+                                         napi_value js_object,
+                                         void* finalize_data,
+                                         node_api_basic_finalize finalize_cb,
+                                         void* finalize_hint,
+                                         napi_ref* result);
+
+#endif  // NAPI_VERSION >= 5
+
+#if NAPI_VERSION >= 6
+
+  napi_status(NAPI_CDECL* create_bigint_int64)(napi_env env,
+                                               int64_t value,
+                                               napi_value* result);
+  napi_status(NAPI_CDECL* create_bigint_uint64)(napi_env env,
+                                                uint64_t value,
+                                                napi_value* result);
+  napi_status(NAPI_CDECL* create_bigint_words)(napi_env env,
+                                               int sign_bit,
+                                               size_t word_count,
+                                               const uint64_t* words,
+                                               napi_value* result);
+  napi_status(NAPI_CDECL* get_value_bigint_int64)(napi_env env,
+                                                  napi_value value,
+                                                  int64_t* result,
+                                                  bool* lossless);
+  napi_status(NAPI_CDECL* get_value_bigint_uint64)(napi_env env,
+                                                   napi_value value,
+                                                   uint64_t* result,
+                                                   bool* lossless);
+  napi_status(NAPI_CDECL* get_value_bigint_words)(napi_env env,
+                                                  napi_value value,
+                                                  int* sign_bit,
+                                                  size_t* word_count,
+                                                  uint64_t* words);
+
+  napi_status(NAPI_CDECL* get_all_property_names)(
+      napi_env env,
+      napi_value object,
+      napi_key_collection_mode key_mode,
+      napi_key_filter key_filter,
+      napi_key_conversion key_conversion,
+      napi_value* result);
+
+  napi_status(NAPI_CDECL* set_instance_data)(node_api_basic_env env,
+                                             void* data,
+                                             napi_finalize finalize_cb,
+                                             void* finalize_hint);
+
+  napi_status(NAPI_CDECL* get_instance_data)(node_api_basic_env env,
+                                             void** data);
+#endif  // NAPI_VERSION >= 6
+
+#if NAPI_VERSION >= 7
+  napi_status(NAPI_CDECL* detach_arraybuffer)(napi_env env,
+                                              napi_value arraybuffer);
+
+  napi_status(NAPI_CDECL* is_detached_arraybuffer)(napi_env env,
+                                                   napi_value value,
+                                                   bool* result);
+#endif  // NAPI_VERSION >= 7
+
 #if NAPI_VERSION >= 8
+
+  napi_status(NAPI_CDECL* type_tag_object)(napi_env env,
+                                           napi_value value,
+                                           const napi_type_tag* type_tag);
+
+  napi_status(NAPI_CDECL* check_object_type_tag)(napi_env env,
+                                                 napi_value value,
+                                                 const napi_type_tag* type_tag,
+                                                 bool* result);
+  napi_status(NAPI_CDECL* object_freeze)(napi_env env, napi_value object);
+  napi_status(NAPI_CDECL* object_seal)(napi_env env, napi_value object);
 
   napi_status(NAPI_CDECL* add_async_cleanup_hook)(
       node_api_basic_env env,
@@ -758,10 +657,88 @@ typedef struct {
 
 #if NAPI_VERSION >= 9
 
+  napi_status(NAPI_CDECL* symbol_for)(napi_env env,
+                                      const char* utf8description,
+                                      size_t length,
+                                      napi_value* result);
+
+  napi_status(NAPI_CDECL* create_syntax_error)(napi_env env,
+                                               napi_value code,
+                                               napi_value msg,
+                                               napi_value* result);
+
+  napi_status(NAPI_CDECL* throw_syntax_error)(napi_env env,
+                                              const char* code,
+                                              const char* msg);
+
   napi_status(NAPI_CDECL* get_module_file_name)(node_api_basic_env env,
                                                 const char** result);
 
 #endif  // NAPI_VERSION >= 9
+
+#if NAPI_VERSION >= 10
+  napi_status(NAPI_CDECL* create_external_string_latin1)(
+      napi_env env,
+      char* str,
+      size_t length,
+      node_api_basic_finalize finalize_callback,
+      void* finalize_hint,
+      napi_value* result,
+      bool* copied);
+  napi_status(NAPI_CDECL* create_external_string_utf16)(
+      napi_env env,
+      char16_t* str,
+      size_t length,
+      node_api_basic_finalize finalize_callback,
+      void* finalize_hint,
+      napi_value* result,
+      bool* copied);
+
+  napi_status(NAPI_CDECL* create_property_key_latin1)(napi_env env,
+                                                      const char* str,
+                                                      size_t length,
+                                                      napi_value* result);
+  napi_status(NAPI_CDECL* create_property_key_utf8)(napi_env env,
+                                                    const char* str,
+                                                    size_t length,
+                                                    napi_value* result);
+  napi_status(NAPI_CDECL* create_property_key_utf16)(napi_env env,
+                                                     const char16_t* str,
+                                                     size_t length,
+                                                     napi_value* result);
+
+  napi_status(NAPI_CDECL* create_buffer_from_arraybuffer)(
+      napi_env env,
+      napi_value arraybuffer,
+      size_t byte_offset,
+      size_t byte_length,
+      napi_value* result);
+
+#endif  // NAPI_VERSION >= 10
+
+#ifdef NAPI_EXPERIMENTAL
+  napi_status(NAPI_CDECL* post_finalizer)(node_api_basic_env env,
+                                          napi_finalize finalize_cb,
+                                          void* finalize_data,
+                                          void* finalize_hint);
+
+  napi_status(NAPI_CDECL* create_object_with_properties)(
+      napi_env env,
+      napi_value prototype_or_null,
+      napi_value* property_names,
+      napi_value* property_values,
+      size_t property_count,
+      napi_value* result);
+
+  napi_status(NAPI_CDECL* is_sharedarraybuffer)(napi_env env,
+                                                napi_value value,
+                                                bool* result);
+  napi_status(NAPI_CDECL* create_sharedarraybuffer)(napi_env env,
+                                                    size_t byte_length,
+                                                    void** data,
+                                                    napi_value* result);
+
+#endif  // NAPI_EXPERIMENTAL
 
 } node_api_vtable;
 
