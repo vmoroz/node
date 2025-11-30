@@ -33,17 +33,6 @@ struct uv_loop_s;  // Forward declaration.
 #define NAPI_NO_RETURN
 #endif
 
-// Used by deprecated registration method napi_module_register.
-typedef struct napi_module {
-  int nm_version;
-  unsigned int nm_flags;
-  const char* nm_filename;
-  napi_addon_register_func nm_register_func;
-  const char* nm_modname;
-  void* nm_priv;
-  void* reserved[4];
-} napi_module;
-
 #define NAPI_MODULE_VERSION 1
 
 #define NAPI_MODULE_INITIALIZER_X(base, version)                               \

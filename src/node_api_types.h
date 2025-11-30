@@ -53,6 +53,17 @@ typedef void(NAPI_CDECL* napi_async_cleanup_hook)(
     napi_async_cleanup_hook_handle handle, void* data);
 #endif  // NAPI_VERSION >= 8
 
+// Used by deprecated registration method napi_module_register.
+typedef struct napi_module {
+  int nm_version;
+  unsigned int nm_flags;
+  const char* nm_filename;
+  napi_addon_register_func nm_register_func;
+  const char* nm_modname;
+  void* nm_priv;
+  void* reserved[4];
+} napi_module;
+
 typedef struct {
   napi_status(NAPI_CDECL* get_last_error_info)(
       node_api_basic_env env, const napi_extended_error_info** result);
