@@ -21,6 +21,12 @@
 #endif
 #endif
 
+// TODO: (vmoroz) Should we use a different condition?
+#ifndef NODE_WANT_INTERNALS
+#undef NAPI_EXTERN
+#define NAPI_EXTERN static inline
+#endif
+
 #define NAPI_AUTO_LENGTH SIZE_MAX
 
 #ifdef __cplusplus

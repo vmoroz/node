@@ -130,9 +130,10 @@ typedef struct {
                                               napi_value msg,
                                               napi_value* result);
 
-  napi_status(NAPI_CDECL* typeof)(napi_env env,
-                                  napi_value value,
-                                  napi_valuetype* result);
+  // The name is changed to avoid conflict with the `typeof` keyword in C
+  napi_status(NAPI_CDECL* type_of)(napi_env env,
+                                   napi_value value,
+                                   napi_valuetype* result);
   napi_status(NAPI_CDECL* get_value_double)(napi_env env,
                                             napi_value value,
                                             double* result);
@@ -343,8 +344,9 @@ typedef struct {
                                          napi_value escapee,
                                          napi_value* result);
 
-  napi_status(NAPI_CDECL* throw_error)(napi_env env, napi_value error);
-  napi_status(NAPI_CDECL* throw_js_error)(napi_env env,
+  // The name is changed to avoid conflict with the `throw` keyword in C++
+  napi_status(NAPI_CDECL* throw_value)(napi_env env, napi_value error);
+  napi_status(NAPI_CDECL* throw_error)(napi_env env,
                                           const char* code,
                                           const char* msg);
   napi_status(NAPI_CDECL* throw_type_error)(napi_env env,
