@@ -233,6 +233,7 @@ typedef struct {
 } node_api_module_vtable;
 
 typedef void(NAPI_CDECL* node_api_addon_set_module_vtable_func)(
-    node_api_module_vtable* vtable);
+    const node_api_module_vtable* module_vtable,
+    const node_api_js_native_vtable* js_native_vtable);
 
 #endif  // SRC_NODE_API_TYPES_H_

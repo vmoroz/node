@@ -3803,6 +3803,6 @@ static const node_api_js_native_vtable g_vtable = {
     node_api_create_sharedarraybuffer,
 };
 
-node_api_js_native_vtable* node_api_get_js_native_vtable() {
+const node_api_js_native_vtable* node_api_get_js_native_vtable() {
   return &g_vtable;
 }

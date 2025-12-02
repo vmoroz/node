@@ -71,17 +71,15 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE_EXPORT int32_t NODE_API_MODULE_GET_API_VERSION(void) {           \
     return NAPI_VERSION;                                                       \
   }                                                                            \
-  node_api_js_native_vtable* g_node_api_js_native_vtable =                     \
+  const node_api_module_vtable* g_node_api_module_vtable =                     \
+      NULL; /* NOLINT(readability/null_usage) */                               \
+  const node_api_js_native_vtable* g_node_api_js_native_vtable =               \
       NULL; /* NOLINT(readability/null_usage) */                               \
   NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE(                          \
-      node_api_js_native_vtable* vtable) {                                     \
-    g_node_api_js_native_vtable = vtable;                                      \
-  }                                                                            \
-  node_api_module_vtable* g_node_api_module_vtable =                           \
-      NULL; /* NOLINT(readability/null_usage) */                               \
-  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE(                          \
-      node_api_module_vtable* vtable) {                                        \
-    g_node_api_module_vtable = vtable;                                         \
+      const node_api_module_vtable* module_vtable,                             \
+      const node_api_js_native_vtable* js_native_vtable) {                     \
+    g_node_api_module_vtable = module_vtable;                                  \
+    g_node_api_js_native_vtable = js_native_vtable;                            \
   }                                                                            \
   NAPI_MODULE_EXPORT napi_value NAPI_MODULE_INITIALIZER(napi_env env,          \
                                                         napi_value exports);   \
