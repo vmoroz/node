@@ -622,7 +622,7 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
 // TODO: (vmoroz) Should we use a different condition?
 #ifndef NODE_WANT_INTERNALS
 
-extern node_api_js_native_vtable* g_node_api_js_native_vtable;
+extern const node_api_js_native_vtable* g_node_api_js_native_vtable;
 
 static inline napi_status NAPI_CDECL napi_get_last_error_info(
     node_api_basic_env env, const napi_extended_error_info** result) {

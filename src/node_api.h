@@ -275,7 +275,7 @@ node_api_get_module_file_name(node_api_basic_env env, const char** result);
 // TODO: (vmoroz) Should we use a different condition?
 #ifndef NODE_WANT_INTERNALS
 
-extern node_api_module_vtable* g_node_api_module_vtable;
+extern const node_api_module_vtable* g_node_api_module_vtable;
 
 static inline void NAPI_CDECL napi_module_register(napi_module* mod) {
   g_node_api_module_vtable->module_register(mod);
