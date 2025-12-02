@@ -278,7 +278,7 @@ node_api_get_module_file_name(node_api_basic_env env, const char** result);
 extern node_api_module_vtable* g_node_api_module_vtable;
 
 static inline void NAPI_CDECL napi_module_register(napi_module* mod) {
-  g_node_api_js_native_vtable->module_register(mod);
+  g_node_api_module_vtable->module_register(mod);
 }
 
 static inline NAPI_NO_RETURN void NAPI_CDECL
@@ -286,7 +286,7 @@ napi_fatal_error(const char* location,
                  size_t location_len,
                  const char* message,
                  size_t message_len) {
-  g_node_api_js_native_vtable->fatal_error(
+  g_node_api_module_vtable->fatal_error(
       location, location_len, message, message_len);
 }
 
@@ -295,13 +295,13 @@ napi_async_init(napi_env env,
                 napi_value async_resource,
                 napi_value async_resource_name,
                 napi_async_context* result) {
-  return g_node_api_js_native_vtable->async_init(
+  return g_node_api_module_vtable->async_init(
       env, async_resource, async_resource_name, result);
 }
 
 static inline napi_status NAPI_CDECL
 napi_async_destroy(napi_env env, napi_async_context async_context) {
-  return g_node_api_js_native_vtable->async_destroy(env, async_context);
+  return g_node_api_module_vtable->async_destroy(env, async_context);
 }
 
 static inline napi_status NAPI_CDECL
@@ -312,7 +312,7 @@ napi_make_callback(napi_env env,
                    size_t argc,
                    const napi_value* argv,
                    napi_value* result) {
-  return g_node_api_js_native_vtable->make_callback(
+  return g_node_api_module_vtable->make_callback(
       env, async_context, recv, func, argc, argv, result);
 }
 
@@ -320,7 +320,7 @@ static inline napi_status NAPI_CDECL napi_create_buffer(napi_env env,
                                                         size_t length,
                                                         void** data,
                                                         napi_value* result) {
-  return g_node_api_js_native_vtable->create_buffer(env, length, data, result);
+  return g_node_api_module_vtable->create_buffer(env, length, data, result);
 }
 #ifndef NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
 static inline napi_status NAPI_CDECL
@@ -330,7 +330,7 @@ napi_create_external_buffer(napi_env env,
                             node_api_basic_finalize finalize_cb,
                             void* finalize_hint,
                             napi_value* result) {
-  return g_node_api_js_native_vtable->create_external_buffer(
+  return g_node_api_module_vtable->create_external_buffer(
       env, length, data, finalize_cb, finalize_hint, result);
 }
 #endif  // NODE_API_NO_EXTERNAL_BUFFERS_ALLOWED
@@ -343,7 +343,7 @@ node_api_create_buffer_from_arraybuffer(napi_env env,
                                         size_t byte_offset,
                                         size_t byte_length,
                                         napi_value* result) {
-  return g_node_api_js_native_vtable->create_buffer_from_arraybuffer(
+  return g_node_api_module_vtable->create_buffer_from_arraybuffer(
       env, arraybuffer, byte_offset, byte_length, result);
 }
 #endif  // NAPI_VERSION >= 10
@@ -354,21 +354,21 @@ napi_create_buffer_copy(napi_env env,
                         const void* data,
                         void** result_data,
                         napi_value* result) {
-  return g_node_api_js_native_vtable->create_buffer_copy(
+  return g_node_api_module_vtable->create_buffer_copy(
       env, length, data, result_data, result);
 }
 
 static inline napi_status NAPI_CDECL napi_is_buffer(napi_env env,
                                                     napi_value value,
                                                     bool* result) {
-  return g_node_api_js_native_vtable->is_buffer(env, value, result);
+  return g_node_api_module_vtable->is_buffer(env, value, result);
 }
 
 static inline napi_status NAPI_CDECL napi_get_buffer_info(napi_env env,
                                                           napi_value value,
                                                           void** data,
                                                           size_t* length) {
-  return g_node_api_js_native_vtable->get_buffer_info(env, value, data, length);
+  return g_node_api_module_vtable->get_buffer_info(env, value, data, length);
 }
 
 static inline napi_status NAPI_CDECL
@@ -379,7 +379,7 @@ napi_create_async_work(napi_env env,
                        napi_async_complete_callback complete,
                        void* data,
                        napi_async_work* result) {
-  return g_node_api_js_native_vtable->create_async_work(env,
+  return g_node_api_module_vtable->create_async_work(env,
                                                         async_resource,
                                                         async_resource_name,
                                                         execute,
@@ -390,23 +390,23 @@ napi_create_async_work(napi_env env,
 
 static inline napi_status NAPI_CDECL
 napi_delete_async_work(napi_env env, napi_async_work work) {
-  return g_node_api_js_native_vtable->delete_async_work(env, work);
+  return g_node_api_module_vtable->delete_async_work(env, work);
 }
 
 static inline napi_status NAPI_CDECL
 napi_queue_async_work(node_api_basic_env env, napi_async_work work) {
-  return g_node_api_js_native_vtable->queue_async_work(env, work);
+  return g_node_api_module_vtable->queue_async_work(env, work);
 }
 
 static inline napi_status NAPI_CDECL
 napi_cancel_async_work(node_api_basic_env env, napi_async_work work) {
-  return g_node_api_js_native_vtable->cancel_async_work(env, work);
+  return g_node_api_module_vtable->cancel_async_work(env, work);
 }
 
 // version management
 static inline napi_status NAPI_CDECL napi_get_node_version(
     node_api_basic_env env, const napi_node_version** version) {
-  return g_node_api_js_native_vtable->get_node_version(env, version);
+  return g_node_api_module_vtable->get_node_version(env, version);
 }
 
 #if NAPI_VERSION >= 2
@@ -414,7 +414,7 @@ static inline napi_status NAPI_CDECL napi_get_node_version(
 // Return the current libuv event loop for a given environment
 static inline napi_status NAPI_CDECL
 napi_get_uv_event_loop(node_api_basic_env env, struct uv_loop_s** loop) {
-  return g_node_api_js_native_vtable->get_uv_event_loop(env, loop);
+  return g_node_api_module_vtable->get_uv_event_loop(env, loop);
 }
 
 #endif  // NAPI_VERSION >= 2
@@ -423,17 +423,17 @@ napi_get_uv_event_loop(node_api_basic_env env, struct uv_loop_s** loop) {
 
 static inline napi_status NAPI_CDECL napi_fatal_exception(napi_env env,
                                                           napi_value err) {
-  return g_node_api_js_native_vtable->fatal_exception(env, err);
+  return g_node_api_module_vtable->fatal_exception(env, err);
 }
 
 static inline napi_status NAPI_CDECL napi_add_env_cleanup_hook(
     node_api_basic_env env, napi_cleanup_hook fun, void* arg) {
-  return g_node_api_js_native_vtable->add_env_cleanup_hook(env, fun, arg);
+  return g_node_api_module_vtable->add_env_cleanup_hook(env, fun, arg);
 }
 
 static inline napi_status NAPI_CDECL napi_remove_env_cleanup_hook(
     node_api_basic_env env, napi_cleanup_hook fun, void* arg) {
-  return g_node_api_js_native_vtable->remove_env_cleanup_hook(env, fun, arg);
+  return g_node_api_module_vtable->remove_env_cleanup_hook(env, fun, arg);
 }
 
 static inline napi_status NAPI_CDECL
@@ -441,13 +441,13 @@ napi_open_callback_scope(napi_env env,
                          napi_value resource_object,
                          napi_async_context context,
                          napi_callback_scope* result) {
-  return g_node_api_js_native_vtable->open_callback_scope(
+  return g_node_api_module_vtable->open_callback_scope(
       env, resource_object, context, result);
 }
 
 static inline napi_status NAPI_CDECL
 napi_close_callback_scope(napi_env env, napi_callback_scope scope) {
-  return g_node_api_js_native_vtable->close_callback_scope(env, scope);
+  return g_node_api_module_vtable->close_callback_scope(env, scope);
 }
 
 #endif  // NAPI_VERSION >= 3
@@ -467,7 +467,7 @@ napi_create_threadsafe_function(napi_env env,
                                 void* context,
                                 napi_threadsafe_function_call_js call_js_cb,
                                 napi_threadsafe_function* result) {
-  return g_node_api_js_native_vtable->create_threadsafe_function(
+  return g_node_api_module_vtable->create_threadsafe_function(
       env,
       func,
       async_resource,
@@ -483,7 +483,7 @@ napi_create_threadsafe_function(napi_env env,
 
 static inline napi_status NAPI_CDECL napi_get_threadsafe_function_context(
     napi_threadsafe_function func, void** result) {
-  return g_node_api_js_native_vtable->get_threadsafe_function_context(func,
+  return g_node_api_module_vtable->get_threadsafe_function_context(func,
                                                                       result);
 }
 
@@ -491,28 +491,28 @@ static inline napi_status NAPI_CDECL
 napi_call_threadsafe_function(napi_threadsafe_function func,
                               void* data,
                               napi_threadsafe_function_call_mode is_blocking) {
-  return g_node_api_js_native_vtable->call_threadsafe_function(
+  return g_node_api_module_vtable->call_threadsafe_function(
       func, data, is_blocking);
 }
 
 static inline napi_status NAPI_CDECL
 napi_acquire_threadsafe_function(napi_threadsafe_function func) {
-  return g_node_api_js_native_vtable->acquire_threadsafe_function(func);
+  return g_node_api_module_vtable->acquire_threadsafe_function(func);
 }
 
 static inline napi_status NAPI_CDECL napi_release_threadsafe_function(
     napi_threadsafe_function func, napi_threadsafe_function_release_mode mode) {
-  return g_node_api_js_native_vtable->release_threadsafe_function(func, mode);
+  return g_node_api_module_vtable->release_threadsafe_function(func, mode);
 }
 
 static inline napi_status NAPI_CDECL napi_unref_threadsafe_function(
     node_api_basic_env env, napi_threadsafe_function func) {
-  return g_node_api_js_native_vtable->unref_threadsafe_function(env, func);
+  return g_node_api_module_vtable->unref_threadsafe_function(env, func);
 }
 
 static inline napi_status NAPI_CDECL napi_ref_threadsafe_function(
     node_api_basic_env env, napi_threadsafe_function func) {
-  return g_node_api_js_native_vtable->ref_threadsafe_function(env, func);
+  return g_node_api_module_vtable->ref_threadsafe_function(env, func);
 }
 
 #endif  // NAPI_VERSION >= 4
@@ -524,13 +524,13 @@ napi_add_async_cleanup_hook(node_api_basic_env env,
                             napi_async_cleanup_hook hook,
                             void* arg,
                             napi_async_cleanup_hook_handle* remove_handle) {
-  return g_node_api_js_native_vtable->add_async_cleanup_hook(
+  return g_node_api_module_vtable->add_async_cleanup_hook(
       env, hook, arg, remove_handle);
 }
 
 static inline napi_status NAPI_CDECL
 napi_remove_async_cleanup_hook(napi_async_cleanup_hook_handle remove_handle) {
-  return g_node_api_js_native_vtable->remove_async_cleanup_hook(remove_handle);
+  return g_node_api_module_vtable->remove_async_cleanup_hook(remove_handle);
 }
 
 #endif  // NAPI_VERSION >= 8
@@ -539,7 +539,7 @@ napi_remove_async_cleanup_hook(napi_async_cleanup_hook_handle remove_handle) {
 
 static inline napi_status NAPI_CDECL
 node_api_get_module_file_name(node_api_basic_env env, const char** result) {
-  return g_node_api_js_native_vtable->get_module_file_name(env, result);
+  return g_node_api_module_vtable->get_module_file_name(env, result);
 }
 
 #endif  // NAPI_VERSION >= 9
