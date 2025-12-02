@@ -10,12 +10,6 @@
 #endif
 #endif
 
-// TODO(vmoroz): Should we use a different condition?
-#ifndef NODE_WANT_INTERNALS
-#undef NAPI_EXTERN
-#define NAPI_EXTERN static inline
-#endif
-
 #include "js_native_api.h"
 #include "node_api_types.h"
 
@@ -53,7 +47,6 @@ struct uv_loop_s;  // Forward declaration.
 #endif
 
 #define NODE_API_MODULE_GET_API_VERSION_BASE node_api_module_get_api_version_v
-#define NODE_API_MODULE_SET_VTABLE_BASE node_api_module_set_vtable_v
 
 #define NAPI_MODULE_INITIALIZER                                                \
   NAPI_MODULE_INITIALIZER_X(NAPI_MODULE_INITIALIZER_BASE, NAPI_MODULE_VERSION)
@@ -62,25 +55,33 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_GET_API_VERSION_BASE,              \
                             NAPI_MODULE_VERSION)
 
-#define NODE_API_MODULE_SET_VTABLE                                             \
+#ifdef NODE_API_MODULE_USE_VTABLE
+#define NODE_API_MODULE_SET_VTABLE_BASE node_api_module_set_vtable_v
+#define NODE_API_MODULE_SET_VTABLE_FUNC                                        \
   NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_SET_VTABLE_BASE,                   \
                             NAPI_MODULE_VERSION)
+
+#define NODE_API_MODULE_SET_VTABLE                                             \
+  const node_api_module_vtable* g_node_api_module_vtable =                     \
+      NULL; /* NOLINT(readability/null_usage) */                               \
+  const node_api_js_native_vtable* g_node_api_js_native_vtable =               \
+      NULL; /* NOLINT(readability/null_usage) */                               \
+  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE_FUNC(                     \
+      const node_api_module_vtable* module_vtable,                             \
+      const node_api_js_native_vtable* js_native_vtable) {                     \
+    g_node_api_module_vtable = module_vtable;                                  \
+    g_node_api_js_native_vtable = js_native_vtable;                            \
+  }
+#else
+#define NODE_API_MODULE_SET_VTABLE /* No-op */
+#endif
 
 #define NAPI_MODULE_INIT()                                                     \
   EXTERN_C_START                                                               \
   NAPI_MODULE_EXPORT int32_t NODE_API_MODULE_GET_API_VERSION(void) {           \
     return NAPI_VERSION;                                                       \
   }                                                                            \
-  const node_api_module_vtable* g_node_api_module_vtable =                     \
-      NULL; /* NOLINT(readability/null_usage) */                               \
-  const node_api_js_native_vtable* g_node_api_js_native_vtable =               \
-      NULL; /* NOLINT(readability/null_usage) */                               \
-  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE(                          \
-      const node_api_module_vtable* module_vtable,                             \
-      const node_api_js_native_vtable* js_native_vtable) {                     \
-    g_node_api_module_vtable = module_vtable;                                  \
-    g_node_api_js_native_vtable = js_native_vtable;                            \
-  }                                                                            \
+  NODE_API_MODULE_SET_VTABLE                                                   \
   NAPI_MODULE_EXPORT napi_value NAPI_MODULE_INITIALIZER(napi_env env,          \
                                                         napi_value exports);   \
   EXTERN_C_END                                                                 \
@@ -94,6 +95,8 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE(modname, regfunc)
 
 EXTERN_C_START
+
+#ifndef NODE_API_MODULE_USE_VTABLE
 
 // Deprecated. Replaced by symbol-based registration defined by NAPI_MODULE
 // and NAPI_MODULE_INIT macros.
@@ -270,8 +273,7 @@ node_api_get_module_file_name(node_api_basic_env env, const char** result);
 
 #endif  // NAPI_VERSION >= 9
 
-// TODO(vmoroz): Should we use a different condition?
-#ifndef NODE_WANT_INTERNALS
+#else  // NODE_API_MODULE_USE_VTABLE
 
 extern const node_api_module_vtable* g_node_api_module_vtable;
 
@@ -542,7 +544,7 @@ node_api_get_module_file_name(node_api_basic_env env, const char** result) {
 
 #endif  // NAPI_VERSION >= 9
 
-#endif  // BUILDING_NODE_EXTENSION
+#endif  // NODE_API_MODULE_USE_VTABLE
 
 EXTERN_C_END
 

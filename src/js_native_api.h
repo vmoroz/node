@@ -7,6 +7,12 @@
 
 #include "js_native_api_types.h"
 
+// TODO(vmoroz): Remove before merge. This is just to see that the vtable-based
+// approach works as intended.
+#if !defined(NODE_WANT_INTERNALS) && !defined(NODE_API_MODULE_USE_VTABLE)
+#define NODE_API_MODULE_USE_VTABLE
+#endif
+
 // If you need __declspec(dllimport), either include <node_api.h> instead, or
 // define NAPI_EXTERN as __declspec(dllimport) on the compiler's command line.
 #ifndef NAPI_EXTERN
@@ -21,12 +27,6 @@
 #endif
 #endif
 
-// TODO(vmoroz): Should we use a different condition?
-#ifndef NODE_WANT_INTERNALS
-#undef NAPI_EXTERN
-#define NAPI_EXTERN static inline
-#endif
-
 #define NAPI_AUTO_LENGTH SIZE_MAX
 
 #ifdef __cplusplus
@@ -38,6 +38,8 @@
 #endif
 
 EXTERN_C_START
+
+#ifndef NODE_API_MODULE_USE_VTABLE
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_get_last_error_info(
     node_api_basic_env env, const napi_extended_error_info** result);
@@ -619,8 +621,7 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
                                                     napi_value object);
 #endif  // NAPI_VERSION >= 8
 
-// TODO(vmoroz): Should we use a different condition?
-#ifndef NODE_WANT_INTERNALS
+#else  // NODE_API_MODULE_USE_VTABLE
 
 extern const node_api_js_native_vtable* g_node_api_js_native_vtable;
 
@@ -1534,7 +1535,7 @@ static inline napi_status NAPI_CDECL napi_object_seal(napi_env env,
 
 #endif  // NAPI_VERSION >= 8
 
-#endif  // BUILDING_NODE_EXTENSION
+#endif  // NODE_API_MODULE_USE_VTABLE
 
 EXTERN_C_END
 
