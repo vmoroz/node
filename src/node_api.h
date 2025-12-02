@@ -47,6 +47,7 @@ struct uv_loop_s;  // Forward declaration.
 #endif
 
 #define NODE_API_MODULE_GET_API_VERSION_BASE node_api_module_get_api_version_v
+#define NODE_API_MODULE_SET_VTABLE_BASE node_api_module_set_vtable_v
 
 #define NAPI_MODULE_INITIALIZER                                                \
   NAPI_MODULE_INITIALIZER_X(NAPI_MODULE_INITIALIZER_BASE, NAPI_MODULE_VERSION)
@@ -55,25 +56,24 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_GET_API_VERSION_BASE,              \
                             NAPI_MODULE_VERSION)
 
-#ifdef NODE_API_MODULE_USE_VTABLE
-#define NODE_API_MODULE_SET_VTABLE_BASE node_api_module_set_vtable_v
-#define NODE_API_MODULE_SET_VTABLE_FUNC                                        \
+#define NODE_API_MODULE_SET_VTABLE                                             \
   NAPI_MODULE_INITIALIZER_X(NODE_API_MODULE_SET_VTABLE_BASE,                   \
                             NAPI_MODULE_VERSION)
 
-#define NODE_API_MODULE_SET_VTABLE                                             \
+#ifdef NODE_API_MODULE_USE_VTABLE
+#define NODE_API_MODULE_SET_VTABLE_DEFINITION                                  \
   const node_api_module_vtable* g_node_api_module_vtable =                     \
       NULL; /* NOLINT(readability/null_usage) */                               \
   const node_api_js_native_vtable* g_node_api_js_native_vtable =               \
       NULL; /* NOLINT(readability/null_usage) */                               \
-  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE_FUNC(                     \
+  NAPI_MODULE_EXPORT void NODE_API_MODULE_SET_VTABLE(                          \
       const node_api_module_vtable* module_vtable,                             \
       const node_api_js_native_vtable* js_native_vtable) {                     \
     g_node_api_module_vtable = module_vtable;                                  \
     g_node_api_js_native_vtable = js_native_vtable;                            \
   }
 #else
-#define NODE_API_MODULE_SET_VTABLE /* No-op */
+#define NODE_API_MODULE_SET_VTABLE_DEFINITION /* No-op */
 #endif
 
 #define NAPI_MODULE_INIT()                                                     \
@@ -81,14 +81,16 @@ struct uv_loop_s;  // Forward declaration.
   NAPI_MODULE_EXPORT int32_t NODE_API_MODULE_GET_API_VERSION(void) {           \
     return NAPI_VERSION;                                                       \
   }                                                                            \
-  NODE_API_MODULE_SET_VTABLE                                                   \
+  NODE_API_MODULE_SET_VTABLE_DEFINITION                                        \
   NAPI_MODULE_EXPORT napi_value NAPI_MODULE_INITIALIZER(napi_env env,          \
                                                         napi_value exports);   \
   EXTERN_C_END                                                                 \
   napi_value NAPI_MODULE_INITIALIZER(napi_env env, napi_value exports)
 
 #define NAPI_MODULE(modname, regfunc)                                          \
-  NAPI_MODULE_INIT() { return regfunc(env, exports); }
+  NAPI_MODULE_INIT() {                                                         \
+    return regfunc(env, exports);                                              \
+  }
 
 // Deprecated. Use NAPI_MODULE.
 #define NAPI_MODULE_X(modname, regfunc, priv, flags)                           \
