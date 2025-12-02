@@ -88,9 +88,7 @@ struct uv_loop_s;  // Forward declaration.
   napi_value NAPI_MODULE_INITIALIZER(napi_env env, napi_value exports)
 
 #define NAPI_MODULE(modname, regfunc)                                          \
-  NAPI_MODULE_INIT() {                                                         \
-    return regfunc(env, exports);                                              \
-  }
+  NAPI_MODULE_INIT() { return regfunc(env, exports); }
 
 // Deprecated. Use NAPI_MODULE.
 #define NAPI_MODULE_X(modname, regfunc, priv, flags)                           \
