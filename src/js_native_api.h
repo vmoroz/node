@@ -21,7 +21,7 @@
 #endif
 #endif
 
-// TODO: (vmoroz) Should we use a different condition?
+// TODO(vmoroz): Should we use a different condition?
 #ifndef NODE_WANT_INTERNALS
 #undef NAPI_EXTERN
 #define NAPI_EXTERN static inline
@@ -619,7 +619,7 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_object_seal(napi_env env,
                                                     napi_value object);
 #endif  // NAPI_VERSION >= 8
 
-// TODO: (vmoroz) Should we use a different condition?
+// TODO(vmoroz): Should we use a different condition?
 #ifndef NODE_WANT_INTERNALS
 
 extern const node_api_js_native_vtable* g_node_api_js_native_vtable;
