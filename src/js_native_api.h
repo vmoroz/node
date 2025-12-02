@@ -7,12 +7,6 @@
 
 #include "js_native_api_types.h"
 
-// TODO(vmoroz): Remove before merge. This is just to see that the vtable-based
-// approach works as intended.
-#if !defined(NODE_WANT_INTERNALS) && !defined(NODE_API_MODULE_USE_VTABLE)
-#define NODE_API_MODULE_USE_VTABLE
-#endif
-
 // If you need __declspec(dllimport), either include <node_api.h> instead, or
 // define NAPI_EXTERN as __declspec(dllimport) on the compiler's command line.
 #ifndef NAPI_EXTERN
