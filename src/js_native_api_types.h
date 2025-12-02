@@ -519,8 +519,8 @@ typedef struct {
   // The name is changed to avoid conflict with the `throw` keyword in C++
   napi_status(NAPI_CDECL* throw_value)(napi_env env, napi_value error);
   napi_status(NAPI_CDECL* throw_error)(napi_env env,
-                                          const char* code,
-                                          const char* msg);
+                                       const char* code,
+                                       const char* msg);
   napi_status(NAPI_CDECL* throw_type_error)(napi_env env,
                                             const char* code,
                                             const char* msg);
@@ -607,7 +607,7 @@ typedef struct {
 
   napi_status(NAPI_CDECL* adjust_external_memory)(node_api_basic_env env,
                                                   int64_t change_in_bytes,
-                                                  int64_t* adjusted_value); 
+                                                  int64_t* adjusted_value);
 
 #if NAPI_VERSION >= 5
 
@@ -782,6 +782,5 @@ typedef struct {
 
 typedef void(NAPI_CDECL* node_api_addon_set_js_native_vtable_func)(
     const node_api_js_native_vtable* vtable);
-
 
 #endif  // SRC_JS_NATIVE_API_TYPES_H_

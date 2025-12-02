@@ -87,9 +87,7 @@ struct uv_loop_s;  // Forward declaration.
   napi_value NAPI_MODULE_INITIALIZER(napi_env env, napi_value exports)
 
 #define NAPI_MODULE(modname, regfunc)                                          \
-  NAPI_MODULE_INIT() {                                                         \
-    return regfunc(env, exports);                                              \
-  }
+  NAPI_MODULE_INIT() { return regfunc(env, exports); }
 
 // Deprecated. Use NAPI_MODULE.
 #define NAPI_MODULE_X(modname, regfunc, priv, flags)                           \
@@ -380,12 +378,12 @@ napi_create_async_work(napi_env env,
                        void* data,
                        napi_async_work* result) {
   return g_node_api_module_vtable->create_async_work(env,
-                                                        async_resource,
-                                                        async_resource_name,
-                                                        execute,
-                                                        complete,
-                                                        data,
-                                                        result);
+                                                     async_resource,
+                                                     async_resource_name,
+                                                     execute,
+                                                     complete,
+                                                     data,
+                                                     result);
 }
 
 static inline napi_status NAPI_CDECL
@@ -484,7 +482,7 @@ napi_create_threadsafe_function(napi_env env,
 static inline napi_status NAPI_CDECL napi_get_threadsafe_function_context(
     napi_threadsafe_function func, void** result) {
   return g_node_api_module_vtable->get_threadsafe_function_context(func,
-                                                                      result);
+                                                                   result);
 }
 
 static inline napi_status NAPI_CDECL

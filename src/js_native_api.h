@@ -1052,8 +1052,8 @@ static inline napi_status NAPI_CDECL napi_instanceof(napi_env env,
                                                      napi_value object,
                                                      napi_value constructor,
                                                      bool* result) {
-  return g_node_api_js_native_vtable->instanceof(
-      env, object, constructor, result);
+  return g_node_api_js_native_vtable->instanceof
+      (env, object, constructor, result);
 }
 
 static inline napi_status NAPI_CDECL napi_get_cb_info(napi_env env,
