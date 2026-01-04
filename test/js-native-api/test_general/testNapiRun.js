@@ -1,10 +1,11 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // `addon` is referenced through the eval expression in testFile
-const addon = require(`./build/${common.buildType}/test_general`);
+const addon = require(getAddonPath('test_general'));
 
 const testCase = '(41.92 + 0.08);';
 const expected = 42;

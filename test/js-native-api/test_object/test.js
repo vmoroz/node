@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for objects
-const test_object = require(`./build/${common.buildType}/test_object`);
+const test_object = require(getAddonPath('test_object'));
 
 const object = {
   hello: 'world',

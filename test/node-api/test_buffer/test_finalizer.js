@@ -2,7 +2,8 @@
 // Flags: --expose-gc --force-node-api-uncaught-exceptions-policy
 
 const common = require('../../common');
-const binding = require(`./build/${common.buildType}/test_finalizer`);
+const { getAddonPath } = require('../../common/addon-test');
+const binding = require(getAddonPath('binding'));
 const assert = require('assert');
 const tick = require('util').promisify(require('../../common/tick'));
 

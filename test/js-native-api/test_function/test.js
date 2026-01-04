@@ -2,10 +2,11 @@
 // Flags: --expose-gc
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for function
-const test_function = require(`./build/${common.buildType}/test_function`);
+const test_function = require(getAddonPath('test_function'));
 
 function func1() {
   return 1;

@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for arrays
-const test_typedarray = require(`./build/${common.buildType}/test_typedarray`);
+const test_typedarray = require(getAddonPath('test_typedarray'));
 
 const byteArray = new Uint8Array(3);
 byteArray[0] = 0;

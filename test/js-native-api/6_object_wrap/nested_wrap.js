@@ -1,10 +1,11 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 // Flags: --expose-gc
 
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const { gcUntil } = require('../../common/gc');
 const assert = require('assert');
-const addon = require(`./build/${common.buildType}/nested_wrap`);
+const addon = require(getAddonPath('nested_wrap'));
 
 // This test verifies that ObjectWrap and napi_ref can be nested and finalized
 // correctly with a non-basic finalizer.

@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 // Flags: --expose-gc
 
-const common = require('../../common');
 const assert = require('assert');
-const test_exception = require(`./build/${common.buildType}/test_exception`);
+const { getAddonPath } = require('../../common/addon-test');
+const test_exception = require(getAddonPath('test_exception'));
 
 // Make sure that exceptions that occur during finalization are propagated.
 function testFinalize(binding) {

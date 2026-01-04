@@ -1,7 +1,8 @@
 'use strict';
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const test_async = require(`./build/${common.buildType}/test_async`);
+const test_async = require(getAddonPath('test_async'));
 const iterations = 500;
 
 let x = 0;

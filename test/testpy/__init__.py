@@ -154,18 +154,34 @@ class ParallelTestConfiguration(SimpleTestConfiguration):
       tst.parallel = True
     return result
 
+class AddonTestCase(SimpleTestCase):
+
+  def GetName(self):
+    if len(self.path) >= 2 and self.path[-1] == 'run-tests':
+      return self.path[-2]
+    return super().GetName()
+
 class AddonTestConfiguration(SimpleTestConfiguration):
   def __init__(self, context, root, section, additional=None):
     super(AddonTestConfiguration, self).__init__(context, root, section, additional)
 
   def Ls(self, path):
-    def SelectTest(name):
-      return name.endswith('.js')
-
     result = []
+
     for subpath in os.listdir(path):
-      if os.path.isdir(os.path.join(path, subpath)):
-        result.extend([subpath, f[:-3]] for f in os.listdir(os.path.join(path, subpath)) if SelectTest(f))
+      subdir = os.path.join(path, subpath)
+      if not os.path.isdir(subdir):
+        continue
+
+      files = os.listdir(subdir)
+      if 'run-tests.js' in files:
+        result.append([subpath, 'run-tests'])
+        continue
+
+      for name in files:
+        if name.endswith('.js'):
+          result.append([subpath, name[:-3]])
+
     return result
 
   def ListTests(self, current_path, path, arch, mode):
@@ -175,7 +191,7 @@ class AddonTestConfiguration(SimpleTestConfiguration):
       if self.Contains(path, tst):
         file_path = os.path.join(self.root, reduce(os.path.join, tst[1:], "") + ".js")
         result.append(
-            SimpleTestCase(tst, file_path, arch, mode, self.context, self, self.additional_flags))
+            AddonTestCase(tst, file_path, arch, mode, self.context, self, self.additional_flags))
     return result
 
 class AbortTestConfiguration(SimpleTestConfiguration):

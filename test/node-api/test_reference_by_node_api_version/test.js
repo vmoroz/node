@@ -7,11 +7,11 @@
 // and symbol types, while in newer versions they can be created for
 // any value type.
 //
-const { mustCall, buildType } = require('../../common');
+const { mustCall } = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const { gcUntil } = require('../../common/gc');
 const assert = require('assert');
-const addon_v8 = require(`./build/${buildType}/test_reference_obj_only`);
-const addon_new = require(`./build/${buildType}/test_reference_all_types`);
+const addon = require(getAddonPath('test_reference_obj_only'));
 
 async function runTests(addon, isVersion8, isLocalSymbol) {
   let allEntries = [];
@@ -116,10 +116,8 @@ async function runTests(addon, isVersion8, isLocalSymbol) {
 }
 
 async function runAllTests() {
-  await runTests(addon_v8, /* isVersion8 */ true, /* isLocalSymbol */ true);
-  await runTests(addon_v8, /* isVersion8 */ true, /* isLocalSymbol */ false);
-  await runTests(addon_new, /* isVersion8 */ false, /* isLocalSymbol */ true);
-  await runTests(addon_new, /* isVersion8 */ false, /* isLocalSymbol */ false);
+  await runTests(addon, addon.isVersion8, /* isLocalSymbol */ true);
+  await runTests(addon, addon.isVersion8, /* isLocalSymbol */ false);
 }
 
 runAllTests().then(mustCall());

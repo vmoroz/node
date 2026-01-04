@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Addon is referenced through the eval expression in testFile
-const addon = require(`./build/${common.buildType}/test_general`);
+const addon = require(getAddonPath('test_general'));
 
 // We can only perform this test if we have a working Symbol.hasInstance
 if (typeof Symbol !== 'undefined' && 'hasInstance' in Symbol &&

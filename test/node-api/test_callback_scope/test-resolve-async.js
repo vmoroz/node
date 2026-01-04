@@ -1,6 +1,7 @@
 'use strict';
 
 const common = require('../../common');
-const { testResolveAsync } = require(`./build/${common.buildType}/binding`);
+const { getAddonPath } = require('../../common/addon-test');
+const { testResolveAsync } = require(getAddonPath('binding'));
 
 testResolveAsync().then(common.mustCall());

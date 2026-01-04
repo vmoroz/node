@@ -1,12 +1,14 @@
 'use strict';
+// Flags: --expose-gc
+
 // Test API calls for instance data.
 
 const common = require('../../common');
+const { getAddonPath, isInvokedAsChild, spawnTestSync } = require('../../common/addon-test');
+const assert = require('assert');
 
-if (module !== require.main) {
-  // When required as a module, run the tests.
-  const test_instance_data =
-    require(`./build/${common.buildType}/test_instance_data`);
+if (isInvokedAsChild) {
+  const test_instance_data = require(getAddonPath('test_instance_data'));
 
   // Test that instance data can be used in an async work callback.
   new Promise((resolve) => test_instance_data.asyncWorkCallback(resolve))
@@ -22,30 +24,19 @@ if (module !== require.main) {
       test_instance_data.testThreadsafeFunction(common.mustCall(),
                                                 common.mustCall(resolve))))
     .then(common.mustCall());
-} else {
-  // When launched as a script, run tests in either a child process or in a
-  // worker thread.
-  const assert = require('assert');
-  const requireAs = require('../../common/require-as');
-  const runOptions = { stdio: ['inherit', 'pipe', 'inherit'] };
-  const { spawnSync } = require('child_process');
+}
+
+// When launched as a script, run tests in either a child process or in a
+// worker thread.
+if (!isInvokedAsChild) {
+  function checkOutput(child) {
+    assert.strictEqual(child.status, 0,
+                       `status=${child.status} signal=${child.signal} stderr=${child.stderr?.toString()} stdout=${child.stdout?.toString()}`);
+  };
 
   // Run tests in a child process.
-  requireAs(__filename, ['--expose-gc'], runOptions, 'child');
+  checkOutput(spawnTestSync());
 
   // Run tests in a worker thread in a child process.
-  requireAs(__filename, ['--expose-gc'], runOptions, 'worker');
-
-  function testProcessExit(addonName) {
-    // Make sure that process exit is clean when the instance data has
-    // references to JS objects.
-    const path = require.resolve(`./build/${common.buildType}/${addonName}`);
-    const child = spawnSync(process.execPath, ['-e', `require(${JSON.stringify(path)});`]);
-    assert.strictEqual(child.signal, null);
-    assert.strictEqual(child.status, 0);
-    assert.strictEqual(child.stderr.toString(), 'addon_free');
-  }
-
-  testProcessExit('test_ref_then_set');
-  testProcessExit('test_set_then_ref');
+  checkOutput(spawnTestSync(['--worker']));
 }

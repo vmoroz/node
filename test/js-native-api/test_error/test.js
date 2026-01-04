@@ -1,7 +1,7 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-
-const common = require('../../common');
-const test_error = require(`./build/${common.buildType}/test_error`);
+const { getAddonPath } = require('../../common/addon-test');
+const test_error = require(getAddonPath('test_error'));
 const assert = require('assert');
 const theError = new Error('Some error');
 const theTypeError = new TypeError('Some type error');

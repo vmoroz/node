@@ -1,5 +1,6 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const readonlyErrorRE =
   /^TypeError: Cannot assign to read only property '.*' of object '#<Object>'$/;
@@ -7,7 +8,7 @@ const getterOnlyErrorRE =
   /^TypeError: Cannot set property .* of #<Object> which has only a getter$/;
 
 // Testing api calls for defining properties
-const test_object = require(`./build/${common.buildType}/test_properties`);
+const test_object = require(getAddonPath('test_properties'));
 
 assert.strictEqual(test_object.echo('hello'), 'hello');
 

@@ -1,12 +1,13 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const tmpdir = require('../../common/tmpdir');
 const child_process = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const url = require('url');
-const filename = require.resolve(`./build/${common.buildType}/test_general`);
+const filename = require.resolve(getAddonPath('test_general'));
 const test_general = require(filename);
 const assert = require('assert');
 

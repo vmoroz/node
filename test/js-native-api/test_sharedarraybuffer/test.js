@@ -1,8 +1,9 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const test_sharedarraybuffer = require(`./build/${common.buildType}/test_sharedarraybuffer`);
+const test_sharedarraybuffer = require(getAddonPath('test_sharedarraybuffer'));
 
 {
   const sab = new SharedArrayBuffer(16);

@@ -1,11 +1,12 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 // Flags: --expose-gc
 
-const { buildType } = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const { gcUntil } = require('../../common/gc');
 const assert = require('assert');
 
-const test_reference = require(`./build/${buildType}/test_reference`);
+const test_reference = require(getAddonPath('test_reference'));
 
 // This test script uses external values with finalizer callbacks
 // in order to track when values get garbage-collected. Each invocation

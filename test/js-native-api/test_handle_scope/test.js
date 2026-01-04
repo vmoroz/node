@@ -1,10 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing handle scope api calls
-const testHandleScope =
-    require(`./build/${common.buildType}/test_handle_scope`);
+const testHandleScope = require(getAddonPath('test_handle_scope'));
 
 testHandleScope.NewScope();
 

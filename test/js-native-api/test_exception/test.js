@@ -2,6 +2,7 @@
 // Flags: --expose-gc
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const theError = new Error('Some error');
 
@@ -13,7 +14,7 @@ const theError = new Error('Some error');
 const test_exception = (function() {
   let resultingException;
   try {
-    require(`./build/${common.buildType}/test_exception`);
+    require(getAddonPath('test_exception'));
   } catch (anException) {
     resultingException = anException;
   }

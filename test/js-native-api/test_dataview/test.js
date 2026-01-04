@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for arrays
-const test_dataview = require(`./build/${common.buildType}/test_dataview`);
+const test_dataview = require(getAddonPath('test_dataview'));
 
 // Test for creating dataview with ArrayBuffer
 {

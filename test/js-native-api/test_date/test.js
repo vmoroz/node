@@ -1,11 +1,11 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
+const { getAddonPath } = require('../../common/addon-test');
 
-const common = require('../../common');
-
-// This tests the date-related n-api calls
+// This tests the date-related Node-API calls
 
 const assert = require('assert');
-const test_date = require(`./build/${common.buildType}/test_date`);
+const test_date = require(getAddonPath('test_date'));
 
 const dateTypeTestDate = test_date.createDate(1549183351);
 assert.strictEqual(test_date.isDate(dateTypeTestDate), true);

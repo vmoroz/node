@@ -1,8 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const test_number = require(`./build/${common.buildType}/test_number`);
-
+const test_number = require(getAddonPath('test_number'));
 
 // Testing api calls for number
 function testNumber(num) {

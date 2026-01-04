@@ -1,8 +1,9 @@
 'use strict';
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 
 // Test
-const { testExceptions } = require(`./build/${common.buildType}/test_exceptions`);
+const { testExceptions } = require(getAddonPath('test_exceptions'));
 
 function throws() {
   throw new Error('foobar');

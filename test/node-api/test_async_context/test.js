@@ -2,13 +2,14 @@
 // Flags: --gc-interval=100 --gc-global
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
 const {
   makeCallback,
   createAsyncResource,
   destroyAsyncResource,
-} = require(`./build/${common.buildType}/binding`);
+} = require(getAddonPath('binding'));
 
 const hook_result = {
   id: null,

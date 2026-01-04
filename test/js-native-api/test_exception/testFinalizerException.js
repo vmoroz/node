@@ -1,11 +1,18 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-if (process.argv[2] === 'child') {
-  const common = require('../../common');
+// Flags: --expose-gc
+
+const { getAddonPath, isInvokedAsChild, spawnTestSync } =
+  require('../../common/addon-test');
+const { gcUntil } = require('../../common/gc');
+const assert = require('assert');
+
+if (isInvokedAsChild) {
   // Trying, catching the exception, and finding the bindings at the `Error`'s
   // `binding` property is done intentionally, because we're also testing what
   // happens when the add-on entry point throws. See test.js.
   try {
-    require(`./build/${common.buildType}/test_exception`);
+    require(getAddonPath('test_exception'));
   } catch (anException) {
     anException.binding.createExternal();
   }
@@ -13,20 +20,11 @@ if (process.argv[2] === 'child') {
   // Collect garbage 10 times. At least one of those should throw the exception
   // and cause the whole process to bail with it, its text printed to stderr and
   // asserted by the parent process to match expectations.
-  let gcCount = 10;
-  (function gcLoop() {
-    global.gc();
-    if (--gcCount > 0) {
-      setImmediate(() => gcLoop());
-    }
-  })();
-  return;
+  gcUntil('finalizer exception', () => false);
 }
 
-const assert = require('assert');
-const { spawnSync } = require('child_process');
-const child = spawnSync(process.execPath, [
-  '--expose-gc', __filename, 'child',
-]);
-assert.strictEqual(child.signal, null);
-assert.match(child.stderr.toString(), /Error during Finalize/);
+if (!isInvokedAsChild) {
+  const child = spawnTestSync();
+  assert.strictEqual(child.signal, null);
+  assert.match(child.stderr.toString(), /Error during Finalize/);
+}

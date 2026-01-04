@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 // Flags: --expose-gc
 
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const test = require(`./build/${common.buildType}/7_factory_wrap`);
+const test = require(getAddonPath('7_factory_wrap'));
 const { gcUntil } = require('../../common/gc');
 
 assert.strictEqual(test.finalizeCount, 0);

@@ -1,8 +1,9 @@
 'use strict';
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const path = require('path');
 const { Worker } = require('worker_threads');
-const binding = path.resolve(__dirname, `./build/${common.buildType}/binding`);
+const bindingPath = path.resolve(__dirname, getAddonPath('binding'));
 
-const w = new Worker(`require(${JSON.stringify(binding)})`, { eval: true });
-w.on('exit', common.mustCall(() => require(binding)));
+const worker = new Worker(`require(${JSON.stringify(bindingPath)})`, { eval: true });
+worker.on('exit', common.mustCall(() => require(bindingPath)));

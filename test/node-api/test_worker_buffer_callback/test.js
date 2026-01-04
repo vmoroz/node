@@ -1,8 +1,9 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const { MessageChannel } = require('worker_threads');
-const { buffer } = require(`./build/${common.buildType}/binding`);
+const { buffer } = require(getAddonPath('binding'));
 
 // Test that buffers allocated with a free callback through our APIs are not
 // transferred.

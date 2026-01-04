@@ -1,10 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 // Flags: --expose-gc
 
-const common = require('../../common');
-const test_finalizer = require(`./build/${common.buildType}/test_finalizer`);
+const { getAddonPath } = require('../../common/addon-test');
+const test_finalizer = require(getAddonPath('test_finalizer'));
 const assert = require('assert');
-
 const { gcUntil } = require('../../common/gc');
 
 // The goal of this test is to show that we can run "pure" finalizers in the

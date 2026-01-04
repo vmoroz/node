@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const { testNull } = require(`./build/${common.buildType}/test_number`);
+const { testNull } = require(getAddonPath('test_number'));
 
 const expectedCreateResult = {
   envIsNull: 'Invalid argument',

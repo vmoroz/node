@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
-// Test passing NULL to object-related N-APIs.
-const { testNull } = require(`./build/${common.buildType}/test_constructor`);
+// Test passing NULL to object-related Node-APIs.
+const { testNull } = require(getAddonPath('test_constructor'));
 const expectedResult = {
   envIsNull: 'Invalid argument',
   nameIsNull: 'Invalid argument',

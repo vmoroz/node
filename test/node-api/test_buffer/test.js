@@ -2,7 +2,8 @@
 // Flags: --expose-gc --no-concurrent-array-buffer-sweeping
 
 const common = require('../../common');
-const binding = require(`./build/${common.buildType}/test_buffer`);
+const { getAddonPath } = require('../../common/addon-test');
+const binding = require(getAddonPath('test_buffer'));
 const assert = require('assert');
 const tick = require('util').promisify(require('../../common/tick'));
 

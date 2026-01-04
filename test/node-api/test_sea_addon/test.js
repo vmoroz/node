@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 // This tests that SEA can load addons packaged as assets by writing them to disk
 // and loading them via process.dlopen().
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const { generateSEA, skipIfSingleExecutableIsNotSupported } = require('../../common/sea');
 
 skipIfSingleExecutableIsNotSupported();
@@ -21,10 +22,13 @@ const outputFile = tmpdir.resolve(process.platform === 'win32' ? 'sea.exe' : 'se
 tmpdir.refresh();
 
 // Copy test fixture to working directory
-const addonPath = join(__dirname, 'build', common.buildType, 'binding.node');
+const addonPath = join(__dirname, `${getAddonPath('binding')}.node`);
+assert.ok(existsSync(addonPath), `missing addon artifact: ${addonPath}`);
 const copiedAddonPath = tmpdir.resolve('binding.node');
-copyFileSync(addonPath, copiedAddonPath);
-writeFileSync(tmpdir.resolve('sea.js'), `
+
+try {
+  copyFileSync(addonPath, copiedAddonPath);
+  writeFileSync(tmpdir.resolve('sea.js'), `
 const sea = require('node:sea');
 const fs = require('fs');
 const path = require('path');
@@ -36,7 +40,7 @@ process.dlopen(mod, addonPath);
 console.log('hello,', mod.exports.hello());
 `, 'utf-8');
 
-writeFileSync(configFile, `
+  writeFileSync(configFile, `
 {
   "main": "sea.js",
   "output": "sea-prep.blob",
@@ -47,29 +51,34 @@ writeFileSync(configFile, `
 }
 `, 'utf8');
 
-spawnSyncAndExitWithoutError(
-  process.execPath,
-  ['--experimental-sea-config', 'sea-config.json'],
-  { cwd: tmpdir.path },
-);
-assert(existsSync(seaPrepBlob));
+  spawnSyncAndExitWithoutError(
+    process.execPath,
+    ['--experimental-sea-config', 'sea-config.json'],
+    { cwd: tmpdir.path },
+  );
+  assert(existsSync(seaPrepBlob));
 
-generateSEA(outputFile, process.execPath, seaPrepBlob);
+  generateSEA(outputFile, process.execPath, seaPrepBlob);
+  assert.ok(existsSync(outputFile), 'SEA output was not created');
 
-// Remove the copied addon after it's been packaged into the SEA blob
-rmSync(copiedAddonPath, { force: true });
+  // Remove the copied addon after it's been packaged into the SEA blob
+  rmSync(copiedAddonPath, { force: true });
 
-spawnSyncAndAssert(
-  outputFile,
-  [],
-  {
-    env: {
-      ...process.env,
-      NODE_DEBUG_NATIVE: 'SEA',
+  spawnSyncAndAssert(
+    outputFile,
+    [],
+    {
+      env: {
+        ...process.env,
+        NODE_DEBUG_NATIVE: 'SEA',
+      },
+      cwd: tmpdir.path,
     },
-    cwd: tmpdir.path,
-  },
-  {
-    stdout: /hello, world/,
-  },
-);
+    {
+      stdout: /hello, world/,
+    },
+  );
+} finally {
+  rmSync(seaPrepBlob, { force: true });
+  rmSync(outputFile, { force: true });
+}

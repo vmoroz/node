@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const test = require(`./build/${common.buildType}/test_conversions`);
+const test = require(getAddonPath('test_conversions'));
 
 const boolExpected = /boolean was expected/;
 const numberExpected = /number was expected/;

@@ -1,17 +1,17 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
-const process = require('process');
+const { getAddonPath, isInvokedAsChild, spawnTestSync } = require('../../common/addon-test');
 const assert = require('assert');
-const { fork } = require('child_process');
-const binding = require(`./build/${common.buildType}/binding`);
 
-if (process.argv[2] === 'child') {
+if (isInvokedAsChild) {
+  const binding = require(getAddonPath('binding'));
   binding();
   setTimeout(() => {}, 100);
-} else {
-  const child = fork(__filename, ['child']);
-  child.on('close', common.mustCall((code) => {
-    assert.strictEqual(code, 0);
-  }));
+}
+
+if (!isInvokedAsChild) {
+  const { status, stderr } = spawnTestSync();
+  const stderrText = stderr ? stderr.toString().trim() : '';
+  assert.strictEqual(status, 0, stderrText);
 }

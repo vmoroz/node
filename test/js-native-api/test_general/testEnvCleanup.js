@@ -1,8 +1,11 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-if (process.argv[2] === 'child') {
-  const common = require('../../common');
-  const test_general = require(`./build/${common.buildType}/test_general`);
+const { getAddonPath, isInvokedAsChild, spawnTestSync } = require('../../common/addon-test');
+const assert = require('assert');
+
+if (isInvokedAsChild) {
+  const test_general = require(getAddonPath('test_general'));
 
   // The second argument to `envCleanupWrap()` is an index into the global
   // static string array named `env_cleanup_finalizer_messages` on the native
@@ -34,13 +37,10 @@ if (process.argv[2] === 'child') {
   test_general.removeWrap(module.exports['first wrap']);
   test_general.envCleanupWrap(module.exports['first wrap'],
                               finalizerMessages['second wrap']);
-} else {
-  const assert = require('assert');
-  const { spawnSync } = require('child_process');
+}
 
-  const child = spawnSync(process.execPath, [__filename, 'child'], {
-    stdio: [ process.stdin, 'pipe', process.stderr ],
-  });
+if (!isInvokedAsChild) {
+  const child = spawnTestSync();
 
   // Grab the child's output and construct an object whose keys are the rows of
   // the output and whose values are `true`, so we can compare the output while

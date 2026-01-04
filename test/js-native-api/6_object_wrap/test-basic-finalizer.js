@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 // Flags: --expose-gc
 
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const addon = require(`./build/${common.buildType}/myobject_basic_finalizer`);
+const addon = require(getAddonPath('myobject_basic_finalizer'));
 
 // This test verifies that ObjectWrap can be correctly finalized with a node_api_basic_finalizer
 // in the current JS loop tick

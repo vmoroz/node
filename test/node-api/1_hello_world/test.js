@@ -1,9 +1,10 @@
 'use strict';
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const { Worker } = require('worker_threads');
 
-const bindingPath = require.resolve(`./build/${common.buildType}/binding`);
+const bindingPath = require.resolve(getAddonPath('binding'));
 const binding = require(bindingPath);
 assert.strictEqual(binding.hello(), 'world');
 console.log('binding.hello() =', binding.hello());

@@ -1,8 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
-const binding = require(`./build/${common.buildType}/test_new_target`);
+const binding = require(getAddonPath('test_new_target'));
 
 class Class extends binding.BaseClass {
   constructor() {

@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for symbol
-const test_symbol = require(`./build/${common.buildType}/test_symbol`);
+const test_symbol = require(getAddonPath('test_symbol'));
 
 const sym = test_symbol.New('test');
 assert.strictEqual(sym.toString(), 'Symbol(test)');

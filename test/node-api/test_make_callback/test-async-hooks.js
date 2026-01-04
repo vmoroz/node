@@ -1,9 +1,10 @@
 'use strict';
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const async_hooks = require('async_hooks');
-const binding = require(`./build/${common.buildType}/binding`);
+const binding = require(getAddonPath('binding'));
 const makeCallback = binding.makeCallback;
 
 // Check async hooks integration using async context.

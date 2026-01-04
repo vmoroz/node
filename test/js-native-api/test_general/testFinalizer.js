@@ -2,7 +2,8 @@
 // Flags: --expose-gc
 
 const common = require('../../common');
-const test_general = require(`./build/${common.buildType}/test_general`);
+const { getAddonPath } = require('../../common/addon-test');
+const test_general = require(getAddonPath('test_general'));
 const assert = require('assert');
 const { gcUntil } = require('../../common/gc');
 

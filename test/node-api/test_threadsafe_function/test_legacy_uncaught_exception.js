@@ -2,7 +2,8 @@
 // Flags: --no-force-node-api-uncaught-exceptions-policy
 
 const common = require('../../common');
-const binding = require(`./build/${common.buildType}/test_uncaught_exception_v9`);
+const { getAddonPath } = require('../../common/addon-test');
+const binding = require(getAddonPath('test_uncaught_exception_v9'));
 
 process.on(
   'uncaughtException',

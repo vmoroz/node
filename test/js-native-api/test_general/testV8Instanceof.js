@@ -1,3 +1,4 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 // This test is adopted from V8's test suite.
 // See deps/v8/test/mjsunit/instanceof.js in Node.js source repository.
 //
@@ -29,8 +30,8 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 'use strict';
 
-const common = require('../../common');
-const addon = require(`./build/${common.buildType}/test_general`);
+const { getAddonPath } = require('../../common/addon-test');
+const addon = require(getAddonPath('test_general'));
 const assert = require('assert');
 
 assert.ok(addon.doInstanceOf({}, Object));

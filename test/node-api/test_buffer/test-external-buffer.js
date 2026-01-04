@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
-const binding = require(`./build/${common.buildType}/test_buffer`);
+const { getAddonPath } = require('../../common/addon-test');
+const binding = require(getAddonPath('test_buffer'));
 const assert = require('assert');
 
 // Regression test for https://github.com/nodejs/node/issues/31134

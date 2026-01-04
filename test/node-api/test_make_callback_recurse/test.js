@@ -1,9 +1,10 @@
 'use strict';
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const domain = require('domain');
-const binding = require(`./build/${common.buildType}/binding`);
+const binding = require(getAddonPath('binding'));
 const makeCallback = binding.makeCallback;
 
 // Make sure this is run in the future.

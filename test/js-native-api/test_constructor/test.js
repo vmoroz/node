@@ -1,12 +1,13 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 const getterOnlyErrorRE =
   /^TypeError: Cannot set property .* of #<.*> which has only a getter$/;
 
 // Testing api calls for a constructor that defines properties
-const TestConstructor = require(`./build/${common.buildType}/test_constructor`);
+const TestConstructor = require(getAddonPath('test_constructor'));
 const test_object = new TestConstructor();
 
 assert.strictEqual(test_object.echo('hello'), 'hello');

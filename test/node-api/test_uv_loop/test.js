@@ -1,5 +1,6 @@
 'use strict';
 const common = require('../../common');
-const { SetImmediate } = require(`./build/${common.buildType}/test_uv_loop`);
+const { getAddonPath } = require('../../common/addon-test');
+const { SetImmediate } = require(getAddonPath('test_uv_loop'));
 
 SetImmediate(common.mustCall());

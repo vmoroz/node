@@ -1,9 +1,10 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 
 // Testing api calls for string
-const test_string = require(`./build/${common.buildType}/test_string`);
+const test_string = require(getAddonPath('test_string'));
 // The insufficient buffer test case allocates a buffer of size 4, including
 // the null terminator.
 const kInsufficientIdx = 3;

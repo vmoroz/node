@@ -1,11 +1,12 @@
 'use strict';
 
 const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 
-// This tests the promise-related n-api calls
+// This tests the promise-related Node-API calls
 
 const assert = require('assert');
-const test_promise = require(`./build/${common.buildType}/test_promise`);
+const test_promise = require(getAddonPath('test_promise'));
 
 // A resolution
 {

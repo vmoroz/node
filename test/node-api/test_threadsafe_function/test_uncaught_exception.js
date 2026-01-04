@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
-const binding = require(`./build/${common.buildType}/test_uncaught_exception`);
+const { getAddonPath } = require('../../common/addon-test');
+const binding = require(getAddonPath('test_uncaught_exception'));
 const { testUncaughtException } = require('./uncaught_exception');
 
 testUncaughtException(binding);

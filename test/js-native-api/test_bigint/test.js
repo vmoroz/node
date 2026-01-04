@@ -1,5 +1,6 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
-const common = require('../../common');
+const { getAddonPath } = require('../../common/addon-test');
 const assert = require('assert');
 const {
   IsLossless,
@@ -8,7 +9,7 @@ const {
   TestWords,
   CreateTooBigBigInt,
   MakeBigIntWordsThrow,
-} = require(`./build/${common.buildType}/test_bigint`);
+} = require(getAddonPath('test_bigint'));
 
 [
   0n,

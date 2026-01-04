@@ -1,7 +1,8 @@
+/* eslint-disable node-core/required-modules, node-core/require-common-first */
 'use strict';
 
-const common = require('../../common');
-const addon = require(`./build/${common.buildType}/test_general`);
+const { getAddonPath } = require('../../common/addon-test');
+const addon = require(getAddonPath('test_general'));
 const assert = require('assert');
 
 addon.createNapiError();
