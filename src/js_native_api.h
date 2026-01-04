@@ -112,15 +112,26 @@ EXTERN_C_END
 
 #endif  // NODE_API_MODULE_NO_VTABLE_FALLBACK
 
+#define NODE_API_VTABLE_IMPL_BASE_INIT(vtable, func_name, method_name, obj)    \
+  const node_api_##vtable* vtable;                                             \
+  if (!obj) {                                                                  \
+    return napi_invalid_arg;                                                   \
+  } else if (obj && obj->sentinel == NODE_API_VT_SENTINEL) {                   \
+    vtable = obj->vtable;                                                      \
+  } else {                                                                     \
+    NODE_API_VTABLE_IMPL_FALLBACK(vtable, func_name, method_name)              \
+  }
+
 #define NODE_API_VTABLE_IMPL_BASE(vtable, func_name, method_name, obj, ...)    \
   {                                                                            \
-    const node_api_##vtable* vtable;                                           \
-    if (obj && obj->sentinel == NODE_API_VT_SENTINEL) {                        \
-      vtable = obj->vtable;                                                    \
-    } else {                                                                   \
-      NODE_API_VTABLE_IMPL_FALLBACK(vtable, func_name, method_name)            \
-    }                                                                          \
+    NODE_API_VTABLE_IMPL_BASE_INIT(vtable, func_name, method_name, obj)        \
     return vtable->method_name(obj, __VA_ARGS__);                              \
+  }
+
+#define NODE_API_VTABLE_IMPL_BASE_NOARGS(vtable, func_name, method_name, obj)  \
+  {                                                                            \
+    NODE_API_VTABLE_IMPL_BASE_INIT(vtable, func_name, method_name, obj)        \
+    return vtable->method_name(obj);                                           \
   }
 
 #define NODE_API_JS_VTABLE_IMPL(func_name, method_name, env, ...)              \

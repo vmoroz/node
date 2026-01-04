@@ -121,29 +121,18 @@ extern node_api_module_vtable g_node_api_module_vtable_fallback;
     module_vtable->method_name(__VA_ARGS__);                                   \
   }
 
-#define NODE_API_MODULE_VTABLE_IMPL(func_name, method_name, env, ...)          \
+#define NODE_API_MODULE_VTABLE_IMPL(func_name, method_name, obj, ...)          \
   NODE_API_VTABLE_IMPL_BASE(                                                   \
-      module_vtable, func_name, method_name, env, __VA_ARGS__)
+      module_vtable, func_name, method_name, obj, __VA_ARGS__)
 
-#if NAPI_VERSION >= 4
-#define NODE_API_TSFN_VTABLE_IMPL(func_name, method_name, tsfn, ...)           \
-  NODE_API_VTABLE_IMPL_BASE(                                                   \
-      module_vtable, func_name, method_name, tsfn, __VA_ARGS__)
-#endif  // NAPI_VERSION >= 4
-
-#if NAPI_VERSION >= 8
-#define NODE_API_ASYNC_CLEANUP_HOOK_VTABLE_IMPL(                               \
-    func_name, method_name, hook, ...)                                         \
-  NODE_API_VTABLE_IMPL_BASE(                                                   \
-      module_vtable, func_name, method_name, hook, __VA_ARGS__)
-#endif  // NAPI_VERSION >= 4
+#define NODE_API_MODULE_VTABLE_IMPL_NOARGS(func_name, method_name, obj)        \
+  NODE_API_VTABLE_IMPL_BASE_NOARGS(module_vtable, func_name, method_name, obj)
 
 #else  // NODE_API_MODULE_USE_VTABLE_IMPL
 
 #define NODE_API_GLOBAL_MODULE_VTABLE_IMPL(...)
 #define NODE_API_MODULE_VTABLE_IMPL(...)
-#define NODE_API_TSFN_VTABLE_IMPL(...)
-#define NODE_API_ASYNC_CLEANUP_HOOK_VTABLE_IMPL(...)
+#define NODE_API_MODULE_VTABLE_IMPL_NOARGS(...)
 
 #endif  // NODE_API_MODULE_USE_VTABLE_IMPL
 
@@ -396,33 +385,33 @@ napi_create_threadsafe_function(napi_env env,
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_get_threadsafe_function_context(
     napi_threadsafe_function func, void** result)
-    NODE_API_TSFN_VTABLE_IMPL(napi_get_threadsafe_function_context,
-                              get_threadsafe_function_context,
-                              func,
-                              result);
+    NODE_API_MODULE_VTABLE_IMPL(napi_get_threadsafe_function_context,
+                                get_threadsafe_function_context,
+                                func,
+                                result);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 napi_call_threadsafe_function(napi_threadsafe_function func,
                               void* data,
                               napi_threadsafe_function_call_mode is_blocking)
-    NODE_API_TSFN_VTABLE_IMPL(napi_call_threadsafe_function,
-                              call_threadsafe_function,
-                              func,
-                              data,
-                              is_blocking);
+    NODE_API_MODULE_VTABLE_IMPL(napi_call_threadsafe_function,
+                                call_threadsafe_function,
+                                func,
+                                data,
+                                is_blocking);
 
 NAPI_EXTERN napi_status NAPI_CDECL
 napi_acquire_threadsafe_function(napi_threadsafe_function func)
-    NODE_API_TSFN_VTABLE_IMPL(napi_acquire_threadsafe_function,
-                              acquire_threadsafe_function,
-                              func);
+    NODE_API_MODULE_VTABLE_IMPL_NOARGS(napi_acquire_threadsafe_function,
+                                       acquire_threadsafe_function,
+                                       func);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_release_threadsafe_function(
     napi_threadsafe_function func, napi_threadsafe_function_release_mode mode)
-    NODE_API_TSFN_VTABLE_IMPL(napi_release_threadsafe_function,
-                              release_threadsafe_function,
-                              func,
-                              mode);
+    NODE_API_MODULE_VTABLE_IMPL(napi_release_threadsafe_function,
+                                release_threadsafe_function,
+                                func,
+                                mode);
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_unref_threadsafe_function(
     node_api_basic_env env, napi_threadsafe_function func)
@@ -456,9 +445,9 @@ napi_add_async_cleanup_hook(node_api_basic_env env,
 
 NAPI_EXTERN napi_status NAPI_CDECL
 napi_remove_async_cleanup_hook(napi_async_cleanup_hook_handle remove_handle)
-    NODE_API_ASYNC_CLEANUP_HOOK_VTABLE_IMPL(napi_remove_async_cleanup_hook,
-                                            remove_async_cleanup_hook,
-                                            remove_handle);
+    NODE_API_MODULE_VTABLE_IMPL_NOARGS(napi_remove_async_cleanup_hook,
+                                       remove_async_cleanup_hook,
+                                       remove_handle);
 
 #endif  // NAPI_VERSION >= 8
 
