@@ -116,11 +116,8 @@ extern node_api_module_vtable g_node_api_module_vtable_fallback;
 
 #define NODE_API_GLOBAL_MODULE_VTABLE_IMPL(func_name, method_name, ...)        \
   {                                                                            \
-    const node_api_module_vtable* module_vtable = g_node_api_module_vtable;    \
-    if (!module_vtable) {                                                      \
-      NODE_API_VTABLE_IMPL_FALLBACK(module_vtable, func_name, method_name)     \
-    }                                                                          \
-    module_vtable->method_name(__VA_ARGS__);                                   \
+    NODE_API_VTABLE_IMPL_FALLBACK(                                             \
+        module, func_name, method_name, __VA_ARGS__);                          \
   }
 
 #define NODE_API_MODULE_VTABLE_IMPL(func_name, method_name, obj, ...)          \

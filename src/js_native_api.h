@@ -134,7 +134,7 @@ EXTERN_C_END
     NODE_API_WRITE_POINTER_RELEASE(&vtable->method_name,                       \
                                    NODE_API_LOAD_SYMBOL(#func_name));          \
   }                                                                            \
-  return vtable->method_name(obj, __VA_ARGS__);
+  return vtable->method_name(obj, __VA_ARGS__)
 // NOLINTEND (readability/casting)
 
 #else  // NODE_API_MODULE_NO_VTABLE_FALLBACK
@@ -148,8 +148,7 @@ EXTERN_C_END
 #define NODE_API_UNREACHABLE() ((void)(*(volatile int*)0 = 0))
 #endif
 
-#define NODE_API_VTABLE_IMPL_FALLBACK(vtable, func_name, method_name)          \
-  NODE_API_UNREACHABLE();
+#define NODE_API_VTABLE_IMPL_FALLBACK(...) NODE_API_UNREACHABLE()
 
 #endif  // NODE_API_MODULE_NO_VTABLE_FALLBACK
 
