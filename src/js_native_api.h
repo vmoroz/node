@@ -44,6 +44,38 @@ EXTERN_C_START
 
 extern node_api_js_vtable g_node_api_js_vtable_fallback;
 
+// Platform-specific atomic pointer read/write with acquire/release semantics.
+// Used for thread-safe lazy initialization of function pointers.
+#if defined(__cplusplus) && __cplusplus >= 201103L
+// C++11 atomics
+#include <atomic>
+#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
+  std::atomic_load_explicit(                                                   \
+      reinterpret_cast<std::atomic<void*>*>(                                   \
+          const_cast<void**>(reinterpret_cast<void* const*>(ptr))),            \
+      std::memory_order_acquire)
+#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
+  std::atomic_store_explicit(                                                  \
+      reinterpret_cast<std::atomic<void*>*>(                                   \
+          const_cast<void**>(reinterpret_cast<void* const*>(ptr))),            \
+      static_cast<void*>(val),                                                 \
+      std::memory_order_release)
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L &&              \
+    !defined(__STDC_NO_ATOMICS__)
+// C11 atomics
+#include <stdatomic.h>
+#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
+  atomic_load_explicit((_Atomic(void*)*)ptr, memory_order_acquire)
+#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
+  atomic_store_explicit(                                                       \
+      (_Atomic(void*)*)ptr, (void*)(val), memory_order_release)
+#else
+// Fallback based on volatile
+#define NODE_API_READ_POINTER_ACQUIRE(ptr) (*(void* volatile*)(ptr))
+#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
+  (*(void* volatile*)(ptr) = (void*)(val))
+#endif
+
 // Platform-specific symbol loading
 #ifndef NODE_API_LOAD_SYMBOL
 #ifdef _WIN32
@@ -62,9 +94,9 @@ typedef intptr_t(WINAPI* node_api_farproc)();  // Matches Windows FARPROC
 // elsewhere).
 EXTERN_C_START
 __declspec(dllimport) node_api_hmodule WINAPI
-GetModuleHandleA(const char* lpModuleName);
+    GetModuleHandleA(const char* lpModuleName);
 __declspec(dllimport) node_api_farproc WINAPI
-GetProcAddress(node_api_hmodule hModule, const char* lpProcName);
+    GetProcAddress(node_api_hmodule hModule, const char* lpProcName);
 EXTERN_C_END
 
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
@@ -100,44 +132,15 @@ EXTERN_C_END
 #endif
 #endif  // NODE_API_LOAD_SYMBOL
 
-// Platform-specific atomic pointer read/write with acquire/release semantics.
-// Used for thread-safe lazy initialization of function pointers.
-#if defined(__cplusplus) && __cplusplus >= 201103L
-// C++11 atomics
-#include <atomic>
-#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
-  std::atomic_load_explicit(                                                   \
-      reinterpret_cast<std::atomic<void*>*>(                                   \
-          const_cast<void**>(reinterpret_cast<void* const*>(ptr))),            \
-      std::memory_order_acquire)
-#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  std::atomic_store_explicit(reinterpret_cast<std::atomic<void*>*>(ptr),       \
-                             static_cast<void*>(val),                          \
-                             std::memory_order_release)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L &&              \
-    !defined(__STDC_NO_ATOMICS__)
-// C11 atomics
-#include <stdatomic.h>
-#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
-  atomic_load_explicit((_Atomic(void*)*)ptr, memory_order_acquire)
-#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  atomic_store_explicit(                                                       \
-      (_Atomic(void*)*)ptr, (void*)(val), memory_order_release)
-#else
-// Fallback based on volatile
-#define NODE_API_READ_POINTER_ACQUIRE(ptr) (*(void* volatile*)(ptr))
-#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  (*(void* volatile*)(ptr) = (void*)(val))
-#endif
-
 // NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
-#define NODE_API_VTABLE_IMPL_FALLBACK(vtable, func_name, method_name, ...)     \
+#define NODE_API_VTABLE_IMPL_FALLBACK(                                         \
+    vtable, ret, func_name, method_name, ...)                                  \
   const node_api_##vtable* vtable = &g_node_api_##vtable##_fallback;           \
   if (!NODE_API_READ_POINTER_ACQUIRE(&vtable->method_name)) {                  \
     NODE_API_WRITE_POINTER_RELEASE(&vtable->method_name,                       \
                                    NODE_API_LOAD_SYMBOL(#func_name));          \
   }                                                                            \
-  return vtable->method_name(obj, __VA_ARGS__)
+  ret vtable->method_name(__VA_ARGS__)
 // NOLINTEND (readability/casting)
 
 #else  // NODE_API_MODULE_NO_VTABLE_FALLBACK
@@ -163,7 +166,7 @@ EXTERN_C_END
       return obj->vtable->method_name(__VA_ARGS__);                            \
     } else {                                                                   \
       NODE_API_VTABLE_IMPL_FALLBACK(                                           \
-          vtable, func_name, method_name, __VA_ARGS__);                        \
+          vtable, return, func_name, method_name, __VA_ARGS__);                \
     }                                                                          \
   }
 
@@ -681,8 +684,9 @@ NAPI_EXTERN napi_status NAPI_CDECL napi_instanceof(napi_env env,
                                                    napi_value object,
                                                    napi_value constructor,
                                                    bool* result)
-    NODE_API_JS_VTABLE_IMPL(
-        napi_instanceof, instanceof, env, object, constructor, result);
+    NODE_API_JS_VTABLE_IMPL(napi_instanceof,
+                            instanceof
+                            , env, object, constructor, result);
 
 // Methods to work with napi_callbacks
 
