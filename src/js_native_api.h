@@ -27,8 +27,6 @@
 #define EXTERN_C_END
 #endif
 
-EXTERN_C_START
-
 #if defined(NODE_API_MODULE_USE_VTABLE) &&                                     \
     !defined(NODE_API_MODULE_NO_VTABLE_IMPL)
 #define NODE_API_MODULE_USE_VTABLE_IMPL
@@ -129,7 +127,12 @@ void* dlsym(void* handle, const char* symbol);
 EXTERN_C_END
 
 #ifndef RTLD_DEFAULT
+// On macOS RTLD_DEFAULT is ((void*)-2); other platforms typically use NULL.
+#if defined(__APPLE__)
+#define RTLD_DEFAULT ((void*)-2)
+#else
 #define RTLD_DEFAULT ((void*)0)
+#endif
 #endif
 
 #define NODE_API_LOAD_SYMBOL(name) dlsym(RTLD_DEFAULT, name)
@@ -181,6 +184,8 @@ EXTERN_C_END
 #define NODE_API_JS_VTABLE_IMPL(...)
 
 #endif  // NODE_API_MODULE_USE_VTABLE_IMPL
+
+EXTERN_C_START
 
 NAPI_EXTERN napi_status NAPI_CDECL napi_get_last_error_info(
     node_api_basic_env env, const napi_extended_error_info** result)
