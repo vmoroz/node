@@ -5,3 +5,4 @@ const { runAddonTest } = require('../../common/addon-test');
 
 runAddonTest(__dirname, 'test.js', 'binding');
 runAddonTest(__dirname, 'test.js', 'binding_vtable');
+runAddonTest(__dirname, 'test.js', 'binding_vtable_nofb');
