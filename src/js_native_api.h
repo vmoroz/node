@@ -71,13 +71,16 @@ EXTERN_C_END
 static inline node_api_hmodule node_api_get_runtime_module_handle() {
   // This code should match the code in win_delay_load_hook.cc from node-gyp
   static node_api_hmodule module_handle = NULL;
-  if (module_handle == NULL) {
-    module_handle = GetModuleHandleA("libnode.dll");
-    if (module_handle == NULL) {
-      module_handle = GetModuleHandleA(NULL);
+  node_api_hmodule handle =
+      (node_api_hmodule)NODE_API_READ_POINTER_ACQUIRE(&module_handle);
+  if (handle == NULL) {
+    handle = GetModuleHandleA("libnode.dll");
+    if (handle == NULL) {
+      handle = GetModuleHandleA(NULL);
     }
+    NODE_API_WRITE_POINTER_RELEASE(&module_handle, handle);
   }
-  return module_handle;
+  return handle;
 }
 // NOLINTEND (readability/null_usage)
 
