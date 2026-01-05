@@ -64,16 +64,20 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
     !defined(__STDC_NO_ATOMICS__)
 // C11 atomics
 #include <stdatomic.h>
+// NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
 #define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
   atomic_load_explicit((_Atomic(void*)*)ptr, memory_order_acquire)
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   atomic_store_explicit(                                                       \
       (_Atomic(void*)*)ptr, (void*)(val), memory_order_release)
+// NOLINTEND (readability/casting)
 #else
 // Fallback based on volatile
+// NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
 #define NODE_API_READ_POINTER_ACQUIRE(ptr) (*(void* volatile*)(ptr))
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   (*(void* volatile*)(ptr) = (void*)(val))
+// NOLINTEND (readability/casting)
 #endif
 
 // Platform-specific symbol loading
@@ -132,7 +136,6 @@ EXTERN_C_END
 #endif
 #endif  // NODE_API_LOAD_SYMBOL
 
-// NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
 #define NODE_API_VTABLE_IMPL_FALLBACK(                                         \
     vtable, ret, func_name, method_name, ...)                                  \
   const node_api_##vtable* vtable = &g_node_api_##vtable##_fallback;           \
@@ -141,7 +144,6 @@ EXTERN_C_END
                                    NODE_API_LOAD_SYMBOL(#func_name));          \
   }                                                                            \
   ret vtable->method_name(__VA_ARGS__)
-// NOLINTEND (readability/casting)
 
 #else  // NODE_API_MODULE_NO_VTABLE_FALLBACK
 
