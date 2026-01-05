@@ -96,7 +96,9 @@
   napi_value NODE_API_MODULE_INITIALIZER_IMPL(napi_env env, napi_value exports)
 
 #define NAPI_MODULE(modname, regfunc)                                          \
-  NAPI_MODULE_INIT() { return regfunc(env, exports); }
+  NAPI_MODULE_INIT() {                                                         \
+    return regfunc(env, exports);                                              \
+  }
 
 // Deprecated. Use NAPI_MODULE.
 #define NAPI_MODULE_X(modname, regfunc, priv, flags)                           \
@@ -123,10 +125,10 @@ extern node_api_module_vtable g_node_api_module_vtable_fallback;
 
 #define NODE_API_MODULE_VTABLE_IMPL(func_name, method_name, obj, ...)          \
   NODE_API_VTABLE_IMPL_BASE(                                                   \
-      module_vtable, func_name, method_name, obj, __VA_ARGS__)
+      module_vtable, func_name, method_name, obj, obj, __VA_ARGS__)
 
 #define NODE_API_MODULE_VTABLE_IMPL_NOARGS(func_name, method_name, obj)        \
-  NODE_API_VTABLE_IMPL_BASE_NOARGS(module_vtable, func_name, method_name, obj)
+  NODE_API_VTABLE_IMPL_BASE(module_vtable, func_name, method_name, obj, obj)
 
 #else  // NODE_API_MODULE_USE_VTABLE_IMPL
 
