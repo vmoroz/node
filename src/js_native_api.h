@@ -97,14 +97,7 @@ static inline HMODULE node_api_find_runtime_module(void) {
   return handle ? handle : GetModuleHandleA(NULL);
 }
 
-#if defined(__cplusplus) && __cplusplus >= 201103L
-// C++11 guarantees thread-safe initialization of static local variables
-static inline HMODULE node_api_get_runtime_module_handle() {
-  static HMODULE module_handle = node_api_find_runtime_module();
-  return module_handle;
-}
-#else
-// C requires explicit atomic store for thread-safe lazy initialization.
+// Thread-safe lazy initialization using benign-race pattern.
 // Plain read is sufficient because:
 // 1. Aligned pointer reads are atomic on Windows platforms (x86/x64/ARM64)
 // 2. node_api_find_runtime_module() is idempotent - races just cause redundant work
@@ -119,7 +112,6 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
   return handle;
 }
 // NOLINTEND (readability/null_usage)
-#endif
 
 #define NODE_API_LOAD_SYMBOL(name)                                             \
   GetProcAddress(node_api_get_runtime_module_handle(), name)
