@@ -122,7 +122,7 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
 #define NODE_API_VTABLE_IMPL_FALLBACK(                                         \
     vtable, ret, func_name, method_name, ...)                                  \
   const node_api_##vtable* vtable = &g_node_api_##vtable##_fallback;           \
-  if (!NODE_API_READ_POINTER_ACQUIRE(&vtable->method_name)) {                  \
+  if (!vtable->method_name) {                                                  \
     NODE_API_WRITE_POINTER_RELEASE(&vtable->method_name,                       \
                                    NODE_API_LOAD_SYMBOL(#func_name));          \
   }                                                                            \
