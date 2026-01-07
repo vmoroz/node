@@ -81,32 +81,20 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 // Platform-specific symbol loading
 #ifndef NODE_API_LOAD_SYMBOL
 #ifdef _WIN32
-// Minimal Win32 declarations to avoid pulling in windows.h and to sidestep
-// typedef redefinition issues. Use namespaced typedefs instead of probing for
-// existing ones.
-#ifndef WINAPI
-#define WINAPI __stdcall
+// Use minimal Windows headers for GetModuleHandleA and GetProcAddress
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
-
-typedef struct HINSTANCE__* node_api_hmodule;  // Matches Windows HMODULE
-typedef intptr_t(WINAPI* node_api_farproc)();  // Matches Windows FARPROC
-
-// Kernel32 imports needed for runtime symbol lookup (keep signatures identical
-// to system headers to avoid redefinition conflicts if windows.h is included
-// elsewhere).
-EXTERN_C_START
-__declspec(dllimport) node_api_hmodule WINAPI
-    GetModuleHandleA(const char* lpModuleName);
-__declspec(dllimport) node_api_farproc WINAPI
-    GetProcAddress(node_api_hmodule hModule, const char* lpProcName);
-EXTERN_C_END
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
 
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
-static inline node_api_hmodule node_api_get_runtime_module_handle() {
+static inline HMODULE node_api_get_runtime_module_handle(void) {
   // This code should match the code in win_delay_load_hook.cc from node-gyp
-  static node_api_hmodule module_handle = NULL;
-  node_api_hmodule handle =
-      (node_api_hmodule)NODE_API_READ_POINTER_ACQUIRE(&module_handle);
+  static HMODULE module_handle = NULL;
+  HMODULE handle = (HMODULE)NODE_API_READ_POINTER_ACQUIRE(&module_handle);
   if (handle == NULL) {
     handle = GetModuleHandleA("libnode.dll");
     if (handle == NULL) {
@@ -121,22 +109,10 @@ static inline node_api_hmodule node_api_get_runtime_module_handle() {
 #define NODE_API_LOAD_SYMBOL(name)                                             \
   GetProcAddress(node_api_get_runtime_module_handle(), name)
 #else
-// Minimal POSIX dlsym declaration to avoid pulling in dlfcn.h
-EXTERN_C_START
-void* dlsym(void* handle, const char* symbol);
-EXTERN_C_END
-
-#ifndef RTLD_DEFAULT
-// On macOS RTLD_DEFAULT is ((void*)-2); other platforms typically use NULL.
-#if defined(__APPLE__)
-#define RTLD_DEFAULT ((void*)-2)
-#else
-#define RTLD_DEFAULT ((void*)0)
-#endif
-#endif
-
+// POSIX platforms: use dlfcn.h for dlsym and RTLD_DEFAULT
+#include <dlfcn.h>
 #define NODE_API_LOAD_SYMBOL(name) dlsym(RTLD_DEFAULT, name)
-#endif
+#endif  // _WIN32
 #endif  // NODE_API_LOAD_SYMBOL
 
 #define NODE_API_VTABLE_IMPL_FALLBACK(                                         \
