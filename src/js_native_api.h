@@ -42,16 +42,13 @@
 
 extern node_api_js_vtable g_node_api_js_vtable_fallback;
 
-// Platform-specific atomic pointer read/write with acquire/release semantics.
+// Platform-specific atomic pointer write with release semantics.
 // Used for thread-safe lazy initialization of function pointers.
+// Plain reads are sufficient because aligned pointer reads are atomic
+// and initialization functions are idempotent (races just cause redundant work).
 #if defined(__cplusplus) && __cplusplus >= 201103L
 // C++11 atomics
 #include <atomic>
-#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
-  std::atomic_load_explicit(                                                   \
-      reinterpret_cast<std::atomic<void*>*>(                                   \
-          const_cast<void**>(reinterpret_cast<void* const*>(ptr))),            \
-      std::memory_order_acquire)
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   std::atomic_store_explicit(                                                  \
       reinterpret_cast<std::atomic<void*>*>(                                   \
@@ -63,8 +60,6 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 // C11 atomics
 #include <stdatomic.h>
 // NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
-#define NODE_API_READ_POINTER_ACQUIRE(ptr)                                     \
-  atomic_load_explicit((_Atomic(void*)*)ptr, memory_order_acquire)
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   atomic_store_explicit(                                                       \
       (_Atomic(void*)*)ptr, (void*)(val), memory_order_release)
@@ -72,7 +67,6 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 #else
 // Fallback based on volatile
 // NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
-#define NODE_API_READ_POINTER_ACQUIRE(ptr) (*(void* volatile*)(ptr))
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   (*(void* volatile*)(ptr) = (void*)(val))
 // NOLINTEND (readability/casting)
