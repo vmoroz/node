@@ -104,11 +104,14 @@ static inline HMODULE node_api_get_runtime_module_handle() {
   return module_handle;
 }
 #else
-// C requires explicit atomic operations for thread-safe lazy initialization
+// C requires explicit atomic store for thread-safe lazy initialization.
+// Plain read is sufficient because:
+// 1. Aligned pointer reads are atomic on Windows platforms (x86/x64/ARM64)
+// 2. node_api_find_runtime_module() is idempotent - races just cause redundant work
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
 static inline HMODULE node_api_get_runtime_module_handle(void) {
   static HMODULE module_handle = NULL;
-  HMODULE handle = (HMODULE)NODE_API_READ_POINTER_ACQUIRE(&module_handle);
+  HMODULE handle = module_handle;
   if (handle == NULL) {
     handle = node_api_find_runtime_module();
     NODE_API_WRITE_POINTER_RELEASE(&module_handle, handle);
