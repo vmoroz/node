@@ -90,21 +90,33 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 #endif
 #include <windows.h>
 
+// Common logic to find the runtime module handle
+static inline HMODULE node_api_find_runtime_module(void) {
+  // This code should match the code in win_delay_load_hook.cc from node-gyp
+  HMODULE handle = GetModuleHandleA("libnode.dll");
+  return handle ? handle : GetModuleHandleA(NULL);
+}
+
+#if defined(__cplusplus) && __cplusplus >= 201103L
+// C++11 guarantees thread-safe initialization of static local variables
+static inline HMODULE node_api_get_runtime_module_handle() {
+  static HMODULE module_handle = node_api_find_runtime_module();
+  return module_handle;
+}
+#else
+// C requires explicit atomic operations for thread-safe lazy initialization
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
 static inline HMODULE node_api_get_runtime_module_handle(void) {
-  // This code should match the code in win_delay_load_hook.cc from node-gyp
   static HMODULE module_handle = NULL;
   HMODULE handle = (HMODULE)NODE_API_READ_POINTER_ACQUIRE(&module_handle);
   if (handle == NULL) {
-    handle = GetModuleHandleA("libnode.dll");
-    if (handle == NULL) {
-      handle = GetModuleHandleA(NULL);
-    }
+    handle = node_api_find_runtime_module();
     NODE_API_WRITE_POINTER_RELEASE(&module_handle, handle);
   }
   return handle;
 }
 // NOLINTEND (readability/null_usage)
+#endif
 
 #define NODE_API_LOAD_SYMBOL(name)                                             \
   GetProcAddress(node_api_get_runtime_module_handle(), name)
