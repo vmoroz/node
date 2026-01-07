@@ -90,23 +90,20 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 #endif
 #include <windows.h>
 
-// Common logic to find the runtime module handle
-static inline HMODULE node_api_find_runtime_module(void) {
-  // This code should match the code in win_delay_load_hook.cc from node-gyp
-  HMODULE handle = GetModuleHandleA("libnode.dll");
-  return handle ? handle : GetModuleHandleA(NULL);
-}
-
 // Thread-safe lazy initialization using benign-race pattern.
 // Plain read is sufficient because:
 // 1. Aligned pointer reads are atomic on Windows platforms (x86/x64/ARM64)
-// 2. node_api_find_runtime_module() is idempotent - races just cause redundant work
+// 2. GetModuleHandleA() is idempotent - races just cause redundant work
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
 static inline HMODULE node_api_get_runtime_module_handle(void) {
   static HMODULE module_handle = NULL;
   HMODULE handle = module_handle;
   if (handle == NULL) {
-    handle = node_api_find_runtime_module();
+    // This code should match the code in win_delay_load_hook.cc from node-gyp
+    handle = GetModuleHandleA("libnode.dll");
+    if (handle == NULL) {
+      handle = GetModuleHandleA(NULL);
+    }
     NODE_API_WRITE_POINTER_RELEASE(&module_handle, handle);
   }
   return handle;
