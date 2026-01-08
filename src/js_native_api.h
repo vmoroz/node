@@ -42,30 +42,22 @@
 
 extern node_api_js_vtable g_node_api_js_vtable_fallback;
 
-// Platform-specific atomic pointer write with release semantics.
-// Used for thread-safe lazy initialization of function pointers.
-// Plain reads are sufficient because aligned pointer reads are atomic
-// and initialization functions are idempotent (races just cause redundant work).
-// Define NODE_API_WRITE_POINTER_RELEASE before including this header to
-// override for other compilers.
+// Atomic pointer write with release semantics for thread-safe lazy init.
 #ifndef NODE_API_WRITE_POINTER_RELEASE
-// NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
+// NOLINTBEGIN (readability/casting) - must be compilable by C compiler
 #ifdef _MSC_VER
 #include <intrin.h>
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   (void)_InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
 #else
-// GCC/Clang: atomic builtin works in both C and C++
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
   __atomic_store_n((void**)(ptr), (void*)(val), __ATOMIC_RELEASE)
 #endif
 // NOLINTEND (readability/casting)
 #endif  // NODE_API_WRITE_POINTER_RELEASE
 
-// Platform-specific symbol loading
 #ifndef NODE_API_LOAD_SYMBOL
 #ifdef _WIN32
-// Use minimal Windows headers for GetModuleHandleA and GetProcAddress
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -74,16 +66,12 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 #endif
 #include <windows.h>
 
-// Thread-safe lazy initialization using benign-race pattern.
-// Plain read is sufficient because:
-// 1. Aligned pointer reads are atomic on Windows platforms (x86/x64/ARM64)
-// 2. GetModuleHandleA() is idempotent - races just cause redundant work
-// NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
+// NOLINTBEGIN (readability/null_usage) - must be compilable by C compiler
 static inline HMODULE node_api_get_runtime_module_handle(void) {
   static HMODULE module_handle = NULL;
   HMODULE handle = module_handle;
   if (handle == NULL) {
-    // This code should match the code in win_delay_load_hook.cc from node-gyp
+    // Match the code in win_delay_load_hook.cc from node-gyp.
     handle = GetModuleHandleA("libnode.dll");
     if (handle == NULL) {
       handle = GetModuleHandleA(NULL);
@@ -97,7 +85,6 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
 #define NODE_API_LOAD_SYMBOL(name)                                             \
   GetProcAddress(node_api_get_runtime_module_handle(), name)
 #else
-// POSIX platforms: use dlfcn.h for dlsym and RTLD_DEFAULT
 #include <dlfcn.h>
 #define NODE_API_LOAD_SYMBOL(name) dlsym(RTLD_DEFAULT, name)
 #endif  // _WIN32
@@ -114,14 +101,10 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
 
 #else  // NODE_API_MODULE_NO_VTABLE_FALLBACK
 
-// Immediate process termination for unreachable code paths.
-// Used when vtable fallback is disabled but runtime doesn't provide vtable.
-// Define NODE_API_UNREACHABLE before including this header to override.
 #ifndef NODE_API_UNREACHABLE
 #ifdef _MSC_VER
 #define NODE_API_UNREACHABLE() __fastfail(7 /* FAST_FAIL_FATAL_APP_EXIT */)
 #else
-// GCC/Clang: generates SIGILL, equivalent behavior to __fastfail
 #define NODE_API_UNREACHABLE() __builtin_trap()
 #endif
 #endif  // NODE_API_UNREACHABLE

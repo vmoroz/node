@@ -65,7 +65,7 @@
 
 #define NODE_API_MODULE_INITIALIZER_IMPL NAPI_MODULE_INITIALIZER##_impl
 
-// NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
+// NOLINTBEGIN (readability/null_usage) - must be compilable by C compiler
 #define NODE_API_MODULE_INITIALIZER_IMPL_EX                                    \
   NODE_API_VTABLE_FALLBACK_GLOBALS                                             \
   const node_api_module_vtable* g_node_api_module_vtable = NULL;               \
