@@ -63,7 +63,7 @@
 #define NODE_API_VTABLE_FALLBACK_GLOBALS
 #endif
 
-#define NODE_API_MODULE_INITIALIZER_IMPL NAPI_MODULE_INIT##_impl
+#define NODE_API_MODULE_INITIALIZER_IMPL NAPI_MODULE_INITIALIZER##_impl
 
 // NOLINTBEGIN (readability/null_usage) - it must be compilable by C compiler
 #define NODE_API_MODULE_INITIALIZER_IMPL_EX                                    \
