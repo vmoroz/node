@@ -794,7 +794,15 @@ typedef struct node_api_js_vtable {
 #endif  // NAPI_EXPERIMENTAL
 } node_api_js_vtable;
 
-#define NODE_API_VT_SENTINEL 0x4E4F44455F565401ULL  // "NODE_VT" + 0x01
+// Sentinel format: "NODE_VT" (7 bytes) + marker byte.
+// Marker byte = (version << 1) | 1
+//   - Bit 0 is always 1: ensures the sentinel can never match a C++ vtable
+//     pointer (which is always pointer-aligned, thus bit 0 = 0).
+//   - Bits 1-7: struct version number (0-127).
+#define NODE_API_VT_SENTINEL_VERSION 0
+#define NODE_API_VT_SENTINEL_MAKE(version)                                     \
+  (0x4E4F44455F565400ULL | (((version) << 1) | 1))
+#define NODE_API_VT_SENTINEL NODE_API_VT_SENTINEL_MAKE(NODE_API_VT_SENTINEL_VERSION)
 
 struct napi_env__ {
   uint64_t sentinel;  // Should be NODE_API_VT_SENTINEL
