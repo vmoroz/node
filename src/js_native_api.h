@@ -46,31 +46,21 @@ extern node_api_js_vtable g_node_api_js_vtable_fallback;
 // Used for thread-safe lazy initialization of function pointers.
 // Plain reads are sufficient because aligned pointer reads are atomic
 // and initialization functions are idempotent (races just cause redundant work).
-#if defined(__cplusplus) && __cplusplus >= 201103L
-// C++11 atomics
-#include <atomic>
-#define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  std::atomic_store_explicit(                                                  \
-      reinterpret_cast<std::atomic<void*>*>(                                   \
-          const_cast<void**>(reinterpret_cast<void* const*>(ptr))),            \
-      static_cast<void*>(val),                                                 \
-      std::memory_order_release)
-#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 201112L &&              \
-    !defined(__STDC_NO_ATOMICS__)
-// C11 atomics
-#include <stdatomic.h>
+// Define NODE_API_WRITE_POINTER_RELEASE before including this header to
+// override for other compilers.
+#ifndef NODE_API_WRITE_POINTER_RELEASE
 // NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
+#ifdef _MSC_VER
+#include <intrin.h>
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  atomic_store_explicit(                                                       \
-      (_Atomic(void*)*)ptr, (void*)(val), memory_order_release)
-// NOLINTEND (readability/casting)
+  (void)_InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val))
 #else
-// Fallback based on volatile
-// NOLINTBEGIN (readability/casting) - it must be compilable by C compiler
+// GCC/Clang: atomic builtin works in both C and C++
 #define NODE_API_WRITE_POINTER_RELEASE(ptr, val)                               \
-  (*(void* volatile*)(ptr) = (void*)(val))
-// NOLINTEND (readability/casting)
+  __atomic_store_n((void**)(ptr), (void*)(val), __ATOMIC_RELEASE)
 #endif
+// NOLINTEND (readability/casting)
+#endif  // NODE_API_WRITE_POINTER_RELEASE
 
 // Platform-specific symbol loading
 #ifndef NODE_API_LOAD_SYMBOL
