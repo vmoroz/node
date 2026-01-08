@@ -1,10 +1,10 @@
 #ifndef SRC_JS_NATIVE_API_V8_INTERNALS_H_
 #define SRC_JS_NATIVE_API_V8_INTERNALS_H_
 
-// The V8 implementation of Node-API, including `js_native_api_v8.h` uses certain
-// idioms which require definition here. For example, it uses a variant of
-// persistent references which need not be reset in the constructor. It is the
-// responsibility of this file to define these idioms. Optionally, this file
+// The V8 implementation of Node-API, including `js_native_api_v8.h` uses
+// certain idioms which require definition here. For example, it uses a variant
+// of persistent references which need not be reset in the constructor. It is
+// the responsibility of this file to define these idioms. Optionally, this file
 // may also define `NAPI_VERSION` and set it to the version of Node-API to be
 // exposed.
 

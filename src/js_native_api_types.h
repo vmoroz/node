@@ -10,9 +10,9 @@
 // The baseline version for Node-API.
 // The NAPI_VERSION controls which version will be used by default when
 // compiling a native addon. If the addon developer specifically wants to use
-// functions available in a new version of Node-API that is not yet ported in all
-// LTS versions, they can set NAPI_VERSION knowing that they have specifically
-// depended on that version.
+// functions available in a new version of Node-API that is not yet ported in
+// all LTS versions, they can set NAPI_VERSION knowing that they have
+// specifically depended on that version.
 #define NAPI_VERSION 8
 #endif
 #endif
@@ -802,7 +802,8 @@ typedef struct node_api_js_vtable {
 #define NODE_API_VT_SENTINEL_VERSION 0
 #define NODE_API_VT_SENTINEL_MAKE(version)                                     \
   (0x4E4F44455F565400ULL | (((version) << 1) | 1))
-#define NODE_API_VT_SENTINEL NODE_API_VT_SENTINEL_MAKE(NODE_API_VT_SENTINEL_VERSION)
+#define NODE_API_VT_SENTINEL                                                   \
+  NODE_API_VT_SENTINEL_MAKE(NODE_API_VT_SENTINEL_VERSION)
 
 struct napi_env__ {
   uint64_t sentinel;  // Should be NODE_API_VT_SENTINEL

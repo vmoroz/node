@@ -380,11 +380,10 @@ inline napi_status Unwrap(NodeApiBaseEnv* env,
 
 //=== Function napi_callback wrapper =================================
 
-// Use this data structure to associate callback data with each Node-API function
-// exposed to JavaScript. The structure is stored in a v8::External which gets
-// passed into our callback wrapper. This reduces the performance impact of
-// calling through Node-API.
-// Ref: benchmark/misc/function_call
+// Use this data structure to associate callback data with each Node-API
+// function exposed to JavaScript. The structure is stored in a v8::External
+// which gets passed into our callback wrapper. This reduces the performance
+// impact of calling through Node-API. Ref: benchmark/misc/function_call
 // Discussion (incl. perf. data): https://github.com/nodejs/node/pull/21072
 class CallbackBundle {
  public:
