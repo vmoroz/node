@@ -7,10 +7,10 @@
 #ifdef NAPI_EXPERIMENTAL
 #define NAPI_VERSION NAPI_VERSION_EXPERIMENTAL
 #else
-// The baseline version for N-API.
+// The baseline version for Node-API.
 // The NAPI_VERSION controls which version will be used by default when
 // compiling a native addon. If the addon developer specifically wants to use
-// functions available in a new version of N-API that is not yet ported in all
+// functions available in a new version of Node-API that is not yet ported in all
 // LTS versions, they can set NAPI_VERSION knowing that they have specifically
 // depended on that version.
 #define NAPI_VERSION 8
@@ -246,7 +246,7 @@ typedef struct {
 
 #if defined(NODE_API_MODULE_USE_VTABLE) || defined(NODE_API_RUNTIME_USE_VTABLE)
 
-// v-table for the base JavaScript to native interop functions.
+// Vtable for JavaScript to native interop functions.
 // New functions must be added at the end to maintain backward compatibility.
 typedef struct node_api_js_vtable {
   napi_status(NAPI_CDECL* get_last_error_info)(
