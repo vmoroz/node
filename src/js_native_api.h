@@ -114,14 +114,17 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
 
 #else  // NODE_API_MODULE_NO_VTABLE_FALLBACK
 
-// Platform-specific abort that generates a debugger-friendly crash
+// Immediate process termination for unreachable code paths.
+// Used when vtable fallback is disabled but runtime doesn't provide vtable.
+// Define NODE_API_UNREACHABLE before including this header to override.
+#ifndef NODE_API_UNREACHABLE
 #ifdef _MSC_VER
-#define NODE_API_UNREACHABLE() __debugbreak()
-#elif defined(__GNUC__) || defined(__clang__)
-#define NODE_API_UNREACHABLE() __builtin_trap()
+#define NODE_API_UNREACHABLE() __fastfail(7 /* FAST_FAIL_FATAL_APP_EXIT */)
 #else
-#define NODE_API_UNREACHABLE() ((void)(*(volatile int*)0 = 0))
+// GCC/Clang: generates SIGILL, equivalent behavior to __fastfail
+#define NODE_API_UNREACHABLE() __builtin_trap()
 #endif
+#endif  // NODE_API_UNREACHABLE
 
 #define NODE_API_VTABLE_IMPL_FALLBACK(...) NODE_API_UNREACHABLE()
 
