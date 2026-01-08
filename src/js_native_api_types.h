@@ -35,7 +35,7 @@
 #else
 // This file needs to be compatible with C compilers.
 // This is a public include file, and these includes have essentially
-// became part of it's API.
+// become part of its API.
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
