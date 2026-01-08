@@ -8,11 +8,10 @@
 #define NAPI_VERSION NAPI_VERSION_EXPERIMENTAL
 #else
 // The baseline version for Node-API.
-// The NAPI_VERSION controls which version will be used by default when
-// compiling a native addon. If the addon developer specifically wants to use
-// functions available in a new version of Node-API that is not yet ported in
-// all LTS versions, they can set NAPI_VERSION knowing that they have
-// specifically depended on that version.
+// NAPI_VERSION controls which version is used by default when compiling
+// a native addon. If the addon developer wants to use functions from a
+// newer Node-API version not yet available in all LTS versions, they can
+// set NAPI_VERSION to explicitly depend on that version.
 #define NAPI_VERSION 8
 #endif
 #endif
