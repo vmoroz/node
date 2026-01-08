@@ -104,7 +104,7 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
 #endif  // NODE_API_LOAD_SYMBOL
 
 #define NODE_API_VTABLE_IMPL_FALLBACK(                                         \
-    vtable, ret, func_name, method_name, ...)                                  \
+    ret, vtable, func_name, method_name, ...)                                  \
   const node_api_##vtable* vtable = &g_node_api_##vtable##_fallback;           \
   if (!vtable->method_name) {                                                  \
     NODE_API_WRITE_POINTER_RELEASE(&vtable->method_name,                       \
@@ -138,7 +138,7 @@ static inline HMODULE node_api_get_runtime_module_handle(void) {
       return obj->vtable->method_name(__VA_ARGS__);                            \
     } else {                                                                   \
       NODE_API_VTABLE_IMPL_FALLBACK(                                           \
-          vtable, return, func_name, method_name, __VA_ARGS__);                \
+          return, vtable, func_name, method_name, __VA_ARGS__);                \
     }                                                                          \
   }
 
