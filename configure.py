@@ -993,6 +993,12 @@ parser.add_argument('--shared',
     help='compile shared library for embedding node in another project. ' +
          '(This mode is not officially supported for regular applications)')
 
+parser.add_argument('--build-hermes',
+    action='store_true',
+    dest='build_hermes',
+    default=None,
+    help='build hermes shared library (hermes.dll) using best code from Node.js')
+
 parser.add_argument('--libdir',
     action='store',
     dest='libdir',
